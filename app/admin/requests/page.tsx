@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { createClient } from '@/lib/supabase/client'
+import { createClient, hasSupabaseConfig } from '@/lib/supabase/client'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Empty } from '@/components/ui/empty'
@@ -20,11 +20,13 @@ import {
   getRequestStatusLabel,
   getRequestSummaryValue,
   getRequestTypeTitle,
+  type RequestPayload,
   type RequestStatus,
 } from '@/lib/request-types'
 
 interface Request {
   id: string
+  resident_id: string
   request_type?: string | null
   title: string
   description: string
@@ -32,18 +34,20 @@ interface Request {
   status: string
   priority: string
   created_at: string
-  payload?: Record<string, unknown> | null
+  payload?: RequestPayload | null
   residents: {
     first_name: string
     last_name: string
     email: string
     barangay: string
-  }
+  } | null
 }
 
 export default function AdminRequestsPage() {
   const [requests, setRequests] = useState<Request[]>([])
   const [loading, setLoading] = useState(true)
+  const [configError, setConfigError] = useState<string | null>(null)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [selectedRequest, setSelectedRequest] = useState<Request | null>(null)
   const [isDetailOpen, setIsDetailOpen] = useState(false)
 
@@ -53,16 +57,57 @@ export default function AdminRequestsPage() {
 
   async function loadRequests() {
     try {
+      setLoadError(null)
+      if (!hasSupabaseConfig()) {
+        setConfigError('Supabase environment variables are missing. Create .env.local with NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY, then restart pnpm dev.')
+        setRequests([])
+        return
+      }
+
       const supabase = createClient()
-      
-      const { data } = await supabase
+
+      // Use wildcard select so page still works even when local DB is behind some migrations.
+      const { data, error } = await supabase
         .from('requests')
-        .select('id, request_type, title, description, category, status, priority, created_at, payload, residents(first_name, last_name, email, barangay)')
+        .select('*')
         .order('created_at', { ascending: false })
 
-      setRequests(data || [])
-    } catch (error) {
-      console.error('Error loading requests:', error)
+      if (error) {
+        setLoadError(error?.message || 'Failed to load requests')
+        setRequests([])
+        return
+      }
+
+      const residentIds = Array.from(new Set((data || []).map((row: any) => row.resident_id).filter(Boolean)))
+      let residentsById: Record<string, { first_name: string; last_name: string; email: string; barangay: string }> = {}
+
+      if (residentIds.length > 0) {
+        const { data: residents, error: residentsError } = await supabase
+          .from('residents')
+          .select('id, first_name, last_name, email, barangay')
+          .in('id', residentIds)
+
+        if (!residentsError) {
+          residentsById = Object.fromEntries(
+            (residents || []).map((resident: any) => [resident.id, {
+              first_name: resident.first_name,
+              last_name: resident.last_name,
+              email: resident.email,
+              barangay: resident.barangay,
+            }]),
+          )
+        }
+      }
+
+      const mappedRequests: Request[] = (data || []).map((row: any) => ({
+        ...row,
+        residents: residentsById[row.resident_id] || null,
+      }))
+
+      setRequests(mappedRequests)
+    } catch (error: any) {
+      setLoadError(error?.message || 'Failed to load requests')
+      setRequests([])
     } finally {
       setLoading(false)
     }
@@ -128,7 +173,10 @@ export default function AdminRequestsPage() {
           <p className="text-muted-foreground">Loading requests...</p>
         </div>
       ) : requests.length === 0 ? (
-        <Empty title="No requests" description="No service requests have been submitted yet" />
+        <Empty
+          title={configError ? 'Supabase not configured' : loadError ? 'Requests table unavailable' : 'No requests'}
+          description={configError || loadError || 'No service requests have been submitted yet'}
+        />
       ) : (
         <div className="rounded-2xl border border-emerald-100 bg-white shadow-sm">
           <Table>
@@ -145,8 +193,10 @@ export default function AdminRequestsPage() {
               {requests.map((request) => (
                 <TableRow key={request.id}>
                   <TableCell className="font-medium">
-                    {request.residents.first_name} {request.residents.last_name}
-                    <div className="text-xs text-muted-foreground">{request.residents.email}</div>
+                    {request.residents
+                      ? `${request.residents.first_name} ${request.residents.last_name}`
+                      : 'Resident record unavailable'}
+                    <div className="text-xs text-muted-foreground">{request.residents?.email || 'No email available'}</div>
                   </TableCell>
                   <TableCell>
                     <Badge variant="outline" className="bg-background">

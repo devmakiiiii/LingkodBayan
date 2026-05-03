@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
@@ -79,11 +80,21 @@ export default function Page() {
 
   return (
     <div className="flex min-h-screen w-full items-center justify-center p-4 bg-[#0D1B5E]">
-      <div className="w-full max-w-[680px]">
+      <div className="w-full max-w-170">
         <div className="bg-white rounded-[12px] shadow-2xl overflow-hidden">
           <div className="p-8 md:p-10">
             {/* Logo Section */}
             <div className="text-center mb-8">
+              <div className="mx-auto mb-4 flex h-24 w-24 items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-gray-200">
+                <Image
+                  src="/lingkod-logo.png"
+                  alt="LingkodBayan logo"
+                  width={88}
+                  height={88}
+                  className="h-20 w-20 object-contain"
+                  priority
+                />
+              </div>
               <h1 className="text-2xl font-bold text-gray-900 tracking-wide">LINGKOD BAYAN</h1>
               <p className="text-xs text-gray-500 mt-1">Create Your Account</p>
             </div>

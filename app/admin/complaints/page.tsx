@@ -2,7 +2,7 @@
 
 import { useEffect, useState, Suspense } from 'react'
 import dynamic from 'next/dynamic'
-import { createClient } from '@/lib/supabase/client'
+import { createClient, hasSupabaseConfig } from '@/lib/supabase/client'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -28,12 +28,17 @@ const ComplaintsAnalyticsMap = dynamic(
 interface Complaint {
   id: string
   subject: string
+  title?: string
   description: string
   category: string
   status: string
+  resident_id: string
   latitude?: number
   longitude?: number
-  location_address?: string
+  location_address: string
+  resident_name: string
+  resident_email: string
+  resident_user_id: string
   created_at: string
   residents: {
     id: string
@@ -42,12 +47,14 @@ interface Complaint {
     last_name: string
     email: string
     barangay: string
-  }
+  } | null
 }
 
 export default function AdminComplaintsPage() {
   const [complaints, setComplaints] = useState<Complaint[]>([])
   const [loading, setLoading] = useState(true)
+  const [configError, setConfigError] = useState<string | null>(null)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<'list' | 'map'>('list')
   const [selectedComplaint, setSelectedComplaint] = useState<Complaint | null>(null)
   const [showActions, setShowActions] = useState(false)
@@ -58,21 +65,59 @@ export default function AdminComplaintsPage() {
 
   async function loadComplaints() {
     try {
+      setLoadError(null)
+      if (!hasSupabaseConfig()) {
+        setConfigError('Supabase environment variables are missing. Create .env.local with NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY, then restart pnpm dev.')
+        setComplaints([])
+        return
+      }
+
       const supabase = createClient()
-      
-      const { data } = await supabase
+
+      // Use wildcard select so page still works even when local DB is behind some migrations.
+      const { data, error } = await supabase
         .from('complaints')
-        .select('*, residents(user_id, first_name, last_name, email, barangay)')
+        .select('*')
         .order('created_at', { ascending: false })
+
+      if (error) {
+        setLoadError(error?.message || 'Failed to load complaints')
+        setComplaints([])
+        return
+      }
+
+      const residentIds = Array.from(new Set((data || []).map((row: any) => row.resident_id).filter(Boolean)))
+      let residentsById: Record<string, { id: string; user_id: string; first_name: string; last_name: string; email: string; barangay: string }> = {}
+
+      if (residentIds.length > 0) {
+        const { data: residents, error: residentsError } = await supabase
+          .from('residents')
+          .select('id, user_id, first_name, last_name, email, barangay')
+          .in('id', residentIds)
+
+        if (!residentsError) {
+          residentsById = Object.fromEntries(
+            (residents || []).map((resident: any) => [resident.id, resident]),
+          )
+        }
+      }
 
       const normalizedComplaints = (data || []).map((complaint: any) => ({
         ...complaint,
-        resident_user_id: complaint.residents?.user_id,
+        subject: complaint.title || complaint.subject || 'Untitled complaint',
+        location_address: complaint.location_address || 'Unknown location',
+        residents: residentsById[complaint.resident_id] || null,
+        resident_user_id: residentsById[complaint.resident_id]?.user_id || '',
+        resident_name: residentsById[complaint.resident_id]
+          ? `${residentsById[complaint.resident_id].first_name} ${residentsById[complaint.resident_id].last_name}`
+          : 'Resident record unavailable',
+        resident_email: residentsById[complaint.resident_id]?.email || 'No email available',
       }))
 
       setComplaints(normalizedComplaints)
-    } catch (error) {
-      console.error('Error loading complaints:', error)
+    } catch (error: any) {
+      setLoadError(error?.message || 'Failed to load complaints')
+      setComplaints([])
     } finally {
       setLoading(false)
     }
@@ -175,7 +220,10 @@ export default function AdminComplaintsPage() {
           <p className="text-muted-foreground">Loading complaints...</p>
         </div>
       ) : complaints.length === 0 ? (
-        <Empty title="No complaints" description="No complaints have been filed yet" />
+        <Empty
+          title={configError ? 'Supabase not configured' : loadError ? 'Complaints table unavailable' : 'No complaints'}
+          description={configError || loadError || 'No complaints have been filed yet'}
+        />
       ) : viewMode === 'map' ? (
         <Suspense fallback={<div className="h-96 bg-gray-100 rounded-lg flex items-center justify-center">Loading map...</div>}>
           <ComplaintsAnalyticsMap
@@ -183,12 +231,12 @@ export default function AdminComplaintsPage() {
               id: c.id,
               latitude: c.latitude || 0,
               longitude: c.longitude || 0,
-              location_address: c.location_address || 'Unknown location',
+              location_address: c.location_address,
               category: c.category,
               subject: c.subject,
               created_at: c.created_at,
               status: c.status,
-              resident_name: `${c.residents.first_name} ${c.residents.last_name}`,
+              resident_name: c.resident_name,
             }))}
             onMarkerClick={(complaint) => {
               const full = complaints.find((c) => c.id === complaint.id)
@@ -216,8 +264,12 @@ export default function AdminComplaintsPage() {
                     <CardTitle className="text-lg">{complaint.subject}</CardTitle>
                     <CardDescription className="mt-1">{complaint.description}</CardDescription>
                     <div className="mt-2 text-sm text-muted-foreground">
-                      <p>Filed by: {complaint.residents.first_name} {complaint.residents.last_name}</p>
-                      <p>Email: {complaint.residents.email}</p>
+                      <p>
+                        Filed by: {complaint.residents
+                          ? `${complaint.residents.first_name} ${complaint.residents.last_name}`
+                          : 'Resident record unavailable'}
+                      </p>
+                      <p>Email: {complaint.residents?.email || 'No email available'}</p>
                       {complaint.location_address && <p>Location: {complaint.location_address}</p>}
                     </div>
                   </div>

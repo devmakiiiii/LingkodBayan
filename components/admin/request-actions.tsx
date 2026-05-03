@@ -170,13 +170,13 @@ function buildPrintMarkup(request: RequestRecord) {
       <body>
         <div class="page">
           <div class="header">
-            <img src="/placeholder-logo.png" alt="Barangay logo" class="logo" />
+            <img src="/lingkod-logo.png" alt="LingkodBayan logo" class="logo" />
             <div>
               <div class="eyebrow">Official Barangay Request Form</div>
               <div class="title">Barangay LingkodBayan</div>
               <div class="subtitle">Request details and approval document</div>
             </div>
-            <div class="logo" style="background:#f8fafc;"></div>
+            <img src="/barangay.png" alt="Barangay logo" class="logo" />
           </div>
 
           <div class="meta">

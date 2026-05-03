@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import Image from 'next/image'
 import { Button } from '@/components/ui/button'
 import { Zap, Shield, Sparkles } from 'lucide-react'
 
@@ -9,14 +10,24 @@ export default function Home() {
     <main className="flex flex-col min-h-screen">
       {/* Navigation */}
       <nav className="bg-white border-b border-gray-200 px-4 sm:px-6 py-4 flex justify-between items-center sticky top-0 z-50">
-        <div className="text-xl sm:text-2xl font-bold text-gray-900">LingkodBayan</div>
+        <div className="flex items-center gap-3">
+          <Image
+            src="/lingkod-logo.png"
+            alt="LingkodBayan logo"
+            width={36}
+            height={36}
+            className="h-9 w-9 object-contain"
+            priority
+          />
+          <div className="text-xl sm:text-2xl font-bold text-gray-900">LingkodBayan</div>
+        </div>
         <Link href="/auth/login">
           <Button variant="outline" className="border-gray-300">Login</Button>
         </Link>
       </nav>
 
       {/* Hero Section */}
-      <section className="bg-gradient-to-br from-[#001a4d] via-[#001a4d] to-[#0d2d66] text-white py-16 sm:py-24 px-4 sm:px-6">
+      <section className="bg-linear-to-br from-[#001a4d] via-[#001a4d] to-[#0d2d66] text-white py-16 sm:py-24 px-4 sm:px-6">
         <div className="max-w-7xl mx-auto grid md:grid-cols-2 gap-8 sm:gap-12 items-center">
           <div className="space-y-6">
             <div className="space-y-3">
@@ -35,7 +46,7 @@ export default function Home() {
                 </Button>
               </Link>
               <Link href="/auth/login" className="w-full sm:w-auto">
-                <Button size="lg" variant="outline" className="w-full text-white border-white hover:bg-white/10">
+                <Button size="lg" variant="outline" className="w-full text-black border-white hover:bg-white/10">
                   Sign In
                 </Button>
               </Link>
@@ -150,17 +161,17 @@ export default function Home() {
               { 
                 tag: 'COMMUNITY HEALTH',
                 title: 'Barangay-wide Vaccination Drive Scheduled',
-                date: 'March 15, 2024'
+                date: 'May 15, 2026'
               },
               { 
                 tag: 'INFRASTRUCTURE',
                 title: 'Main Avenue Road Repair and Improvement',
-                date: 'March 10, 2024'
+                date: 'May 10, 2026'
               },
               { 
                 tag: 'ANNOUNCEMENT',
                 title: 'New Online Permit System Launched',
-                date: 'March 8, 2024'
+                date: 'May 8, 2026'
               },
             ].map((news, i) => (
               <div key={i} className="bg-gray-100 rounded-lg overflow-hidden hover:shadow-lg transition cursor-pointer">
@@ -179,7 +190,7 @@ export default function Home() {
       </section>
 
       {/* CTA Section */}
-      <section className="bg-gradient-to-br from-[#001a4d] to-[#0d2d66] text-white py-16 sm:py-24 px-4 sm:px-6">
+      <section className="bg-linear-to-br from-[#001a4d] to-[#0d2d66] text-white py-16 sm:py-24 px-4 sm:px-6">
         <div className="max-w-4xl mx-auto text-center">
           <div className="mb-6 text-4xl">📡</div>
           <h2 className="text-3xl sm:text-4xl font-bold mb-4">Stay Connected with Your Community</h2>
@@ -200,7 +211,7 @@ export default function Home() {
           <div className="grid sm:grid-cols-2 md:grid-cols-4 gap-8 mb-8">
             <div>
               <h3 className="text-white font-bold mb-4 text-sm sm:text-base">LingkodBayan</h3>
-              <p className="text-xs sm:text-sm">© 2024 LINGKODBAYAN CITIZEN PORTAL. ALL RIGHTS RESERVED.</p>
+              <p className="text-xs sm:text-sm">© 2026 LINGKODBAYAN CITIZEN PORTAL. ALL RIGHTS RESERVED.</p>
             </div>
             <div>
               <ul className="space-y-2 text-xs sm:text-sm">

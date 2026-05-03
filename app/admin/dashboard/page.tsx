@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { createClient } from '@/lib/supabase/client'
+import { createClient, hasSupabaseConfig } from '@/lib/supabase/client'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
@@ -26,10 +26,16 @@ export default function AdminDashboard() {
     resolvedRequests: 0,
   })
   const [loading, setLoading] = useState(true)
+  const [configError, setConfigError] = useState<string | null>(null)
 
   useEffect(() => {
     async function loadStats() {
       try {
+        if (!hasSupabaseConfig()) {
+          setConfigError('Supabase environment variables are missing. Create .env.local with NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY, then restart pnpm dev.')
+          return
+        }
+
         const supabase = createClient()
         
         // Get residents count
@@ -76,6 +82,15 @@ export default function AdminDashboard() {
         <h1 className="text-3xl font-bold">Admin Dashboard</h1>
         <p className="text-muted-foreground mt-2">Manage service requests, complaints, and residents</p>
       </div>
+
+      {configError && (
+        <Card className="border-amber-200 bg-amber-50">
+          <CardHeader>
+            <CardTitle className="text-amber-900">Supabase not configured</CardTitle>
+            <CardDescription className="text-amber-800">{configError}</CardDescription>
+          </CardHeader>
+        </Card>
+      )}
 
       {/* Stats Grid */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">

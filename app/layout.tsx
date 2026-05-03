@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import './globals.css'
+import { NavigationLoader } from '@/components/navigation-loader'
 
 const _geist = Geist({ subsets: ["latin"] });
 const _geistMono = Geist_Mono({ subsets: ["latin"] });
@@ -12,6 +13,10 @@ export const metadata: Metadata = {
   generator: 'v0.app',
   icons: {
     icon: [
+      {
+          url: '/barangay.png',
+        type: 'image/png',
+      },
       {
         url: '/icon-light-32x32.png',
         media: '(prefers-color-scheme: light)',
@@ -25,6 +30,7 @@ export const metadata: Metadata = {
         type: 'image/svg+xml',
       },
     ],
+    shortcut: '/barangay.png',
     apple: '/apple-icon.png',
   },
 }
@@ -37,6 +43,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="font-sans antialiased">
+        <NavigationLoader />
         {children}
         {process.env.NODE_ENV === 'production' && <Analytics />}
       </body>

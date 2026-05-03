@@ -28,15 +28,23 @@ export default function AdminResidentsPage() {
   async function loadResidents() {
     try {
       const supabase = createClient()
-      
-      const { data } = await supabase
+
+      const { data, error } = await supabase
         .from('residents')
         .select('*')
         .order('created_at', { ascending: false })
 
+      if (error) {
+        console.error('Failed to load residents:', error?.message || error)
+        console.error('Full error object:', JSON.stringify(error, null, 2))
+        return
+      }
+
+      console.log('Loaded residents:', data?.length || 0)
       setResidents(data || [])
-    } catch (error) {
-      console.error('Error loading residents:', error)
+    } catch (error: any) {
+      console.error('Error loading residents:', error?.message || error)
+      console.error('Full error:', JSON.stringify(error, null, 2))
     } finally {
       setLoading(false)
     }
