@@ -27,10 +27,21 @@ type OfficialRow = OfficialRecord & {
 const categoryFilters = ['all', 'barangay', 'sk', 'staff'] as const
 const statusFilters = ['all', 'active', 'inactive'] as const
 
+const defaultDesignations = [
+  { name: 'Barangay Captain', category: 'barangay', priority_order: 1, badge_color: '#166534' },
+  { name: 'Barangay Kagawad', category: 'barangay', priority_order: 2, badge_color: '#28A745' },
+  { name: 'Barangay Secretary', category: 'barangay', priority_order: 3, badge_color: '#0f766e' },
+  { name: 'Barangay Treasurer', category: 'barangay', priority_order: 4, badge_color: '#0ea5e9' },
+  { name: 'SK Chairperson', category: 'sk', priority_order: 1, badge_color: '#7c3aed' },
+  { name: 'SK Kagawad', category: 'sk', priority_order: 2, badge_color: '#8b5cf6' },
+  { name: 'Staff Member', category: 'staff', priority_order: 1, badge_color: '#6b7280' },
+] as const
+
 export default function AdminOfficialsPage() {
   const [officials, setOfficials] = useState<OfficialRow[]>([])
   const [designations, setDesignations] = useState<DesignationRecord[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
   const [search, setSearch] = useState('')
   const [categoryFilter, setCategoryFilter] = useState<(typeof categoryFilters)[number]>('all')
   const [statusFilter, setStatusFilter] = useState<(typeof statusFilters)[number]>('all')
@@ -45,16 +56,40 @@ export default function AdminOfficialsPage() {
 
   async function loadData() {
     try {
+      setLoadError('')
       const supabase = createClient()
-      const [{ data: designationData }, { data: officialData }] = await Promise.all([
+      const [{ data: designationData, error: designationError }, { data: officialData, error: officialError }] = await Promise.all([
         supabase.from('designations').select('*').order('priority_order', { ascending: true }).order('name', { ascending: true }),
         supabase.from('officials').select('*, designations(id, name, category, priority_order, badge_color)').order('created_at', { ascending: false }),
       ])
 
-      setDesignations((designationData || []) as DesignationRecord[])
+      if (designationError) throw designationError
+      if (officialError) throw officialError
+
+      if (!designationData || designationData.length === 0) {
+        const { error: seedError } = await supabase
+          .from('designations')
+          .upsert(defaultDesignations, { onConflict: 'name,category' })
+
+        if (seedError) throw seedError
+
+        const { data: seededDesignations, error: reFetchError } = await supabase
+          .from('designations')
+          .select('*')
+          .order('priority_order', { ascending: true })
+          .order('name', { ascending: true })
+
+        if (reFetchError) throw reFetchError
+
+        setDesignations((seededDesignations || []) as DesignationRecord[])
+      } else {
+        setDesignations((designationData || []) as DesignationRecord[])
+      }
+
       setOfficials((officialData || []) as OfficialRow[])
     } catch (error) {
       console.error('Error loading officials:', error)
+      setLoadError(error instanceof Error ? error.message : 'Failed to load officials data')
     } finally {
       setLoading(false)
     }
@@ -158,6 +193,18 @@ export default function AdminOfficialsPage() {
           </Button>
         </div>
       </div>
+
+      {loadError && (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          {loadError}
+        </div>
+      )}
+
+      {designations.length === 0 && !loadError && (
+        <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+          No designations were found, so default official designations were added automatically.
+        </div>
+      )}
 
       <div className="rounded-2xl border border-emerald-100 bg-white p-4 shadow-sm">
         <div className="grid gap-4 md:grid-cols-[1.5fr_1fr_1fr]">
