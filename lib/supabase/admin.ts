@@ -6,7 +6,7 @@ function getAdminSupabaseConfig() {
 
   if (!url || !serviceRoleKey) {
     throw new Error(
-      'Supabase admin environment variables are missing. Set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in the environment.',
+      'Supabase admin environment variables are missing. Set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in Vercel Project Settings, then redeploy.',
     )
   }
 
