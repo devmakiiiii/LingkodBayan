@@ -14,7 +14,7 @@ export const metadata: Metadata = {
   icons: {
     icon: [
       {
-          url: '/barangay.png',
+          url: '/lingkod-logo.png',
         type: 'image/png',
       },
       {
@@ -30,7 +30,7 @@ export const metadata: Metadata = {
         type: 'image/svg+xml',
       },
     ],
-    shortcut: '/barangay.png',
+    shortcut: '/lingkod-logo.png',
     apple: '/apple-icon.png',
   },
 }

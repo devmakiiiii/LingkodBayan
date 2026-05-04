@@ -71,8 +71,8 @@ export default function Page() {
             <div className="text-center mb-8">
               <div className="mx-auto mb-4 flex h-24 w-24 items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-gray-200">
                 <Image
-                  src="/barangay.png"
-                  alt="Barangay logo"
+                  src="/lingkod-logo.png"
+                  alt="LingkodBayan logo"
                   width={88}
                   height={88}
                   className="h-20 w-20 object-contain"

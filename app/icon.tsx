@@ -10,7 +10,7 @@ export const size = {
 export const contentType = 'image/png'
 
 export default async function Icon() {
-  const logo = await readFile(join(process.cwd(), 'public', 'barangay.png'))
+  const logo = await readFile(join(process.cwd(), 'public', 'lingkod-logo.png'))
   const logoDataUrl = `data:image/png;base64,${logo.toString('base64')}`
 
   return new ImageResponse(
