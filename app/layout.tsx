@@ -12,24 +12,7 @@ export const metadata: Metadata = {
   description: 'Connecting Citizens and Government Services',
   generator: 'v0.app',
   icons: {
-    icon: [
-      {
-          url: '/lingkod-logo.png',
-        type: 'image/png',
-      },
-      {
-        url: '/icon-light-32x32.png',
-        media: '(prefers-color-scheme: light)',
-      },
-      {
-        url: '/icon-dark-32x32.png',
-        media: '(prefers-color-scheme: dark)',
-      },
-      {
-        url: '/icon.svg',
-        type: 'image/svg+xml',
-      },
-    ],
+    icon: '/lingkod-logo.png',
     shortcut: '/lingkod-logo.png',
     apple: '/apple-icon.png',
   },

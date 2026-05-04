@@ -29,7 +29,7 @@ export default async function Icon() {
       >
         <img
           src={logoDataUrl}
-          alt="Barangay logo"
+          alt="LingkodBayan logo"
           width={32}
           height={32}
           style={{ width: '100%', height: '100%', objectFit: 'contain' }}
