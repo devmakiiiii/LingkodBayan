@@ -12,8 +12,8 @@ export default function Home() {
       <nav className="bg-white border-b border-gray-200 px-4 sm:px-6 py-4 flex justify-between items-center sticky top-0 z-50">
         <div className="flex items-center gap-3">
           <Image
-            src="/lingkod-logo.png"
-            alt="LingkodBayan logo"
+            src="/barangay.png"
+            alt="Barangay logo"
             width={36}
             height={36}
             className="h-9 w-9 object-contain"

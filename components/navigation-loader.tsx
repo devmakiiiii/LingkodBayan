@@ -54,8 +54,8 @@ export function NavigationLoader() {
     <div className="fixed inset-0 z-9999 flex items-center justify-center bg-[#001a4d]/85 backdrop-blur-sm">
       <div className="flex flex-col items-center gap-5 rounded-2xl border border-white/10 bg-white/95 px-8 py-10 shadow-2xl">
         <Image
-          src="/lingkod-logo.png"
-          alt="LingkodBayan logo"
+          src="/barangay.png"
+          alt="Barangay logo"
           width={72}
           height={72}
           className="h-16 w-16 object-contain"

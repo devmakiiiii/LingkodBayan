@@ -191,7 +191,7 @@ export function RequestPrintDocument({
   return (
     <div className="mx-auto max-w-4xl bg-white p-10 text-slate-900">
       <div className="flex items-start gap-4 border-b border-slate-200 pb-6">
-        <img src="/placeholder-logo.png" alt="Barangay logo" className="h-20 w-20 rounded-full border border-slate-200 object-cover" />
+        <img src="/barangay.png" alt="Barangay logo" className="h-20 w-20 rounded-full border border-slate-200 object-cover" />
         <div className="flex-1 text-center">
           <p className="text-xs font-semibold uppercase tracking-[0.3em] text-emerald-700">Official Barangay Request Form</p>
           <h1 className="mt-2 text-3xl font-bold">Barangay LingkodBayan</h1>

@@ -261,7 +261,7 @@ export function openPrintableReport(options: {
       </head>
       <body>
         <div class="header">
-          <img src="/lingkod-logo.png" alt="Barangay Logo" />
+          <img src="/barangay.png" alt="Barangay Logo" />
           <div>
             <div style="font-size: 14px; letter-spacing: 0.08em; text-transform: uppercase; color: #64748b;">${escapeHtml(options.barangayName)}</div>
             <h1>${escapeHtml(options.reportTitle)}</h1>
