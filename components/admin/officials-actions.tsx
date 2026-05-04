@@ -30,15 +30,25 @@ interface OfficialActionsProps {
 }
 
 async function uploadOfficialPhoto(file: File) {
-  const supabase = createClient()
-  const bucket = 'official-photos'
-  const filePath = `${crypto.randomUUID()}-${file.name.replace(/\s+/g, '-')}`
+  const formData = new FormData()
+  formData.append('file', file)
 
-  const { error } = await supabase.storage.from(bucket).upload(filePath, file, { upsert: true })
-  if (error) throw error
+  const response = await fetch('/api/admin/official-photos', {
+    method: 'POST',
+    body: formData,
+  })
 
-  const { data } = supabase.storage.from(bucket).getPublicUrl(filePath)
-  return data.publicUrl
+  const payload = (await response.json()) as { url?: string; error?: string }
+
+  if (!response.ok) {
+    throw new Error(payload.error || 'Failed to upload official photo')
+  }
+
+  if (!payload.url) {
+    throw new Error('Failed to upload official photo')
+  }
+
+  return payload.url
 }
 
 export function OfficialActions({ isOpen, mode, official, designations, onClose, onSaved }: OfficialActionsProps) {
