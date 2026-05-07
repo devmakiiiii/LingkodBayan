@@ -94,8 +94,33 @@ export function RequestFormDialog({ open, onOpenChange, requestType }: RequestFo
     }))
   }
 
+  const getMissingRequiredFields = () => {
+    if (!config) {
+      return [] as string[]
+    }
+
+    return config.fields
+      .filter((field) => field.required)
+      .filter((field) => {
+        if (field.type === 'file') {
+          return (files[field.name] ?? []).length === 0
+        }
+
+        const rawValue = (values[field.name] ?? '').trim()
+        return rawValue === ''
+      })
+      .map((field) => field.label)
+  }
+
   const handleSubmit = async () => {
     if (!config) {
+      return
+    }
+
+    const missingRequiredFields = getMissingRequiredFields()
+
+    if (missingRequiredFields.length > 0) {
+      setErrorMessage(`Please complete the required fields first: ${missingRequiredFields.join(', ')}.`)
       return
     }
 
@@ -176,6 +201,9 @@ export function RequestFormDialog({ open, onOpenChange, requestType }: RequestFo
   if (!config) {
     return null
   }
+
+  const missingRequiredFields = getMissingRequiredFields()
+  const canSubmit = !isSubmitting && missingRequiredFields.length === 0
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -270,7 +298,7 @@ export function RequestFormDialog({ open, onOpenChange, requestType }: RequestFo
               <Button
                 className="bg-emerald-600 text-white hover:bg-emerald-700"
                 onClick={handleSubmit}
-                disabled={isSubmitting}
+                  disabled={!canSubmit}
               >
                 {isSubmitting ? (
                   <span className="inline-flex items-center gap-2">

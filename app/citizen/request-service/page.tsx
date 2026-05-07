@@ -24,7 +24,7 @@ const filterOptions = [
 ]
 
 const serviceFilters: Record<string, string[]> = {
-  all: ['barangay-clearance', 'certificate-residency', 'business-permit', 'good-moral', 'indigency', 'other-services'],
+  all: ['barangay-clearance', 'certificate-residency', 'business-permit', 'good-moral', 'indigency'],
   certificates: ['certificate-residency', 'good-moral'],
   clearances: ['barangay-clearance'],
   permits: ['business-permit'],
@@ -156,13 +156,7 @@ export default function RequestServicePage() {
                 <ServiceCard
                   key={service.id}
                   {...service}
-                  onRequestClick={() => {
-                    if (service.id === 'other-services') {
-                      handleExploreAll()
-                    } else {
-                      handleServiceRequest(service.id)
-                    }
-                  }}
+                  onRequestClick={() => handleServiceRequest(service.id)}
                 />
               ))}
             </div>

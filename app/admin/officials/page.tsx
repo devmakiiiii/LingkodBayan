@@ -24,6 +24,35 @@ type OfficialRow = OfficialRecord & {
   designation?: DesignationRecord | null
 }
 
+function mapOfficialRow(row: any): OfficialRow {
+  const designationRow = row.designation || row.designations || null
+
+  return {
+    id: row.id,
+    fullName: row.full_name || row.fullName || '',
+    designationId: row.designation_id,
+    contactNumber: row.contact_number,
+    email: row.email,
+    termStart: row.term_start,
+    termEnd: row.term_end,
+    status: row.status,
+    photo: row.photo,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+    designation: designationRow
+      ? {
+          id: designationRow.id,
+          name: designationRow.name,
+          category: designationRow.category,
+          priorityOrder: designationRow.priority_order,
+          badgeColor: designationRow.badge_color,
+          created_at: designationRow.created_at,
+          updated_at: designationRow.updated_at,
+        }
+      : null,
+  }
+}
+
 const categoryFilters = ['all', 'barangay', 'sk', 'staff'] as const
 const statusFilters = ['all', 'active', 'inactive'] as const
 
@@ -86,7 +115,7 @@ export default function AdminOfficialsPage() {
         setDesignations((designationData || []) as DesignationRecord[])
       }
 
-      setOfficials((officialData || []) as OfficialRow[])
+      setOfficials((officialData || []).map(mapOfficialRow))
     } catch (error) {
       console.error('Error loading officials:', error)
       setLoadError(error instanceof Error ? error.message : 'Failed to load officials data')
@@ -101,9 +130,10 @@ export default function AdminOfficialsPage() {
     return officials
       .filter((official) => {
         const designation = official.designation || (official as any).designations || null
+        const officialName = official.fullName || ''
         const matchesSearch =
           !query ||
-          official.fullName.toLowerCase().includes(query) ||
+          officialName.toLowerCase().includes(query) ||
           (designation?.name || '').toLowerCase().includes(query)
         const matchesCategory = categoryFilter === 'all' || designation?.category === categoryFilter
         const matchesStatus = statusFilter === 'all' || official.status === statusFilter
@@ -115,7 +145,7 @@ export default function AdminOfficialsPage() {
         const db = b.designation || (b as any).designations || null
         const priorityDiff = (da?.priorityOrder || 999) - (db?.priorityOrder || 999)
         if (priorityDiff !== 0) return priorityDiff
-        return a.fullName.localeCompare(b.fullName)
+        return (a.fullName || '').localeCompare(b.fullName || '')
       })
   }, [officials, search, categoryFilter, statusFilter])
 

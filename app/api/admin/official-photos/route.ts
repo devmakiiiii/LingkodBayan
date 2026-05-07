@@ -3,6 +3,20 @@ import { createAdminClient } from '@/lib/supabase/admin'
 
 const bucketName = 'official-photos'
 
+function buildSafeFileName(originalName: string) {
+  const extensionMatch = originalName.match(/\.[a-z0-9]+$/i)
+  const extension = extensionMatch ? extensionMatch[0].toLowerCase() : ''
+  const baseName = originalName
+    .replace(extensionMatch?.[0] || '', '')
+    .normalize('NFKD')
+    .replace(/[^a-zA-Z0-9]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, 60)
+
+  return `${crypto.randomUUID()}-${baseName || 'official-photo'}${extension}`
+}
+
 async function ensureBucketExists() {
   const supabase = createAdminClient()
 
@@ -32,7 +46,7 @@ export async function POST(request: NextRequest) {
     }
 
     const supabase = await ensureBucketExists()
-    const fileName = `${crypto.randomUUID()}-${file.name.replace(/\s+/g, '-')}`
+    const fileName = buildSafeFileName(file.name)
     const arrayBuffer = await file.arrayBuffer()
     const uploadFile = Buffer.from(arrayBuffer)
 

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { usePathname, useRouter } from 'next/navigation'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { LogOut, Menu, X, Home, Users, BarChart3, List, AlertCircle, Settings, ChevronDown } from 'lucide-react'
@@ -76,7 +76,18 @@ export function AdminSidebar() {
   const [isOpen, setIsOpen] = useState(false)
   const [expandedMenus, setExpandedMenus] = useState<string[]>([])
   const pathname = usePathname()
+  const searchParams = useSearchParams()
   const router = useRouter()
+
+  function isSubItemActive(href: string) {
+    if (href.includes('?')) {
+      const [path, queryString] = href.split('?')
+
+      return pathname === path && searchParams.toString() === queryString
+    }
+
+    return pathname === href || pathname.startsWith(href + '/')
+  }
 
   async function handleLogout() {
     const supabase = createClient()
@@ -159,24 +170,40 @@ export function AdminSidebar() {
 
                 {/* Dropdown Items */}
                 {item.hasDropdown && isExpanded && item.items && (
-                  <div className="mt-1 space-y-1 pl-4">
-                    {item.items.map((subItem: DropdownItemType, subIndex) => (
-                      <Link
-                        key={subIndex}
-                        href={subItem.href}
-                        onClick={() => setIsOpen(false)}
-                      >
-                        <button
-                          className={`w-full text-left px-4 py-2.5 rounded-lg text-sm transition-colors ${
-                            pathname === subItem.href
-                              ? 'bg-[#28A745] text-white'
-                              : 'text-gray-300 hover:bg-[#0d2d66]/50'
-                          }`}
-                        >
-                          {subItem.label}
-                        </button>
-                      </Link>
-                    ))}
+                  <div className="mt-1 pl-4">
+                    <div className="relative space-y-1">
+                      {(() => {
+                        const activeIndex = item.items.findIndex((subItem) => isSubItemActive(subItem.href))
+
+                        return (
+                          <>
+                            {activeIndex >= 0 && (
+                              <div
+                                className="pointer-events-none absolute inset-x-0 h-10 rounded-lg bg-[#28A745] transition-transform duration-300 ease-out"
+                                style={{ transform: `translateY(${activeIndex * 2.75}rem)` }}
+                              />
+                            )}
+                            {item.items.map((subItem: DropdownItemType, subIndex) => (
+                              <Link
+                                key={subIndex}
+                                href={subItem.href}
+                                onClick={() => setIsOpen(false)}
+                              >
+                                <button
+                                  className={`relative z-10 w-full rounded-lg px-4 py-2.5 text-left text-sm transition-colors ${
+                                    isSubItemActive(subItem.href)
+                                      ? 'text-white'
+                                      : 'text-gray-300 hover:bg-[#0d2d66]/50'
+                                  }`}
+                                >
+                                  {subItem.label}
+                                </button>
+                              </Link>
+                            ))}
+                          </>
+                        )
+                      })()}
+                    </div>
                   </div>
                 )}
               </div>

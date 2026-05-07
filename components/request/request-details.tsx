@@ -94,23 +94,23 @@ export function RequestDetails({
           <CardHeader className="pb-3">
             <CardTitle className="text-base">Requester Details</CardTitle>
           </CardHeader>
-          <CardContent className="grid gap-4 sm:grid-cols-3">
+          <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {requesterName && (
-              <div>
+              <div className="min-w-0">
                 <p className="text-xs uppercase tracking-wide text-muted-foreground">Name</p>
-                <p className="mt-1 font-medium text-foreground">{requesterName}</p>
+                <p className="mt-1 wrap-break-word font-medium text-foreground">{requesterName}</p>
               </div>
             )}
             {requesterEmail && (
-              <div>
+              <div className="min-w-0">
                 <p className="text-xs uppercase tracking-wide text-muted-foreground">Email</p>
-                <p className="mt-1 font-medium text-foreground">{requesterEmail}</p>
+                <p className="mt-1 break-all font-medium text-foreground">{requesterEmail}</p>
               </div>
             )}
             {requesterBarangay && (
-              <div>
+              <div className="min-w-0">
                 <p className="text-xs uppercase tracking-wide text-muted-foreground">Barangay</p>
-                <p className="mt-1 font-medium text-foreground">{requesterBarangay}</p>
+                <p className="mt-1 wrap-break-word font-medium text-foreground">{requesterBarangay}</p>
               </div>
             )}
           </CardContent>

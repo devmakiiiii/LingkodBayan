@@ -6,9 +6,6 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Button } from '@/components/ui/button'
 import { RequestDetails } from '@/components/request/request-details'
 import {
-  formatRequestFieldValue,
-  getRequestFieldEntries,
-  getRequestSummaryValue,
   getRequestTypeTitle,
   type RequestPayload,
   type RequestStatus,
@@ -39,25 +36,81 @@ interface RequestActionsProps {
   onStatusChange?: (requestId: string, status: RequestStatus) => Promise<void> | void
 }
 
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
+function getRequestFieldValue(request: RequestRecord, fieldName: string) {
+  const value = request.payload?.[fieldName]
+
+  if (typeof value === 'string') {
+    return value
+  }
+
+  if (typeof value === 'number') {
+    return String(value)
+  }
+
+  return ''
+}
+
+function getPrintableStatement(request: RequestRecord) {
+  const barangayName = request.residents?.barangay ?? 'Barangay [Barangay Name]'
+  const requesterName = `${request.residents?.first_name ?? ''} ${request.residents?.last_name ?? ''}`.trim() || '[Full Name]'
+  const fullName = getRequestFieldValue(request, 'fullName') || requesterName
+  const purpose = getRequestFieldValue(request, 'purpose') || '[Purpose]'
+  const businessName = getRequestFieldValue(request, 'businessName') || '[Business Name]'
+  const ownerName = getRequestFieldValue(request, 'ownerName') || fullName
+  const businessAddress = getRequestFieldValue(request, 'businessAddress') || '[Business Address]'
+  const submittedDate = request.created_at ? new Date(request.created_at).toLocaleDateString('en-PH') : '[Date]'
+
+  switch (request.request_type) {
+    case 'barangay-clearance':
+      return `
+        <div class="statement-title">Barangay Clearance</div>
+        <p class="statement-text">“This is to certify that Mr./Ms. ${escapeHtml(fullName)}, of legal age, and a bona fide resident of Barangay ${escapeHtml(barangayName)}, has no pending derogatory record or complaint filed in this barangay as of this date. This clearance is issued upon the request of the aforementioned person for whatever legal purpose it may serve.”</p>
+      `
+    case 'indigency':
+      return `
+        <div class="statement-title">Certificate of Indigency</div>
+        <p class="statement-text">“This is to certify that Mr./Ms. ${escapeHtml(fullName)}, a resident of Barangay ${escapeHtml(barangayName)}, belongs to an indigent family and has insufficient financial capacity to sustain daily living expenses. This certification is issued upon the request of the concerned individual for ${escapeHtml(purpose)}.”</p>
+      `
+    case 'business-permit':
+      return `
+        <div class="statement-title">Business Clearance</div>
+        <p class="statement-text">“This is to certify that the business establishment known as ${escapeHtml(businessName)}, owned and managed by ${escapeHtml(ownerName)}, located at ${escapeHtml(businessAddress)}, has complied with the requirements and regulations of Barangay ${escapeHtml(barangayName)}. Therefore, the barangay grants clearance for the operation of the said business.”</p>
+      `
+    case 'good-moral':
+      return `
+        <div class="statement-title">Good Moral Certificate</div>
+        <p class="statement-text">“This is to certify that Mr./Ms. ${escapeHtml(fullName)}, a resident of Barangay ${escapeHtml(barangayName)}, is known to be a person of good moral character and has no known derogatory or criminal record in this barangay as of this date.”</p>
+      `
+    case 'certificate-residency':
+      return `
+        <div class="statement-title">Certificate of Residency</div>
+        <p class="statement-text">“This is to certify that Mr./Ms. ${escapeHtml(fullName)} is a bona fide resident of Barangay ${escapeHtml(barangayName)}. This certification is issued upon request for ${escapeHtml(purpose)}.”</p>
+      `
+    default:
+      return `
+        <div class="statement-title">Service Request</div>
+        <p class="statement-text">“This certificate is issued to Mr./Ms. ${escapeHtml(fullName)} of Barangay ${escapeHtml(barangayName)} in connection with the submitted request.”</p>
+      `
+  }
+}
+
 function buildPrintMarkup(request: RequestRecord) {
   const requestTypeTitle = getRequestTypeTitle(request.request_type, request.title)
-  const summaryValue = getRequestSummaryValue(request.request_type, request.payload, request.description)
   const requesterName = `${request.residents?.first_name ?? ''} ${request.residents?.last_name ?? ''}`.trim() || 'N/A'
   const requesterBarangay = request.residents?.barangay ?? 'N/A'
   const submittedDate = request.created_at ? new Date(request.created_at).toLocaleString('en-PH') : 'N/A'
+  const footerDate = request.created_at ? new Date(request.created_at).toLocaleDateString('en-PH') : 'Date'
 
-  const fieldRows = getRequestFieldEntries(request.request_type, request.payload).map((field) => {
-    const displayValue = Array.isArray(field.value)
-      ? field.value.map((item) => (item && typeof item === 'object' && 'name' in item ? String(item.name) : JSON.stringify(item))).join(', ')
-      : formatRequestFieldValue(field.value)
-
-    return `
-      <div class="row">
-        <div class="label">${field.label}</div>
-        <div class="value">${displayValue}</div>
-      </div>
-    `
-  }).join('')
+  const requestStatement = getPrintableStatement(request)
 
   return `
     <!doctype html>
@@ -77,7 +130,7 @@ function buildPrintMarkup(request: RequestRecord) {
             width: 210mm;
             min-height: 297mm;
             margin: 0 auto;
-            padding: 18mm;
+            padding: 16mm 18mm 18mm;
             background: white;
           }
           .header {
@@ -85,8 +138,8 @@ function buildPrintMarkup(request: RequestRecord) {
             grid-template-columns: 72px 1fr 72px;
             align-items: center;
             gap: 16px;
-            border-bottom: 2px solid #d1fae5;
-            padding-bottom: 18px;
+            border-bottom: 3px double #047857;
+            padding-bottom: 16px;
           }
           .logo {
             width: 72px;
@@ -99,13 +152,13 @@ function buildPrintMarkup(request: RequestRecord) {
             text-align: center;
             text-transform: uppercase;
             letter-spacing: .25em;
-            font-size: 11px;
+            font-size: 10px;
             font-weight: 700;
             color: #047857;
           }
           .title {
             text-align: center;
-            font-size: 28px;
+            font-size: 26px;
             font-weight: 800;
             margin: 6px 0 0;
           }
@@ -115,8 +168,7 @@ function buildPrintMarkup(request: RequestRecord) {
             margin-top: 6px;
             font-size: 13px;
           }
-          .meta,
-          .panel {
+          .meta {
             margin-top: 18px;
             border: 1px solid #cbd5e1;
             border-radius: 16px;
@@ -139,27 +191,61 @@ function buildPrintMarkup(request: RequestRecord) {
             font-weight: 600;
             white-space: pre-wrap;
           }
-          .summary {
+          .statement-title {
+            font-size: 13px;
+            font-weight: 800;
+            letter-spacing: .12em;
+            text-transform: uppercase;
+            color: #047857;
+            margin-bottom: 12px;
+            text-align: center;
+          }
+          .statement-text {
+            font-size: 14px;
+            line-height: 2;
+            margin: 0;
+            text-align: justify;
+          }
+          .certificate {
+            margin-top: 18px;
+            border: 1px solid #cbd5e1;
+            border-radius: 16px;
+            padding: 20px 22px;
+          }
+          .certificate-inner {
+            max-width: 720px;
+            margin: 0 auto;
+          }
+          .footer-block {
+            margin-top: 20px;
+            border: 1px solid #cbd5e1;
+            border-radius: 16px;
+            padding: 16px;
+          }
+          .footer-text {
+            margin: 0;
             font-size: 14px;
             line-height: 1.8;
+            text-align: center;
           }
-          .row {
-            padding: 10px 0;
-            border-bottom: 1px dashed #e2e8f0;
-          }
-          .row:last-child { border-bottom: 0; }
           .signature-grid {
             display: grid;
             grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 24px;
+            gap: 22px 28px;
             margin-top: 26px;
           }
           .signature {
             border-top: 1px solid #94a3b8;
             padding-top: 8px;
-            margin-top: 56px;
+            margin-top: 48px;
             font-size: 13px;
             color: #475569;
+            min-height: 24px;
+          }
+          .signature-label {
+            font-size: 13px;
+            font-weight: 700;
+            color: #0f172a;
           }
           @media print {
             body { background: white; }
@@ -200,22 +286,36 @@ function buildPrintMarkup(request: RequestRecord) {
             </div>
           </div>
 
-          <div class="panel">
-            <div class="label">Summary</div>
-            <div class="summary">${summaryValue}</div>
+          <div class="certificate">
+            <div class="certificate-inner">
+              ${requestStatement}
+            </div>
           </div>
 
-          <div class="panel">
-            <div class="label">Request Details</div>
-            ${fieldRows || '<div class="summary">No request fields were captured.</div>'}
+          <div class="footer-block">
+            <p class="footer-text">Issued this ${escapeHtml(footerDate)} at Barangay ${escapeHtml(requesterBarangay)}, Olongapo City, Philippines.</p>
           </div>
 
           <div class="signature-grid">
             <div>
-              <div class="signature">Prepared By</div>
+              <div class="signature-label">Prepared by:</div>
+              <div class="signature"></div>
             </div>
             <div>
-              <div class="signature">Approved By</div>
+              <div class="signature-label">Verified by:</div>
+              <div class="signature"></div>
+            </div>
+            <div>
+              <div class="signature-label">Approved by:</div>
+              <div class="signature"></div>
+            </div>
+            <div>
+              <div class="signature-label">Punong Barangay:</div>
+              <div class="signature"></div>
+            </div>
+            <div>
+              <div class="signature-label">Barangay Secretary:</div>
+              <div class="signature"></div>
             </div>
           </div>
         </div>

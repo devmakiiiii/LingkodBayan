@@ -92,9 +92,10 @@ export default function AnnouncementsPage() {
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
-                <p className="text-foreground/80 whitespace-pre-wrap">
-                  {announcement.content}
-                </p>
+                <div
+                  className="prose prose-slate max-w-none text-foreground/80 prose-p:my-3 prose-headings:mb-3 prose-headings:mt-0 prose-ul:my-3 prose-ol:my-3"
+                  dangerouslySetInnerHTML={{ __html: announcement.content }}
+                />
                 <p className="text-xs text-muted-foreground">
                   {new Date(announcement.created_at).toLocaleDateString('en-US', {
                     year: 'numeric',

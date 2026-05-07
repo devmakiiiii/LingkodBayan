@@ -51,6 +51,41 @@ async function uploadOfficialPhoto(file: File) {
   return payload.url
 }
 
+function formatSaveError(error: unknown) {
+  if (error instanceof Error) {
+    return error.message
+  }
+
+  if (error && typeof error === 'object') {
+    const supabaseError = error as {
+      message?: string
+      details?: string
+      hint?: string
+      code?: string
+    }
+
+    return supabaseError.message || supabaseError.details || supabaseError.hint || supabaseError.code || 'Failed to save official'
+  }
+
+  return 'Failed to save official'
+}
+
+function RequiredLabel({ children, htmlFor }: { children: string; htmlFor?: string }) {
+  return (
+    <Label htmlFor={htmlFor}>
+      {children} <span className="text-rose-600">*</span>
+    </Label>
+  )
+}
+
+function RequiredValueLabel({ children }: { children: string }) {
+  return (
+    <Label>
+      {children} <span className="text-rose-600">*</span>
+    </Label>
+  )
+}
+
 export function OfficialActions({ isOpen, mode, official, designations, onClose, onSaved }: OfficialActionsProps) {
   const [fullName, setFullName] = useState('')
   const [designationId, setDesignationId] = useState('')
@@ -96,6 +131,17 @@ export function OfficialActions({ isOpen, mode, official, designations, onClose,
     [designationId, designations],
   )
 
+  const hasRequiredPhoto = Boolean(photoFile || photo)
+  const canSave = Boolean(
+    fullName.trim() &&
+    designationId &&
+    contactNumber.trim() &&
+    email.trim() &&
+    termStart &&
+    termEnd &&
+    hasRequiredPhoto,
+  )
+
   const categoryLabel = selectedDesignation
     ? getDesignationCategoryShortLabel(selectedDesignation.category)
     : 'Unknown'
@@ -103,6 +149,11 @@ export function OfficialActions({ isOpen, mode, official, designations, onClose,
   const title = mode === 'create' ? 'Add Official' : isView ? 'Official Details' : 'Edit Official'
 
   async function handleSave() {
+    if (!canSave) {
+      alert('Complete all required fields before saving the official.')
+      return
+    }
+
     setIsSaving(true)
     try {
       let nextPhoto = photo
@@ -116,8 +167,8 @@ export function OfficialActions({ isOpen, mode, official, designations, onClose,
         designation_id: designationId,
         contact_number: contactNumber || null,
         email: email || null,
-        term_start: termStart,
-        term_end: termEnd,
+        term_start: termStart || null,
+        term_end: termEnd || null,
         status,
         photo: nextPhoto || null,
       }
@@ -132,7 +183,7 @@ export function OfficialActions({ isOpen, mode, official, designations, onClose,
       onClose()
     } catch (error) {
       console.error('Failed to save official:', error)
-      alert(error instanceof Error ? error.message : 'Failed to save official')
+      alert(formatSaveError(error))
     } finally {
       setIsSaving(false)
     }
@@ -213,7 +264,7 @@ export function OfficialActions({ isOpen, mode, official, designations, onClose,
 
         <div className="grid gap-4 md:grid-cols-2">
           <div className="space-y-2 md:col-span-2">
-            <Label htmlFor="official-photo">Profile Photo</Label>
+            <RequiredLabel htmlFor="official-photo">Profile Photo</RequiredLabel>
             <div className="flex items-center gap-4">
               <div className="h-20 w-20 overflow-hidden rounded-2xl border border-dashed border-emerald-200 bg-emerald-50">
                 {photoFile ? (
@@ -224,22 +275,23 @@ export function OfficialActions({ isOpen, mode, official, designations, onClose,
                   <div className="flex h-full items-center justify-center text-xs text-muted-foreground">Photo</div>
                 )}
               </div>
-              <Input
+                <Input
                 id="official-photo"
                 type="file"
                 accept="image/*"
                 onChange={(event) => setPhotoFile(event.target.files?.[0] || null)}
+                  required
               />
             </div>
           </div>
 
           <div className="space-y-2 md:col-span-2">
-            <Label htmlFor="official-name">Full Name</Label>
-            <Input id="official-name" value={fullName} onChange={(event) => setFullName(event.target.value)} placeholder="Juan Dela Cruz" />
+            <RequiredLabel htmlFor="official-name">Full Name</RequiredLabel>
+            <Input id="official-name" value={fullName} onChange={(event) => setFullName(event.target.value)} placeholder="Juan Dela Cruz" required />
           </div>
 
           <div className="space-y-2">
-            <Label>Designation</Label>
+            <RequiredLabel>Designation</RequiredLabel>
             <Select value={designationId} onValueChange={setDesignationId}>
               <SelectTrigger>
                 <SelectValue placeholder="Select designation" />
@@ -260,28 +312,28 @@ export function OfficialActions({ isOpen, mode, official, designations, onClose,
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="official-contact">Contact Number</Label>
-            <Input id="official-contact" value={contactNumber} onChange={(event) => setContactNumber(event.target.value)} placeholder="09xx xxx xxxx" />
+            <RequiredLabel htmlFor="official-contact">Contact Number</RequiredLabel>
+            <Input id="official-contact" value={contactNumber} onChange={(event) => setContactNumber(event.target.value)} placeholder="09xx xxx xxxx" required />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="official-email">Email Address</Label>
-            <Input id="official-email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="name@example.com" />
+            <RequiredLabel htmlFor="official-email">Email Address</RequiredLabel>
+            <Input id="official-email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="name@example.com" required />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="official-term-start">Term Start Date</Label>
-            <Input id="official-term-start" type="date" value={termStart} onChange={(event) => setTermStart(event.target.value)} />
+            <RequiredLabel htmlFor="official-term-start">Term Start Date</RequiredLabel>
+            <Input id="official-term-start" type="date" value={termStart} onChange={(event) => setTermStart(event.target.value)} required />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="official-term-end">Term End Date</Label>
-            <Input id="official-term-end" type="date" value={termEnd} onChange={(event) => setTermEnd(event.target.value)} />
+            <RequiredLabel htmlFor="official-term-end">Term End Date</RequiredLabel>
+            <Input id="official-term-end" type="date" value={termEnd} onChange={(event) => setTermEnd(event.target.value)} required />
           </div>
 
           <div className="flex items-center justify-between rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3 md:col-span-2">
             <div>
-              <p className="font-medium">Status</p>
+              <RequiredValueLabel>Status</RequiredValueLabel>
               <p className="text-sm text-muted-foreground">Toggle Active / Inactive</p>
             </div>
             <div className="flex items-center gap-3">
@@ -296,10 +348,13 @@ export function OfficialActions({ isOpen, mode, official, designations, onClose,
           <Button variant="outline" onClick={onClose} disabled={isSaving}>
             Cancel
           </Button>
-          <Button className="bg-emerald-600 text-white hover:bg-emerald-700" onClick={handleSave} disabled={isSaving || !fullName.trim() || !designationId}>
+          <Button className="bg-emerald-600 text-white hover:bg-emerald-700" onClick={handleSave} disabled={isSaving || !canSave}>
             {isSaving ? 'Saving...' : 'Save Official'}
           </Button>
         </div>
+        <p className="text-xs text-muted-foreground">
+          Fields marked with <span className="text-rose-600">*</span> are required.
+        </p>
       </DialogContent>
     </Dialog>
   )

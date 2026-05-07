@@ -1,7 +1,7 @@
 'use client'
 
 import { Button } from '@/components/ui/button'
-import { FileText, CheckCircle, Briefcase, Award, Heart, MoreHorizontal } from 'lucide-react'
+import { FileText, CheckCircle, Briefcase, Award, Heart } from 'lucide-react'
 import Link from 'next/link'
 
 interface ServiceCardProps {
@@ -39,7 +39,7 @@ export function ServiceCard({
       <div className="p-6 flex flex-col h-full">
         {/* Header with Icon and Badge */}
         <div className="flex items-start justify-between mb-4">
-          <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-[#28A745]/10 to-[#28A745]/5 flex items-center justify-center text-[#28A745]">
+          <div className="w-12 h-12 rounded-lg bg-linear-to-br from-[#28A745]/10 to-[#28A745]/5 flex items-center justify-center text-[#28A745]">
             {icon}
           </div>
           {tag && (
@@ -55,7 +55,7 @@ export function ServiceCard({
         </h3>
 
         {/* Description */}
-        <p className="text-sm text-gray-600 mb-6 flex-grow line-clamp-3">
+        <p className="text-sm text-gray-600 mb-6 grow line-clamp-3">
           {description}
         </p>
 
@@ -111,13 +111,5 @@ export const servicesList = [
     description: 'Required for welfare benefits, scholarships, and assistance programs.',
     tag: 'Social Assistance',
     buttonLabel: 'Request Now',
-  },
-  {
-    id: 'other-services',
-    icon: <MoreHorizontal className="w-6 h-6" />,
-    title: 'Other Services',
-    description: 'Browse other available permits, clearances, and requests.',
-    tag: '',
-    buttonLabel: 'Explore All',
   },
 ]
