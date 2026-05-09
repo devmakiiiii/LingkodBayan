@@ -5,8 +5,19 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
+import Link from 'next/link'
 
-export default function Page() {
+export default async function Page({
+  searchParams,
+}: {
+  searchParams: Promise<{ email?: string }>
+}) {
+  const params = await searchParams
+  const email = params?.email?.trim() ?? ''
+  const verifyHref = email
+    ? `/auth/verify-otp?email=${encodeURIComponent(email)}`
+    : '/auth/verify-otp'
+
   return (
     <div className="flex min-h-svh w-full items-center justify-center p-6 md:p-10">
       <div className="w-full max-w-sm">
@@ -22,22 +33,30 @@ export default function Page() {
           </div>
           <Card>
             <CardHeader>
-              <CardTitle className="text-2xl text-center">
-                Account Created!
-              </CardTitle>
-              <CardDescription className="text-center">Check your email to confirm</CardDescription>
+              <CardTitle className="text-2xl text-center">Account Created!</CardTitle>
+              <CardDescription className="text-center">
+                Check your email for the 6-digit verification code.
+              </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
                 <p className="text-sm text-muted-foreground">
-                  Welcome to LingkodBayan! You&apos;ve successfully created your account. 
+                  Welcome to LingkodBayan! You&apos;ve successfully created your account.
                 </p>
                 <p className="text-sm text-muted-foreground">
-                  Please check your email inbox for a confirmation link. Click the link to activate your account.
+                  We now send a 6-digit numeric code instead of a confirmation link. Enter the code on the verification page to activate your account.
                 </p>
                 <p className="text-sm text-muted-foreground">
-                  Once confirmed, you&apos;ll be able to submit service requests, file complaints, and track your submissions.
+                  Once verified, you&apos;ll be able to submit service requests, file complaints, and track your submissions.
                 </p>
+                <div className="pt-2">
+                  <Link
+                    href={verifyHref}
+                    className="inline-flex w-full items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+                  >
+                    Open verification page
+                  </Link>
+                </div>
               </div>
             </CardContent>
           </Card>

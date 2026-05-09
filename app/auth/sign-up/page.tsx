@@ -52,9 +52,6 @@ export default function Page() {
         email,
         password,
         options: {
-          emailRedirectTo:
-            process.env.NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL ??
-            `${window.location.origin}/auth/callback`,
           data: {
             first_name: firstName,
             last_name: lastName,
@@ -67,10 +64,11 @@ export default function Page() {
 
       if (data.user && data.session) {
         await getOrCreateResidentProfile(supabase, data.user)
+        router.push('/citizen/dashboard')
+        return
       }
-      
-      // Resident profile is created during callback or immediately after sign up when a session exists.
-      router.push('/auth/sign-up-success')
+
+      router.push(`/auth/verify-otp?email=${encodeURIComponent(email)}`)
     } catch (error: unknown) {
       setError(error instanceof Error ? error.message : 'An error occurred')
     } finally {

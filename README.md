@@ -133,7 +133,7 @@ The setup docs include example citizen and admin workflows for validating the ap
 
 ## Troubleshooting
 
-- If authentication fails, verify the Supabase environment variables and email confirmation settings.
+- If authentication fails, verify the Supabase environment variables and confirm the signup email template sends `{{ .Token }}` for the 6-digit code instead of `{{ .ConfirmationURL }}`.
 - If admin pages do not show records, confirm the Supabase migrations were applied and the admin role/user metadata is configured correctly.
 - If the app cannot connect locally, reinstall dependencies and restart the dev server.
 

@@ -58,9 +58,17 @@ The following environment variables are automatically configured by Supabase:
 
 **Citizen Sign-Up:**
 1. New user creates account with first name, last name, email, password, and barangay
-2. Resident profile is automatically created
-3. User is assigned 'citizen' role
-4. Redirects to citizen dashboard
+2. Supabase sends a 6-digit numeric verification code instead of a confirmation link
+3. User enters the code on the verification page
+4. Resident profile is created after the code is verified
+5. User is assigned 'citizen' role
+6. Redirects to citizen dashboard
+
+**Supabase Email Template:**
+1. Open your Supabase project dashboard
+2. Go to Authentication -> Templates -> Confirm signup
+3. Replace the confirmation-link variable with the token variable so the email sends a numeric code
+4. Make sure the email body includes `{{ .Token }}` instead of `{{ .ConfirmationURL }}`
 
 **Citizen Login:**
 1. User logs in with email and password
@@ -237,7 +245,7 @@ After setting up the database:
 
 **Resident profile creation fails:**
 - Check that the user was created successfully
-- Verify email confirmation if required
+- Verify the 6-digit OTP was entered correctly and that the Supabase signup email template uses `{{ .Token }}`
 
 **Admin redirect not working:**
 - Confirm `role: 'admin'` is set in user metadata
