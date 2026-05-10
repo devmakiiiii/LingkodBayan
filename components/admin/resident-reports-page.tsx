@@ -681,7 +681,11 @@ export function ResidentReportsPage() {
       }
 
       if ('status' in updates) {
-        payload.status = statusToDatabaseValue[(updates.status as CanonicalStatus) || selectedReport.status]
+        const canonicalStatus = (updates.status as CanonicalStatus) || selectedReport.status
+        const dbStatus = statusToDatabaseValue[canonicalStatus]
+        if (dbStatus) {
+          payload.status = dbStatus
+        }
       }
 
       if ('assignedOfficialId' in updates) {
@@ -689,18 +693,33 @@ export function ResidentReportsPage() {
       }
 
       if ('adminNotes' in updates) {
-        payload.admin_notes = updates.adminNotes || null
+        payload.admin_notes = updates.adminNotes ?? ''
       }
 
       if ('archivedAt' in updates) {
         payload.archived_at = updates.archivedAt || null
       }
 
-      const { error } = await supabase.from('complaints').update(payload).eq('id', selectedReport.id)
-      if (error) throw error
+      console.log('Updating complaint', selectedReport.id, 'with payload:', payload)
+
+      const { error, data, count } = await supabase
+        .from('complaints')
+        .update(payload)
+        .eq('id', selectedReport.id)
+        .select()
+
+      if (error) {
+        console.error('Supabase update error:', error)
+        throw new Error(error.message || 'Database update failed')
+      }
+
+      if (!data || data.length === 0) {
+        console.warn('Update returned no rows – possible RLS policy blocking the update')
+        throw new Error('Update was blocked. You may not have permission to update this report. Please check that your admin account has the correct role in the database.')
+      }
 
       if (systemMessage && profileUser) {
-        await supabase.from('complaint_messages').insert([
+        const { error: msgError } = await supabase.from('complaint_messages').insert([
           {
             complaint_id: selectedReport.id,
             recipient_user_id: selectedReport.residentUserId || profileUser.id,
@@ -710,6 +729,9 @@ export function ResidentReportsPage() {
             is_read: false,
           },
         ])
+        if (msgError) {
+          console.warn('System message insert failed (non-blocking):', msgError.message)
+        }
       }
 
       await loadReports(false)
