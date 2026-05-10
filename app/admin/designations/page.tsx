@@ -9,13 +9,8 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Plus, Pencil, Search, Trash2 } from 'lucide-react'
-import { OfficialActions, type OfficialRecord } from '@/components/admin/officials-actions'
-import { type DesignationRecord } from '@/components/admin/designations-actions'
+import { DesignationActions, type DesignationRecord } from '@/components/admin/designations-actions'
 import { getDesignationCategoryShortLabel, normalizeBadgeColor } from '@/lib/governance'
-
-type OfficialRow = OfficialRecord & {
-  designation?: DesignationRecord | null
-}
 
 const defaultDesignations = [
   { name: 'Barangay Captain', category: 'barangay', priority_order: 1, badge_color: '#166534' },
@@ -27,45 +22,15 @@ const defaultDesignations = [
   { name: 'Staff Member', category: 'staff', priority_order: 1, badge_color: '#6b7280' },
 ] as const
 
-function mapOfficialRow(row: any): OfficialRow {
-  const designationRow = row.designation || row.designations || null
-
-  return {
-    id: row.id,
-    fullName: row.full_name,
-    designationId: row.designation_id,
-    contactNumber: row.contact_number,
-    email: row.email,
-    termStart: row.term_start,
-    termEnd: row.term_end,
-    status: row.status,
-    photo: row.photo,
-    created_at: row.created_at,
-    updated_at: row.updated_at,
-    designation: designationRow
-      ? {
-          id: designationRow.id,
-          name: designationRow.name,
-          category: designationRow.category,
-          priorityOrder: designationRow.priority_order,
-          badgeColor: designationRow.badge_color,
-          created_at: designationRow.created_at,
-          updated_at: designationRow.updated_at,
-        }
-      : null,
-  }
-}
-
 export default function AdminDesignationsPage() {
-  const [officials, setOfficials] = useState<OfficialRow[]>([])
   const [designations, setDesignations] = useState<DesignationRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
   const [search, setSearch] = useState('')
   const [isModalOpen, setIsModalOpen] = useState(false)
-  const [modalMode, setModalMode] = useState<'create' | 'edit' | 'view'>('create')
-  const [selectedOfficial, setSelectedOfficial] = useState<OfficialRow | null>(null)
-  const [deleteTarget, setDeleteTarget] = useState<OfficialRow | null>(null)
+  const [modalMode, setModalMode] = useState<'create' | 'edit'>('create')
+  const [selectedDesignation, setSelectedDesignation] = useState<DesignationRecord | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<DesignationRecord | null>(null)
 
   useEffect(() => {
     loadData()
@@ -75,13 +40,13 @@ export default function AdminDesignationsPage() {
     try {
       setLoadError('')
       const supabase = createClient()
-      const [{ data: designationData, error: designationError }, { data: officialData, error: officialError }] = await Promise.all([
-        supabase.from('designations').select('*').order('priority_order', { ascending: true }).order('name', { ascending: true }),
-        supabase.from('officials').select('*, designations(id, name, category, priority_order, badge_color)').order('created_at', { ascending: false }),
-      ])
+      const { data: designationData, error: designationError } = await supabase
+        .from('designations')
+        .select('*')
+        .order('priority_order', { ascending: true })
+        .order('name', { ascending: true })
 
       if (designationError) throw designationError
-      if (officialError) throw officialError
 
       if (!designationData || designationData.length === 0) {
         const { error: seedError } = await supabase
@@ -98,63 +63,75 @@ export default function AdminDesignationsPage() {
 
         if (refetchError) throw refetchError
 
-        setDesignations((seededDesignations || []) as DesignationRecord[])
+        setDesignations((seededDesignations || []).map(mapDesignationRow))
       } else {
-        setDesignations((designationData || []) as DesignationRecord[])
+        setDesignations((designationData || []).map(mapDesignationRow))
       }
-
-      setOfficials((officialData || []).map(mapOfficialRow))
     } catch (error) {
-      console.error('Error loading officials:', error)
-      setLoadError(error instanceof Error ? error.message : 'Failed to load official records')
+      console.error('Error loading designations:', error)
+      setLoadError(error instanceof Error ? error.message : 'Failed to load designations')
     } finally {
       setLoading(false)
     }
   }
 
-  const filteredOfficials = useMemo(() => {
+  function mapDesignationRow(row: any): DesignationRecord {
+    return {
+      id: row.id,
+      name: row.name,
+      category: row.category,
+      priorityOrder: row.priority_order,
+      badgeColor: row.badge_color,
+      created_at: row.created_at,
+      updated_at: row.updated_at,
+    }
+  }
+
+  const filteredDesignations = useMemo(() => {
     const query = search.trim().toLowerCase()
 
-    return officials.filter((official) => {
-      const designation = official.designation || null
+    if (!query) return designations
 
-      if (!query) return true
-
+    return designations.filter((designation) => {
       return (
-        official.fullName.toLowerCase().includes(query) ||
-        (designation?.name || '').toLowerCase().includes(query) ||
-        (designation?.category || '').toLowerCase().includes(query)
+        designation.name.toLowerCase().includes(query) ||
+        designation.category.toLowerCase().includes(query)
       )
     })
-  }, [officials, search])
+  }, [designations, search])
 
-  async function deleteOfficialById(official: OfficialRow) {
+  async function deleteDesignationById(designation: DesignationRecord) {
     try {
-      const confirmed = window.confirm(`Delete ${official.fullName}? This action cannot be undone.`)
+      const confirmed = window.confirm(`Delete ${designation.name}? This action cannot be undone and will fail if there are officials assigned to this designation.`)
       if (!confirmed) return
 
       const supabase = createClient()
-      const { error } = await supabase.from('officials').delete().eq('id', official.id)
-      if (error) throw error
+      const { error } = await supabase.from('designations').delete().eq('id', designation.id)
+      
+      if (error) {
+        if (error.code === '23503') { // Foreign key constraint violation
+          throw new Error('Cannot delete this designation because it is currently assigned to one or more officials. Please reassign or delete the officials first.')
+        }
+        throw error
+      }
 
       setDeleteTarget(null)
       loadData()
     } catch (error) {
-      console.error('Error deleting official:', error)
-      alert(error instanceof Error ? error.message : 'Failed to delete official')
+      console.error('Error deleting designation:', error)
+      alert(error instanceof Error ? error.message : 'Failed to delete designation')
     }
   }
 
   return (
     <div className="space-y-8 p-8">
-      <OfficialActions
+      <DesignationActions
         isOpen={isModalOpen}
         mode={modalMode}
-        official={selectedOfficial}
-        designations={designations}
+        designation={selectedDesignation}
         onClose={() => {
           setIsModalOpen(false)
-          setSelectedOfficial(null)
+          setSelectedDesignation(null)
         }}
         onSaved={loadData}
       />
@@ -162,9 +139,9 @@ export default function AdminDesignationsPage() {
       <Dialog open={Boolean(deleteTarget)} onOpenChange={() => setDeleteTarget(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Delete Official</DialogTitle>
+            <DialogTitle>Delete Designation</DialogTitle>
             <DialogDescription>
-              This will permanently remove the official record.
+              This will permanently remove the designation. It will fail if officials are still assigned to it.
             </DialogDescription>
           </DialogHeader>
           <div className="flex justify-end gap-2">
@@ -173,7 +150,7 @@ export default function AdminDesignationsPage() {
             </Button>
             <Button
               className="bg-rose-600 text-white hover:bg-rose-700"
-              onClick={() => deleteTarget && deleteOfficialById(deleteTarget)}
+              onClick={() => deleteTarget && deleteDesignationById(deleteTarget)}
             >
               Delete
             </Button>
@@ -183,19 +160,19 @@ export default function AdminDesignationsPage() {
 
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Official Records</h1>
-          <p className="mt-2 text-muted-foreground">Manage the officials listed in the barangay records.</p>
+          <h1 className="text-3xl font-bold">Designations</h1>
+          <p className="mt-2 text-muted-foreground">Manage official titles, roles, and categories in the barangay.</p>
         </div>
         <Button
           className="bg-emerald-600 text-white hover:bg-emerald-700"
           onClick={() => {
             setModalMode('create')
-            setSelectedOfficial(null)
+            setSelectedDesignation(null)
             setIsModalOpen(true)
           }}
         >
           <Plus className="mr-2 h-4 w-4" />
-          Add Official
+          Add Designation
         </Button>
       </div>
 
@@ -211,7 +188,7 @@ export default function AdminDesignationsPage() {
           <Input
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="Search official, designation, or category"
+            placeholder="Search by name or category..."
             className="pl-9"
           />
         </div>
@@ -219,16 +196,15 @@ export default function AdminDesignationsPage() {
 
       {loading ? (
         <div className="py-12 text-center">
-          <p className="text-muted-foreground">Loading official records...</p>
+          <p className="text-muted-foreground">Loading designations...</p>
         </div>
-      ) : filteredOfficials.length === 0 ? (
-        <Empty title="No official records" description="Add officials to populate this list." />
+      ) : filteredDesignations.length === 0 ? (
+        <Empty title="No designations found" description="Add designations to populate this list." />
       ) : (
         <div className="overflow-hidden rounded-2xl border border-emerald-100 bg-white shadow-sm">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Official Name</TableHead>
                 <TableHead>Designation Name</TableHead>
                 <TableHead>Category</TableHead>
                 <TableHead>Priority Order</TableHead>
@@ -237,48 +213,43 @@ export default function AdminDesignationsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredOfficials.map((official) => {
-                const designation = official.designation || null
-
-                return (
-                  <TableRow key={official.id}>
-                    <TableCell className="font-medium">{official.fullName}</TableCell>
-                    <TableCell>{designation?.name || 'N/A'}</TableCell>
-                    <TableCell>{getDesignationCategoryShortLabel(designation?.category)}</TableCell>
-                    <TableCell>{designation?.priorityOrder ?? 'N/A'}</TableCell>
-                    <TableCell>
-                      <Badge className="text-white" style={{ backgroundColor: normalizeBadgeColor(designation?.badgeColor) }}>
-                        {designation?.badgeColor || 'N/A'}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            setModalMode('edit')
-                            setSelectedOfficial(official)
-                            setIsModalOpen(true)
-                          }}
-                        >
-                          <Pencil className="mr-2 h-4 w-4" />
-                          Edit
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="border-rose-200 text-rose-700 hover:bg-rose-50"
-                          onClick={() => setDeleteTarget(official)}
-                        >
-                          <Trash2 className="mr-2 h-4 w-4" />
-                          Delete
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                )
-              })}
+              {filteredDesignations.map((designation) => (
+                <TableRow key={designation.id}>
+                  <TableCell className="font-medium">{designation.name}</TableCell>
+                  <TableCell>{getDesignationCategoryShortLabel(designation.category)}</TableCell>
+                  <TableCell>{designation.priorityOrder}</TableCell>
+                  <TableCell>
+                    <Badge className="text-white" style={{ backgroundColor: normalizeBadgeColor(designation.badgeColor) }}>
+                      {designation.badgeColor}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex justify-end gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setModalMode('edit')
+                          setSelectedDesignation(designation)
+                          setIsModalOpen(true)
+                        }}
+                      >
+                        <Pencil className="mr-2 h-4 w-4" />
+                        Edit
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="border-rose-200 text-rose-700 hover:bg-rose-50"
+                        onClick={() => setDeleteTarget(designation)}
+                      >
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        Delete
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
             </TableBody>
           </Table>
         </div>
