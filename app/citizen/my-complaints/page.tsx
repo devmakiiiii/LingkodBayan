@@ -19,6 +19,7 @@ interface Complaint {
   priority: string
   created_at: string
   updated_at: string
+  evidence_url?: string | null
 }
 
 export default function MyComplaintsPage() {
@@ -141,6 +142,14 @@ export default function MyComplaintsPage() {
                     {new Date(complaint.created_at).toLocaleDateString()}
                   </span>
                 </div>
+                {complaint.evidence_url && (
+                  <div className="mt-4 pt-4 border-t border-gray-100">
+                    <p className="text-sm font-semibold text-gray-700 mb-2">Attached Evidence:</p>
+                    <a href={complaint.evidence_url} target="_blank" rel="noopener noreferrer" className="block w-40 h-28 rounded-lg overflow-hidden border shadow-sm group">
+                      <img src={complaint.evidence_url} alt="Evidence preview" className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                    </a>
+                  </div>
+                )}
               </CardContent>
             </Card>
           ))}

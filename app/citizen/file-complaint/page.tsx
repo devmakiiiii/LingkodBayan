@@ -15,7 +15,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
-import { AlertCircle, MapPin } from 'lucide-react'
+import { AlertCircle, MapPin, Upload, X, ImageIcon } from 'lucide-react'
 import { MapPicker } from '@/components/citizen/map-picker'
 import { getOrCreateResidentProfile } from '@/lib/residents'
 
@@ -37,6 +37,8 @@ export default function FileComplaintPage() {
   const [latitude, setLatitude] = useState<number | null>(null)
   const [longitude, setLongitude] = useState<number | null>(null)
   const [locationAddress, setLocationAddress] = useState<string | null>(null)
+  const [evidenceFile, setEvidenceFile] = useState<File | null>(null)
+  const [evidencePreview, setEvidencePreview] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
@@ -55,6 +57,29 @@ export default function FileComplaintPage() {
       const resident = await getOrCreateResidentProfile(supabase, user)
       if (!resident) throw new Error('Resident profile not found')
 
+      let evidenceUrl = null
+
+      // Upload evidence if selected
+      if (evidenceFile) {
+        const fileExt = evidenceFile.name.split('.').pop()
+        const fileName = `${user.id}-${Date.now()}.${fileExt}`
+        const filePath = `complaints/${fileName}`
+
+        const { error: uploadError } = await supabase.storage
+          .from('evidence')
+          .upload(filePath, evidenceFile)
+
+        if (uploadError) {
+          throw new Error('Failed to upload evidence image: ' + uploadError.message)
+        }
+
+        const { data: { publicUrl } } = supabase.storage
+          .from('evidence')
+          .getPublicUrl(filePath)
+          
+        evidenceUrl = publicUrl
+      }
+
       // Create complaint with location
       const { error: insertError } = await supabase.from('complaints').insert([
         {
@@ -66,6 +91,7 @@ export default function FileComplaintPage() {
           latitude: latitude || null,
           longitude: longitude || null,
           location_address: locationAddress || null,
+          evidence_url: evidenceUrl,
         },
       ])
 
@@ -168,6 +194,65 @@ export default function FileComplaintPage() {
                   <p className="text-sm text-blue-900">
                     <strong>Selected Location:</strong> {locationAddress}
                   </p>
+                </div>
+              )}
+            </div>
+
+            {/* Evidence Image Upload */}
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2">
+                <ImageIcon size={18} />
+                Upload Evidence Photo (Optional)
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Attach an image to support your complaint (max 5MB)
+              </p>
+              
+              {!evidencePreview ? (
+                <div className="relative border-2 border-dashed rounded-lg p-6 flex flex-col items-center justify-center bg-gray-50/50 hover:bg-gray-50 transition-colors">
+                  <Upload className="h-8 w-8 text-gray-400 mb-2" />
+                  <p className="text-sm text-gray-600 font-medium">Click to upload or drag and drop</p>
+                  <p className="text-xs text-gray-500 mt-1">PNG, JPG or WEBP</p>
+                  <Input
+                    id="evidence"
+                    type="file"
+                    accept="image/*"
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0]
+                      if (file) {
+                        if (file.size > 5 * 1024 * 1024) {
+                          setError('File size must be less than 5MB')
+                          return
+                        }
+                        setError(null)
+                        setEvidenceFile(file)
+                        const reader = new FileReader()
+                        reader.onloadend = () => {
+                          setEvidencePreview(reader.result as string)
+                        }
+                        reader.readAsDataURL(file)
+                      }
+                    }}
+                  />
+                </div>
+              ) : (
+                <div className="relative rounded-lg overflow-hidden border">
+                  <img src={evidencePreview} alt="Evidence preview" className="w-full h-48 object-cover" />
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    size="icon"
+                    className="absolute top-2 right-2 h-8 w-8 rounded-full"
+                    onClick={() => {
+                      setEvidenceFile(null)
+                      setEvidencePreview(null)
+                      const fileInput = document.getElementById('evidence') as HTMLInputElement
+                      if (fileInput) fileInput.value = ''
+                    }}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
                 </div>
               )}
             </div>
