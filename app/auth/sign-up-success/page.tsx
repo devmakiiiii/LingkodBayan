@@ -35,7 +35,7 @@ export default async function Page({
             <CardHeader>
               <CardTitle className="text-2xl text-center">Account Created!</CardTitle>
               <CardDescription className="text-center">
-                Check your email for the 6-digit verification code.
+                Check your email for the verification code.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -44,7 +44,7 @@ export default async function Page({
                   Welcome to LingkodBayan! You&apos;ve successfully created your account.
                 </p>
                 <p className="text-sm text-muted-foreground">
-                  We now send a 6-digit numeric code instead of a confirmation link. Enter the code on the verification page to activate your account.
+                  We now send a numeric verification code instead of a confirmation link. Enter the code on the verification page to activate your account.
                 </p>
                 <p className="text-sm text-muted-foreground">
                   Once verified, you&apos;ll be able to submit service requests, file complaints, and track your submissions.

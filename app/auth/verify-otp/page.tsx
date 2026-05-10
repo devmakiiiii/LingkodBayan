@@ -18,7 +18,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { useMemo, useState } from 'react'
 
 function normalizeCode(value: string) {
-  return value.replace(/\D/g, '').slice(0, 6)
+  return value.replace(/\D/g, '').slice(0, 8)
 }
 
 export default function Page() {
@@ -46,8 +46,8 @@ export default function Page() {
       return
     }
 
-    if (code.length !== 6) {
-      setError('Enter the 6-digit code from your email.')
+    if (code.length !== 6 && code.length !== 8) {
+      setError('Enter the 6 or 8-digit code from your email.')
       return
     }
 
@@ -101,7 +101,7 @@ export default function Page() {
 
       if (error) throw error
 
-      setMessage('A new 6-digit code has been sent to your email.')
+      setMessage('A new verification code has been sent to your email.')
     } catch (error: unknown) {
       setError(error instanceof Error ? error.message : 'An error occurred while resending the code.')
     } finally {
@@ -131,7 +131,7 @@ export default function Page() {
 
             <Card className="border-0 shadow-none">
               <CardHeader className="px-0 pt-0">
-                <CardTitle className="text-2xl text-center">Enter your 6-digit code</CardTitle>
+                <CardTitle className="text-2xl text-center">Enter your verification code</CardTitle>
                 <CardDescription className="text-center">
                   We sent a numeric verification code to your email. Enter it below to finish creating your account.
                 </CardDescription>
@@ -155,7 +155,7 @@ export default function Page() {
 
                   <div className="space-y-2">
                     <Label htmlFor="code" className="text-sm font-medium text-gray-700">
-                      6-Digit Code
+                      Verification Code
                     </Label>
                     <Input
                       id="code"
@@ -166,7 +166,7 @@ export default function Page() {
                       required
                       value={code}
                       onChange={(e) => setCode(normalizeCode(e.target.value))}
-                      maxLength={6}
+                      maxLength={8}
                       className="bg-[#E8F4FD] border border-gray-300 rounded-xl px-4 py-2.5 text-sm tracking-[0.35em] text-center focus:outline-none focus:ring-2 focus:ring-[#28A745]"
                     />
                   </div>
