@@ -230,7 +230,7 @@ export function OfficialActions({ isOpen, mode, official, designations, onClose,
               </div>
               <div>
                 <p className="text-xs uppercase tracking-wide text-muted-foreground">Term</p>
-                <p className="font-medium">{official.termStart} - {official.termEnd}</p>
+                <p className="font-medium">{(official.termStart || '').replaceAll('-', '/')} - {(official.termEnd || '').replaceAll('-', '/')}</p>
               </div>
               <div>
                 <p className="text-xs uppercase tracking-wide text-muted-foreground">Status</p>

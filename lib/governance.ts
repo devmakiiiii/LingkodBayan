@@ -43,7 +43,8 @@ export function getOfficialTermDuration(termStart?: string | null, termEnd?: str
     return 'N/A'
   }
 
-  return `${new Date(termStart).toLocaleDateString('en-PH')} - ${new Date(termEnd).toLocaleDateString('en-PH')}`
+  const formatDate = (d: string) => d.slice(0, 10).replaceAll('-', '/')
+  return `${formatDate(termStart)} - ${formatDate(termEnd)}`
 }
 
 export function normalizeBadgeColor(color?: string | null) {
