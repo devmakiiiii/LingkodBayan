@@ -746,21 +746,42 @@ export function ResidentReportsPage() {
   async function sendReply() {
     if (!selectedReport || !replyDraft.trim()) return
 
+    if (!profileUser?.id) {
+      alert('Unable to identify your admin account. Please refresh the page and try again.')
+      return
+    }
+
+    const recipientId = selectedReport.residentUserId || null
+
+    if (!recipientId) {
+      alert('Unable to find the resident account linked to this report. The resident may not have a verified account yet.')
+      return
+    }
+
     setSavingAction(true)
     try {
       const supabase = createClient()
+
+      console.log('Sending reply to complaint', selectedReport.id, {
+        recipient_user_id: recipientId,
+        sender_id: profileUser.id,
+      })
+
       const { error } = await supabase.from('complaint_messages').insert([
         {
           complaint_id: selectedReport.id,
-          recipient_user_id: selectedReport.residentUserId,
-          sender_id: profileUser?.id,
+          recipient_user_id: recipientId,
+          sender_id: profileUser.id,
           message: replyDraft.trim(),
           message_type: 'reply',
           is_read: false,
         },
       ])
 
-      if (error) throw error
+      if (error) {
+        console.error('Supabase insert error:', error)
+        throw new Error(error.message || 'Database insert failed')
+      }
 
       setReplyDraft('')
       await loadReports(false)
