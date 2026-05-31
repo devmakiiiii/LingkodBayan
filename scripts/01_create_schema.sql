@@ -1,3 +1,6 @@
+-- Run this script FIRST to set up the database schema with correct RLS policies
+-- This is a consolidated version with the INSERT policy fix included
+
 -- Create residents table
 CREATE TABLE IF NOT EXISTS public.residents (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -36,6 +39,7 @@ CREATE TABLE IF NOT EXISTS public.complaints (
   category TEXT NOT NULL,
   status TEXT DEFAULT 'open',
   priority TEXT DEFAULT 'normal',
+  evidence_url TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -131,34 +135,18 @@ AS $$
   OR coalesce((auth.jwt() -> 'app_metadata' ->> 'role') = 'super_admin', false);
 $$;
 
--- RLS Policies for designations table
-DROP POLICY IF EXISTS "Admins can view designations" ON public.designations;
-DROP POLICY IF EXISTS "Admins can manage designations" ON public.designations;
-
-CREATE POLICY "Admins can view designations" ON public.designations
-  FOR SELECT USING (public.is_admin_user(auth.uid()));
-
-CREATE POLICY "Admins can manage designations" ON public.designations
-  FOR ALL USING (public.is_admin_user(auth.uid()));
-
--- RLS Policies for officials table
-DROP POLICY IF EXISTS "Admins can view officials" ON public.officials;
-DROP POLICY IF EXISTS "Admins can manage officials" ON public.officials;
-
-CREATE POLICY "Admins can view officials" ON public.officials
-  FOR SELECT USING (public.is_admin_user(auth.uid()));
-
-CREATE POLICY "Admins can manage officials" ON public.officials
-  FOR ALL USING (public.is_admin_user(auth.uid()));
-
--- RLS Policies for residents table
+-- RLS Policies for residents table (FIXED - includes INSERT policy)
 DROP POLICY IF EXISTS "Residents can view their own data" ON public.residents;
+DROP POLICY IF EXISTS "Residents can create their own profile" ON public.residents;
 DROP POLICY IF EXISTS "Residents can update their own data" ON public.residents;
 DROP POLICY IF EXISTS "Admins can view all residents" ON public.residents;
 DROP POLICY IF EXISTS "Admins can update resident data" ON public.residents;
 
 CREATE POLICY "Residents can view their own data" ON public.residents
   FOR SELECT USING (auth.uid() = user_id);
+
+CREATE POLICY "Residents can create their own profile" ON public.residents
+  FOR INSERT WITH CHECK (auth.uid() = user_id);
 
 CREATE POLICY "Residents can update their own data" ON public.residents
   FOR UPDATE USING (auth.uid() = user_id);

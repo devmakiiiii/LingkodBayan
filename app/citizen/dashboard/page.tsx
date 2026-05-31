@@ -24,6 +24,7 @@ export default function CitizenDashboard() {
   })
   const [loading, setLoading] = useState(true)
   const [userName, setUserName] = useState<string>('')
+  const [fetchError, setFetchError] = useState<string | null>(null)
 
   useEffect(() => {
     async function loadData() {
@@ -41,16 +42,24 @@ export default function CitizenDashboard() {
 
         if (resident) {
           // Get requests
-          const { data: requests } = await supabase
+          const { data: requests, error: requestsError } = await supabase
             .from('requests')
             .select('*')
             .eq('resident_id', resident.id)
 
           // Get complaints
-          const { data: complaints } = await supabase
+          const { data: complaints, error: complaintsError } = await supabase
             .from('complaints')
             .select('*')
             .eq('resident_id', resident.id)
+
+          // Check for query errors before processing
+          if (requestsError) {
+            throw requestsError
+          }
+          if (complaintsError) {
+            throw complaintsError
+          }
 
           const totalRequests = requests?.length || 0
           const totalComplaints = complaints?.length || 0
@@ -64,8 +73,15 @@ export default function CitizenDashboard() {
             resolvedRequests,
           })
         }
-      } catch (error) {
-        console.error('Error loading dashboard data:', error)
+      } catch (error: unknown) {
+        // Extract error details for proper logging (handles Supabase PostgrestError)
+        const errorMessage = error instanceof Error 
+          ? error.message 
+          : (error && typeof error === 'object' && 'message' in error)
+            ? String((error as Record<string, unknown>).message)
+            : JSON.stringify(error)
+        console.error('Error loading dashboard data:', errorMessage, error)
+        setFetchError(errorMessage)
       } finally {
         setLoading(false)
       }
@@ -81,6 +97,14 @@ export default function CitizenDashboard() {
         <h1 className="text-3xl font-bold">Welcome back, {userName}! 👋</h1>
         <p className="text-muted-foreground mt-2">Here&apos;s an overview of your civic activities</p>
       </div>
+
+      {/* Error Display */}
+      {fetchError && (
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+          <p className="font-semibold">Error loading dashboard:</p>
+          <p className="text-sm">{fetchError}</p>
+        </div>
+      )}
 
       {/* Stats Grid */}
       <div className="grid gap-4 md:grid-cols-4">

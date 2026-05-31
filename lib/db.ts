@@ -7,6 +7,8 @@ export async function createResident(userData: {
   lastName: string
   email: string
   barangay: string
+  phone?: string | null
+  address?: string | null
 }) {
   const supabase = await createClient()
   
@@ -17,6 +19,8 @@ export async function createResident(userData: {
       last_name: userData.lastName,
       email: userData.email,
       barangay: userData.barangay,
+      phone: userData.phone || null,
+      address: userData.address || null,
     },
   ]).select().single()
 

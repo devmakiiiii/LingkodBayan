@@ -13,6 +13,7 @@ interface Resident {
   last_name: string
   email: string
   phone: string | null
+  address: string | null
   barangay: string
   created_at: string
 }
@@ -96,11 +97,18 @@ export default function AdminResidentsPage() {
                   <Mail className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                   <span className="break-all">{resident.email}</span>
                 </div>
-                
+
                 {resident.phone && (
                   <div className="flex items-center gap-2 text-sm">
                     <span className="text-muted-foreground">Phone:</span>
                     <span>{resident.phone}</span>
+                  </div>
+                )}
+
+                {resident.address && (
+                  <div className="flex items-center gap-2 text-sm">
+                    <span className="text-muted-foreground">Address:</span>
+                    <span>{resident.address}</span>
                   </div>
                 )}
 

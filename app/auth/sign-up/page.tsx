@@ -25,6 +25,8 @@ export default function Page() {
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
   const [barangay, setBarangay] = useState('')
+  const [phone, setPhone] = useState('')
+  const [address, setAddress] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
@@ -56,6 +58,8 @@ export default function Page() {
             first_name: firstName,
             last_name: lastName,
             barangay,
+            phone: phone || undefined,
+            address: address || undefined,
             role: 'citizen',
           },
         },
@@ -162,6 +166,36 @@ export default function Page() {
                     required
                     value={barangay}
                     onChange={(e) => setBarangay(e.target.value)}
+                    className="w-full bg-[#E8F4FD] border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#28A745]"
+                  />
+                </div>
+
+                {/* Phone Number */}
+                <div className="space-y-2">
+                  <Label htmlFor="phone" className="text-sm font-medium text-gray-700">
+                    Phone Number
+                  </Label>
+                  <Input
+                    id="phone"
+                    type="tel"
+                    placeholder="09XX XXX XXXX"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    className="w-full bg-[#E8F4FD] border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#28A745]"
+                  />
+                </div>
+
+                {/* Address */}
+                <div className="space-y-2">
+                  <Label htmlFor="address" className="text-sm font-medium text-gray-700">
+                    Complete Address
+                  </Label>
+                  <Input
+                    id="address"
+                    type="text"
+                    placeholder="Purok, Street, Block/Lot number"
+                    value={address}
+                    onChange={(e) => setAddress(e.target.value)}
                     className="w-full bg-[#E8F4FD] border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#28A745]"
                   />
                 </div>

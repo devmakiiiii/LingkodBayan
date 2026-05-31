@@ -6,6 +6,8 @@ type ResidentProfile = {
   first_name: string
   last_name: string
   email: string
+  phone?: string | null
+  address?: string | null
   barangay: string
 }
 
@@ -15,18 +17,39 @@ function getUserField(user: User, key: string) {
     : ''
 }
 
+function getUserPhone(user: User) {
+  const phone = user.user_metadata?.phone
+  if (typeof phone === 'string') {
+    return phone.trim() || null
+  }
+  return null
+}
+
+function getUserAddress(user: User) {
+  const address = user.user_metadata?.address
+  if (typeof address === 'string') {
+    return address.trim() || null
+  }
+  return null
+}
+
 export async function getOrCreateResidentProfile(
   supabase: SupabaseClient,
   user: User,
 ): Promise<ResidentProfile | null> {
   const { data: residents, error: residentError } = await supabase
     .from('residents')
-    .select('id, user_id, first_name, last_name, email, barangay')
+    .select('id, user_id, first_name, last_name, email, phone, address, barangay')
     .eq('user_id', user.id)
     .order('created_at', { ascending: false })
     .limit(1)
 
   if (residentError) {
+    // Extract error details for better debugging
+    const errorMessage = 'message' in residentError 
+      ? String(residentError.message)
+      : JSON.stringify(residentError)
+    console.error('getOrCreateResidentProfile - SELECT error:', errorMessage, residentError)
     throw residentError
   }
 
@@ -39,8 +62,18 @@ export async function getOrCreateResidentProfile(
   const lastName = getUserField(user, 'last_name')
   const barangay = getUserField(user, 'barangay')
   const email = user.email?.trim() || getUserField(user, 'email')
+  const phone = getUserPhone(user)
+  const address = getUserAddress(user)
 
-  if (!firstName || !lastName || !barangay || !email) {
+  // Check for missing metadata that prevents profile creation
+  const missingFields: string[] = []
+  if (!firstName) missingFields.push('first_name')
+  if (!lastName) missingFields.push('last_name')
+  if (!barangay) missingFields.push('barangay')
+  if (!email) missingFields.push('email')
+
+  if (missingFields.length > 0) {
+    console.warn('getOrCreateResidentProfile - Missing user metadata:', missingFields.join(', '))
     return null
   }
 
@@ -52,13 +85,20 @@ export async function getOrCreateResidentProfile(
         first_name: firstName,
         last_name: lastName,
         email,
+        phone,
+        address,
         barangay,
       },
     ])
-    .select('id, user_id, first_name, last_name, email, barangay')
+    .select('id, user_id, first_name, last_name, email, phone, address, barangay')
     .single()
 
   if (insertError) {
+    // Extract error details for better debugging
+    const errorMessage = 'message' in insertError 
+      ? String(insertError.message)
+      : JSON.stringify(insertError)
+    console.error('getOrCreateResidentProfile - INSERT error:', errorMessage, insertError)
     throw insertError
   }
 
