@@ -1,0 +1,23 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Barangay Barretto",
+        "city": "Olongapo City",
+        "province": "Zambales"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [120.253, 14.840],
+          [120.253, 14.860],
+          [120.270, 14.860],
+          [120.270, 14.840],
+          [120.253, 14.840]
+        ]]
+      }
+    }
+  ]
+}

@@ -32,6 +32,7 @@ import {
   type PrintableColumn,
   type RequestReportRow,
 } from '@/lib/admin-reporting'
+import { complaintCategories } from '@/lib/complaint-categories'
 import { requestTypes } from '@/lib/request-types'
 
 type ReportStatusOption = 'all' | string
@@ -252,7 +253,7 @@ export default function AdminGeneratedReportsPage() {
     }
 
     if (reportType === 'residents') {
-      return ['noise', 'dispute', 'theft', 'others']
+      return complaintCategories
     }
 
     return Array.from(new Set(officials.map((record) => record.designations?.category).filter(Boolean) as string[])).sort()

@@ -30,23 +30,28 @@ export default function NotificationsPage() {
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) return
 
-        const { data } = await supabase
+        const { data, error: messagesError } = await supabase
           .from('complaint_messages')
           .select('id, message, created_at, is_read, complaint_id, complaints(title, status)')
           .eq('recipient_user_id', user.id)
           .order('created_at', { ascending: false })
 
-        const rows = (data || []) as NotificationItem[]
-        setItems(rows)
+        if (messagesError) {
+          console.warn('Failed to load notifications:', messagesError.message)
+          setItems([])
+        } else {
+          const rows = (data || []) as NotificationItem[]
+          setItems(rows)
 
-        const unreadIds = rows.filter((item) => !item.is_read).map((item) => item.id)
-        if (unreadIds.length > 0) {
-          await supabase
-            .from('complaint_messages')
-            .update({ is_read: true })
-            .in('id', unreadIds)
+          const unreadIds = rows.filter((item) => !item.is_read).map((item) => item.id)
+          if (unreadIds.length > 0) {
+            await supabase
+              .from('complaint_messages')
+              .update({ is_read: true })
+              .in('id', unreadIds)
 
-          setItems((current) => current.map((item) => (unreadIds.includes(item.id) ? { ...item, is_read: true } : item)))
+            setItems((current) => current.map((item) => (unreadIds.includes(item.id) ? { ...item, is_read: true } : item)))
+          }
         }
       } catch (error) {
         console.error('Error loading notifications:', error)

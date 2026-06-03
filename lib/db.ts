@@ -75,23 +75,29 @@ export async function getResidentRequests(residentId: string) {
   return data || []
 }
 
-export async function createComplaint(residentId: string, input: ComplaintInput) {
-  const supabase = await createClient()
-  
-  const { data, error } = await supabase.from('complaints').insert([
-    {
-      resident_id: residentId,
-      title: input.title,
-      description: input.description,
-      category: input.category,
-      status: 'open',
-      priority: 'normal',
-    },
-  ]).select().single()
+export async function createComplaint(residentId: string, input: ComplaintInput & { latitude?: number | null; longitude?: number | null; locationAddress?: string | null; evidenceUrl?: string | null }) {
+   const supabase = await createClient()
+   
+   const complaintData: Record<string, any> = {
+     resident_id: residentId,
+     title: input.title,
+     description: input.description,
+     category: input.category,
+     status: 'open',
+     priority: 'normal',
+   }
 
-  if (error) throw new Error(`Failed to create complaint: ${error.message}`)
-  return data
-}
+   // Add optional geolocation fields
+   if (input.latitude) complaintData.latitude = input.latitude
+   if (input.longitude) complaintData.longitude = input.longitude
+   if (input.locationAddress) complaintData.location_address = input.locationAddress
+   if (input.evidenceUrl) complaintData.evidence_url = input.evidenceUrl
+
+   const { data, error } = await supabase.from('complaints').insert([complaintData]).select().single()
+
+   if (error) throw new Error(`Failed to create complaint: ${error.message}`)
+   return data
+ }
 
 export async function getResidentComplaints(residentId: string) {
   const supabase = await createClient()

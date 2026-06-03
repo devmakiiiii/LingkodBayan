@@ -1,15 +1,22 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { MapContainer, Marker, Popup, TileLayer, useMapEvents } from 'react-leaflet'
+import { MapContainer, Marker, Popup, TileLayer, useMap, useMapEvents } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 
 interface MapPickerClientProps {
   onLocationSelect: (lat: number, lng: number, address: string) => void
-  initialLat?: number
-  initialLng?: number
 }
+
+// Barangay Barretto bounds in [lat, lng] format for Leaflet
+const BARANGAY_BARRETTO_BOUNDS: [[number, number], [number, number]] = [
+  [14.840, 120.253], // Southwest
+  [14.860, 120.270], // Northeast
+]
+
+// Center point for Barangay Barretto (14.851°N, 120.263°E)
+const BARANGAY_BARRETTO_CENTER: [number, number] = [14.851, 120.263]
 
 const DefaultIcon = L.icon({
   iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
@@ -22,6 +29,14 @@ const DefaultIcon = L.icon({
 })
 
 L.Marker.prototype.setIcon(DefaultIcon)
+
+function MapBoundsSetter() {
+  const map = useMap()
+  useEffect(() => {
+    map.fitBounds(BARANGAY_BARRETTO_BOUNDS, { padding: [20, 20] })
+  }, [map])
+  return null
+}
 
 function LocationMarker({ onLocationSelect }: { onLocationSelect: (lat: number, lng: number) => void }) {
   const [position, setPosition] = useState<[number, number] | null>(null)
@@ -40,13 +55,12 @@ function LocationMarker({ onLocationSelect }: { onLocationSelect: (lat: number, 
   )
 }
 
-export default function MapPickerClient({ onLocationSelect, initialLat = 14.5995, initialLng = 120.9842 }: MapPickerClientProps) {
+export default function MapPickerClient({ onLocationSelect }: MapPickerClientProps) {
   const [selectedLocation, setSelectedLocation] = useState<{ lat: number; lng: number } | null>(null)
 
   useEffect(() => {
-    // Reset if the initial center changes between renders.
     setSelectedLocation(null)
-  }, [initialLat, initialLng])
+  }, [])
 
   const handleLocationSelect = async (lat: number, lng: number) => {
     setSelectedLocation({ lat, lng })
@@ -65,11 +79,12 @@ export default function MapPickerClient({ onLocationSelect, initialLat = 14.5995
 
   return (
     <div className="w-full overflow-hidden rounded-lg border border-gray-200 shadow-sm">
-      <MapContainer center={[initialLat, initialLng]} zoom={13} style={{ height: '400px', width: '100%' }}>
+      <MapContainer center={BARANGAY_BARRETTO_CENTER} zoom={15} style={{ height: '500px', width: '100%' }}>
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
+        <MapBoundsSetter />
         <LocationMarker onLocationSelect={handleLocationSelect} />
       </MapContainer>
       {selectedLocation && (

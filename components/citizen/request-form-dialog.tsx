@@ -77,7 +77,36 @@ export function RequestFormDialog({ open, onOpenChange, requestType }: RequestFo
       setIsSubmitting(false)
       setErrorMessage('')
       setSubmittedState(null)
+      return
     }
+
+    const prefillFromProfile = async () => {
+      const supabase = createClient()
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+
+      if (!user || !requestType) return
+
+      const resident = await getOrCreateResidentProfile(supabase, user)
+      if (!resident) return
+
+      setValues((currentValues) => {
+        const updates: Record<string, string> = {}
+        if (currentValues.fullName === '' && resident.first_name && resident.last_name) {
+          updates.fullName = `${resident.first_name} ${resident.last_name}`.trim()
+        }
+        if (currentValues.address === '' && resident.address) {
+          updates.address = resident.address
+        }
+        if (currentValues.contactNumber === '' && resident.phone) {
+          updates.contactNumber = resident.phone
+        }
+        return Object.keys(updates).length > 0 ? { ...currentValues, ...updates } : currentValues
+      })
+    }
+
+    prefillFromProfile()
   }, [open, requestType])
 
   const handleValueChange = (fieldName: string, fieldValue: string) => {
@@ -214,6 +243,7 @@ export function RequestFormDialog({ open, onOpenChange, requestType }: RequestFo
               <DialogTitle className="text-2xl text-foreground">{config.title}</DialogTitle>
               <DialogDescription>
                 Fill out the form below. Your request will be saved as pending and routed for review.
+                <span className="block text-xs text-emerald-600 mt-1">Some fields are auto-filled from your profile.</span>
               </DialogDescription>
             </DialogHeader>
 

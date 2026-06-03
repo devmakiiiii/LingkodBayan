@@ -54,6 +54,7 @@ import {
   openPrintableReport,
   type PrintableColumn,
 } from '@/lib/admin-reporting'
+import { complaintCategories, complaintCategoryKeywords, complaintCategoryBadgeClasses, complaintCategoryFallbackPriorities, type ComplaintCategory, analyzeComplaintPriority } from '@/lib/complaint-categories'
 
 type CanonicalStatus = 'pending' | 'under_review' | 'resolved' | 'rejected'
 type CanonicalPriority = 'low' | 'medium' | 'high' | 'critical'
@@ -97,6 +98,8 @@ type ResidentReportRow = {
   categoryKey: string
   status: CanonicalStatus
   priority: CanonicalPriority
+  priorityConfidence: number
+  priorityReasons: string[]
   residentId: string
   residentUserId: string
   residentName: string
@@ -134,58 +137,58 @@ const categoryDefinitions: CategoryDefinition[] = [
   {
     key: 'noise-complaint',
     label: 'Noise Complaint',
-    badgeClass: 'border-emerald-200 bg-emerald-50 text-emerald-700',
-    keywords: ['noise', 'loud', 'karaoke', 'music', 'party'],
-    fallbackPriority: 'low',
+    badgeClass: complaintCategoryBadgeClasses['Noise Complaint'],
+    keywords: complaintCategoryKeywords['Noise Complaint'],
+    fallbackPriority: complaintCategoryFallbackPriorities['Noise Complaint'],
   },
   {
     key: 'public-disturbance',
     label: 'Public Disturbance',
-    badgeClass: 'border-amber-200 bg-amber-50 text-amber-700',
-    keywords: ['disturbance', 'dispute', 'gulo', 'fight', 'altercation', 'corruption', 'abuse of power', 'mismanagement'],
-    fallbackPriority: 'high',
+    badgeClass: complaintCategoryBadgeClasses['Public Disturbance'],
+    keywords: complaintCategoryKeywords['Public Disturbance'],
+    fallbackPriority: complaintCategoryFallbackPriorities['Public Disturbance'],
   },
   {
     key: 'sanitation',
     label: 'Sanitation',
-    badgeClass: 'border-sky-200 bg-sky-50 text-sky-700',
-    keywords: ['sanitation', 'garbage', 'trash', 'waste', 'sewer', 'drain', 'odor', 'dirty', 'environment'],
-    fallbackPriority: 'medium',
+    badgeClass: complaintCategoryBadgeClasses['Sanitation'],
+    keywords: complaintCategoryKeywords['Sanitation'],
+    fallbackPriority: complaintCategoryFallbackPriorities['Sanitation'],
   },
   {
     key: 'infrastructure-issue',
     label: 'Infrastructure Issue',
-    badgeClass: 'border-violet-200 bg-violet-50 text-violet-700',
-    keywords: ['infrastructure', 'road', 'pothole', 'bridge', 'repair', 'drainage', 'unsafe conditions'],
-    fallbackPriority: 'high',
+    badgeClass: complaintCategoryBadgeClasses['Infrastructure Issue'],
+    keywords: complaintCategoryKeywords['Infrastructure Issue'],
+    fallbackPriority: complaintCategoryFallbackPriorities['Infrastructure Issue'],
   },
   {
     key: 'barangay-incident',
     label: 'Barangay Incident',
-    badgeClass: 'border-rose-200 bg-rose-50 text-rose-700',
-    keywords: ['incident', 'assault', 'theft', 'burglary', 'violence', 'crime', 'abuse'],
-    fallbackPriority: 'critical',
+    badgeClass: complaintCategoryBadgeClasses['Barangay Incident'],
+    keywords: complaintCategoryKeywords['Barangay Incident'],
+    fallbackPriority: complaintCategoryFallbackPriorities['Barangay Incident'],
   },
   {
     key: 'illegal-parking',
     label: 'Illegal Parking',
-    badgeClass: 'border-orange-200 bg-orange-50 text-orange-700',
-    keywords: ['parking', 'parked', 'obstruction'],
-    fallbackPriority: 'low',
+    badgeClass: complaintCategoryBadgeClasses['Illegal Parking'],
+    keywords: complaintCategoryKeywords['Illegal Parking'],
+    fallbackPriority: complaintCategoryFallbackPriorities['Illegal Parking'],
   },
   {
     key: 'street-light-problem',
     label: 'Street Light Problem',
-    badgeClass: 'border-yellow-200 bg-yellow-50 text-yellow-800',
-    keywords: ['street light', 'light', 'lamp', 'dark'],
-    fallbackPriority: 'medium',
+    badgeClass: complaintCategoryBadgeClasses['Street Light Problem'],
+    keywords: complaintCategoryKeywords['Street Light Problem'],
+    fallbackPriority: complaintCategoryFallbackPriorities['Street Light Problem'],
   },
   {
     key: 'other-concerns',
     label: 'Other Concerns',
-    badgeClass: 'border-slate-200 bg-slate-50 text-slate-700',
-    keywords: [],
-    fallbackPriority: 'low',
+    badgeClass: complaintCategoryBadgeClasses['Other Concerns'],
+    keywords: complaintCategoryKeywords['Other Concerns'],
+    fallbackPriority: complaintCategoryFallbackPriorities['Other Concerns'],
   },
 ]
 
@@ -256,48 +259,22 @@ function normalizeStatus(raw?: string | null): CanonicalStatus {
 }
 
 function normalizeCategory(row: any): CategoryDefinition {
-  const rawText = `${row.category || ''} ${row.title || ''} ${row.description || ''}`.toLowerCase()
+  const rawCategory = (row.category || '').toLowerCase().trim()
+  const rawText = `${row.title || ''} ${row.description || ''}`.toLowerCase()
 
   for (const definition of categoryDefinitions) {
-    if (definition.key === rawText || definition.label.toLowerCase() === (row.category || '').toLowerCase()) {
+    if (definition.label.toLowerCase() === rawCategory) {
       return definition
     }
+  }
 
+  for (const definition of categoryDefinitions) {
     if (definition.key === 'other-concerns') {
       continue
     }
 
-    if (definition.key === 'street-light-problem') {
-      if (definition.key.includes('street') && (rawText.includes('street light') || rawText.includes('lamp') || rawText.includes('light'))) {
-        return definition
-      }
-    }
-
-    if (definition.key === 'barangay-incident') {
-      if (rawText.includes('incident') || rawText.includes('theft') || rawText.includes('violence') || rawText.includes('assault') || rawText.includes('crime') || rawText.includes('abuse')) {
-        return definition
-      }
-    }
-
-    if (definition.key === 'public-disturbance') {
-      if (rawText.includes('disturb') || rawText.includes('dispute') || rawText.includes('corruption') || rawText.includes('abuse of power') || rawText.includes('mismanagement')) {
-        return definition
-      }
-    }
-
-    if (definition.key === 'sanitation' && (rawText.includes('sanitation') || rawText.includes('garbage') || rawText.includes('trash') || rawText.includes('waste') || rawText.includes('drain') || rawText.includes('sewer'))) {
-      return definition
-    }
-
-    if (definition.key === 'infrastructure-issue' && (rawText.includes('infrastructure') || rawText.includes('road') || rawText.includes('pothole') || rawText.includes('bridge') || rawText.includes('drainage') || rawText.includes('repair'))) {
-      return definition
-    }
-
-    if (definition.key === 'illegal-parking' && (rawText.includes('parking') || rawText.includes('parked') || rawText.includes('obstruction'))) {
-      return definition
-    }
-
-    if (definition.key === 'noise-complaint' && (rawText.includes('noise') || rawText.includes('loud') || rawText.includes('karaoke') || rawText.includes('music') || rawText.includes('party'))) {
+    const keywords = complaintCategoryKeywords[definition.label as ComplaintCategory] || []
+    if (keywords.some((kw) => rawText.includes(kw))) {
       return definition
     }
   }
@@ -312,7 +289,8 @@ function normalizePriority(row: any, category: CategoryDefinition): CanonicalPri
     return explicit
   }
 
-  return category.fallbackPriority
+  const analysis = analyzeComplaintPriority(row.title || '', row.description || '', category.fallbackPriority)
+  return analysis.priority
 }
 
 function extractEvidenceUrls(row: any) {
@@ -536,7 +514,13 @@ export function ResidentReportsPage() {
         const resident = row.resident_id ? residentsById.get(row.resident_id) || null : null
         const categoryDefinition = normalizeCategory(row)
         const status = normalizeStatus(row.status)
-        const priority = normalizePriority(row, categoryDefinition)
+        const explicitPriority = String(row.priority_level || row.priority || '').toLowerCase().trim()
+        const analysis = explicitPriority && ['low', 'medium', 'high', 'critical'].includes(explicitPriority)
+          ? null
+          : analyzeComplaintPriority(row.title || '', row.description || '', categoryDefinition.fallbackPriority)
+        const priority = analysis?.priority || (explicitPriority as CanonicalPriority) || categoryDefinition.fallbackPriority
+        const priorityConfidence = analysis?.confidence ?? 1.0
+        const priorityReasons = analysis?.reasons ?? ['Explicit priority set']
         const assignedOfficial = row.assigned_official_id ? officialOptions.find((official) => official.id === row.assigned_official_id) || null : null
 
         return {
@@ -548,6 +532,8 @@ export function ResidentReportsPage() {
           categoryKey: categoryDefinition.key,
           status,
           priority,
+          priorityConfidence,
+          priorityReasons,
           residentId: row.resident_id,
           residentUserId: resident?.user_id || '',
           residentName: fullNameOf(resident),
@@ -718,22 +704,21 @@ export function ResidentReportsPage() {
         throw new Error('Update was blocked. You may not have permission to update this report. Please check that your admin account has the correct role in the database.')
       }
 
-      if (systemMessage && profileUser) {
-        const { error: msgError } = await supabase.from('complaint_messages').insert([
-          {
-            complaint_id: selectedReport.id,
-            recipient_user_id: selectedReport.residentUserId || profileUser.id,
-            sender_id: profileUser.id,
-            sender_type: 'admin',
-            message: systemMessage,
-            message_type: 'system',
-            is_read: false,
-          },
-        ])
-        if (msgError) {
-          console.warn('System message insert failed (non-blocking):', msgError.message)
-        }
-      }
+if (systemMessage && profileUser) {
+         const { error: msgError } = await supabase.from('complaint_messages').insert([
+           {
+             complaint_id: selectedReport.id,
+             recipient_user_id: selectedReport.residentUserId || profileUser.id,
+             sender_id: profileUser.id,
+             message: systemMessage,
+             message_type: 'system',
+             is_read: false,
+           },
+         ])
+         if (msgError) {
+           console.warn('System message insert failed (non-blocking):', msgError.message)
+         }
+       }
 
       await loadReports(false)
     } catch (error) {
@@ -773,7 +758,6 @@ export function ResidentReportsPage() {
           complaint_id: selectedReport.id,
           recipient_user_id: recipientId,
           sender_id: profileUser.id,
-          sender_type: 'admin',
           message: replyDraft.trim(),
           message_type: 'reply',
           is_read: false,

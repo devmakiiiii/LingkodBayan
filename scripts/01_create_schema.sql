@@ -40,6 +40,9 @@ CREATE TABLE IF NOT EXISTS public.complaints (
   status TEXT DEFAULT 'open',
   priority TEXT DEFAULT 'normal',
   evidence_url TEXT,
+  latitude DECIMAL(10, 8),
+  longitude DECIMAL(11, 8),
+  location_address TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );

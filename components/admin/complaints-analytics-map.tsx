@@ -91,7 +91,7 @@ export function ComplaintsAnalyticsMap({ complaints, onMarkerClick }: Complaints
   const center: [number, number] =
     complaints.length > 0 && complaints[0].latitude && complaints[0].longitude
       ? [complaints[0].latitude, complaints[0].longitude]
-      : [14.5995, 120.9842] // Manila default
+      : [14.8405, 120.2575] // Subic Barretto default
 
   return (
     <div className="w-full h-[600px] rounded-lg overflow-hidden border border-gray-200 shadow-sm">

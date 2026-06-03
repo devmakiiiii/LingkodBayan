@@ -4,8 +4,6 @@ import dynamic from 'next/dynamic'
 
 interface MapPickerProps {
   onLocationSelect: (lat: number, lng: number, address: string) => void
-  initialLat?: number
-  initialLng?: number
 }
 
 const MapPickerClient = dynamic(() => import('./map-picker-client'), {
@@ -17,12 +15,10 @@ const MapPickerClient = dynamic(() => import('./map-picker-client'), {
   ),
 })
 
-export function MapPicker({ onLocationSelect, initialLat = 14.5995, initialLng = 120.9842 }: MapPickerProps) {
+export function MapPicker({ onLocationSelect }: MapPickerProps) {
   return (
     <MapPickerClient
       onLocationSelect={onLocationSelect}
-      initialLat={initialLat}
-      initialLng={initialLng}
     />
   )
 }

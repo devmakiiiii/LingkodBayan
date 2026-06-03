@@ -15,25 +15,16 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
-import { AlertCircle, MapPin, Upload, X, ImageIcon } from 'lucide-react'
+import { AlertCircle, MapPin, Upload, X, ImageIcon, Zap } from 'lucide-react'
 import { MapPicker } from '@/components/citizen/map-picker'
 import { getOrCreateResidentProfile } from '@/lib/residents'
-
-const categories = [
-  'Abuse of Power',
-  'Corruption',
-  'Poor Service',
-  'Mismanagement',
-  'Unsafe Conditions',
-  'Environmental Issue',
-  'Discrimination',
-  'Other',
-]
+import { complaintCategories, type ComplaintCategory, analyzeComplaintPriority, complaintCategoryFallbackPriorities } from '@/lib/complaint-categories'
+import { Badge } from '@/components/ui/badge'
 
 export default function FileComplaintPage() {
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
-  const [category, setCategory] = useState('')
+  const [category, setCategory] = useState<ComplaintCategory>('Sanitation')
   const [latitude, setLatitude] = useState<number | null>(null)
   const [longitude, setLongitude] = useState<number | null>(null)
   const [locationAddress, setLocationAddress] = useState<string | null>(null)
@@ -42,6 +33,12 @@ export default function FileComplaintPage() {
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
+
+  const detectedPriority = analyzeComplaintPriority(
+    title,
+    description,
+    complaintCategoryFallbackPriorities[category]
+  ).priority
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -61,41 +58,50 @@ export default function FileComplaintPage() {
 
       // Upload evidence if selected
       if (evidenceFile) {
-        const fileExt = evidenceFile.name.split('.').pop()
-        const fileName = `${user.id}-${Date.now()}.${fileExt}`
-        const filePath = `complaints/${fileName}`
+        const formData = new FormData()
+        formData.append('file', evidenceFile)
 
-        const { error: uploadError } = await supabase.storage
-          .from('evidence')
-          .upload(filePath, evidenceFile)
+        const uploadResponse = await fetch('/api/citizen/evidence', {
+          method: 'POST',
+          body: formData,
+        })
 
-        if (uploadError) {
-          throw new Error('Failed to upload evidence image: ' + uploadError.message)
+        if (!uploadResponse.ok) {
+          const errorData = await uploadResponse.json()
+          throw new Error('Failed to upload evidence image: ' + errorData.error)
         }
 
-        const { data: { publicUrl } } = supabase.storage
-          .from('evidence')
-          .getPublicUrl(filePath)
-          
-        evidenceUrl = publicUrl
+        const uploadResult = await uploadResponse.json()
+        evidenceUrl = uploadResult.url
       }
 
       // Create complaint with location
-      const { error: insertError } = await supabase.from('complaints').insert([
-        {
-          resident_id: resident.id,
-          title,
-          description,
-          category,
-          status: 'pending',
-          latitude: latitude || null,
-          longitude: longitude || null,
-          location_address: locationAddress || null,
-          evidence_url: evidenceUrl,
-        },
-      ])
+      const priorityAnalysis = analyzeComplaintPriority(
+        title,
+        description,
+        complaintCategoryFallbackPriorities[category]
+      )
+      const complaintData: Record<string, any> = {
+        resident_id: resident.id,
+        title,
+        description,
+        category,
+        status: 'open',
+        priority_level: priorityAnalysis.priority,
+      }
 
-      if (insertError) throw insertError
+      // Add optional geolocation fields
+      if (latitude) complaintData.latitude = latitude
+      if (longitude) complaintData.longitude = longitude
+      if (locationAddress) complaintData.location_address = locationAddress
+      if (evidenceUrl) complaintData.evidence_url = evidenceUrl
+
+      const { error: insertError, data: insertData } = await supabase.from('complaints').insert([complaintData])
+
+      if (insertError) {
+        console.error('Complaint insert error:', insertError)
+        throw new Error(insertError.message || 'Failed to create complaint')
+      }
 
       router.push('/citizen/my-complaints?success=Complaint filed successfully')
     } catch (err) {
@@ -141,12 +147,12 @@ export default function FileComplaintPage() {
             {/* Category */}
             <div className="space-y-2">
               <Label htmlFor="category">Category</Label>
-              <Select value={category} onValueChange={setCategory} required>
+              <Select value={category} onValueChange={(value) => setCategory(value as ComplaintCategory)} required>
                 <SelectTrigger>
                   <SelectValue placeholder="Select a category" />
                 </SelectTrigger>
                 <SelectContent>
-                  {categories.map((cat) => (
+                  {complaintCategories.map((cat) => (
                     <SelectItem key={cat} value={cat}>
                       {cat}
                     </SelectItem>
@@ -171,6 +177,34 @@ export default function FileComplaintPage() {
               </p>
             </div>
 
+            {/* NLP Priority Detection */}
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2">
+                <Zap size={18} className="text-amber-600" />
+                Detected Priority Level
+              </Label>
+              <div className="flex items-center gap-3">
+                <Badge
+                  variant="secondary"
+                  className={
+                    detectedPriority === 'critical'
+                      ? 'border-red-200 bg-red-50 text-red-700'
+                      : detectedPriority === 'high'
+                      ? 'border-orange-200 bg-orange-50 text-orange-700'
+                      : detectedPriority === 'medium'
+                      ? 'border-amber-200 bg-amber-50 text-amber-700'
+                      : 'border-slate-200 bg-slate-50 text-slate-700'
+                  }
+                >
+                  <Zap className="h-3 w-3 mr-1" />
+                  {detectedPriority.charAt(0).toUpperCase() + detectedPriority.slice(1)} Priority
+                </Badge>
+                <p className="text-xs text-muted-foreground">
+                  Auto-detected based on your description
+                </p>
+              </div>
+            </div>
+
             {/* Location Geotagging */}
             <div className="space-y-2">
               <Label className="flex items-center gap-2">
@@ -178,17 +212,22 @@ export default function FileComplaintPage() {
                 Pinpoint Complaint Location on Map
               </Label>
               <p className="text-xs text-muted-foreground">
-                Click on the map to mark the exact location of your complaint
+                Click on the map to mark the exact location of your complaint within Barangay Barretto
               </p>
-              <Suspense fallback={<div className="h-96 bg-gray-100 rounded-lg flex items-center justify-center">Loading map...</div>}>
-                <MapPicker
-                  onLocationSelect={(lat, lng, address) => {
-                    setLatitude(lat)
-                    setLongitude(lng)
-                    setLocationAddress(address)
-                  }}
-                />
-              </Suspense>
+              <div className="relative">
+                <div className="absolute top-2 left-2 z-[1000] bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full shadow-md">
+                  <p className="text-sm font-medium text-primary">Barangay Barretto Map</p>
+                </div>
+                <Suspense fallback={<div className="h-[500px] bg-gray-100 rounded-lg flex items-center justify-center">Loading map...</div>}>
+                  <MapPicker
+                    onLocationSelect={(lat, lng, address) => {
+                      setLatitude(lat)
+                      setLongitude(lng)
+                      setLocationAddress(address)
+                    }}
+                  />
+                </Suspense>
+              </div>
               {locationAddress && (
                 <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
                   <p className="text-sm text-blue-900">

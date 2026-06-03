@@ -16,7 +16,7 @@ import { Label } from '@/components/ui/label'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 export default function Page() {
   const [email, setEmail] = useState('')
@@ -29,7 +29,24 @@ export default function Page() {
   const [address, setAddress] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+  const [rateLimitCountdown, setRateLimitCountdown] = useState<number | null>(null)
   const router = useRouter()
+
+  // Countdown timer for rate limit
+  useEffect(() => {
+    if (rateLimitCountdown === null) return
+    
+    if (rateLimitCountdown <= 0) {
+      setRateLimitCountdown(null)
+      return
+    }
+    
+    const timer = setTimeout(() => {
+      setRateLimitCountdown(rateLimitCountdown - 1)
+    }, 1000)
+    
+    return () => clearTimeout(timer)
+  }, [rateLimitCountdown])
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -74,7 +91,24 @@ export default function Page() {
 
       router.push(`/auth/verify-otp?email=${encodeURIComponent(email)}`)
     } catch (error: unknown) {
-      setError(error instanceof Error ? error.message : 'An error occurred')
+      const err = error as any
+      
+      // Check for rate limit error (429) - check multiple possible properties
+      const isRateLimited = err?.status === 429 || 
+                            err?.code === '429' ||
+                            err?.code === 'rate_limit_exceeded' ||
+                            (typeof err?.message === 'string' && err.message.includes('Too Many Requests')) ||
+                            (typeof err?.message === 'string' && err.message.includes('rate_limit')) ||
+                            err?.name === 'RateLimitError'
+      
+      if (isRateLimited) {
+        const retryAfterHeader = err?.headers?.['retry-after'] || err?.headers?.['Retry-After']
+        const retrySeconds = retryAfterHeader ? parseInt(retryAfterHeader, 10) : 30
+        setRateLimitCountdown(retrySeconds)
+        setError(`Rate limit exceeded. Please wait ${retrySeconds} seconds before trying again.`)
+      } else {
+        setError(err?.message || 'An error occurred during sign-up')
+      }
     } finally {
       setIsLoading(false)
     }
@@ -244,10 +278,11 @@ export default function Page() {
               <div className="flex flex-col gap-2.5">
                 <Button
                   type="submit"
-                  disabled={isLoading}
+                  disabled={isLoading || rateLimitCountdown !== null}
                   className="w-full bg-[#28A745] hover:bg-[#228039] text-white font-medium py-2.5 rounded-lg transition-colors"
                 >
-                  {isLoading ? 'Creating account...' : 'Create Account'}
+                  {isLoading ? 'Creating account...' : 
+                   rateLimitCountdown !== null ? `Wait ${rateLimitCountdown}s...` : 'Create Account'}
                 </Button>
 
                 <Button

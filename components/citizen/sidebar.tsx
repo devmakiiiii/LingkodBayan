@@ -19,7 +19,8 @@ import { Badge } from '@/components/ui/badge'
 
 const navItems = [
   { href: '/citizen/dashboard', label: 'Dashboard', icon: Home },
-  { href: '/citizen/request-service', label: 'My Request', icon: Plus },
+  { href: '/citizen/my-requests', label: 'My Requests', icon: FileText },
+  { href: '/citizen/request-service', label: 'Request Service', icon: Plus },
   { href: '/citizen/my-complaints', label: 'My Complaints', icon: AlertCircle },
   { href: '/citizen/announcements', label: 'Announcements', icon: Megaphone },
 ]
@@ -40,13 +41,18 @@ export function Sidebar() {
       if (user) {
         setUserName(user.user_metadata?.first_name || user.email?.split('@')[0] || 'Resident')
 
-        const { count } = await supabase
+        const { count, error } = await supabase
           .from('complaint_messages')
           .select('id', { count: 'exact', head: true })
           .eq('is_read', false)
           .eq('recipient_user_id', user.id)
 
-        setUnreadCount(count || 0)
+        if (error) {
+          console.warn('Failed to load unread messages count:', error.message)
+          setUnreadCount(0)
+        } else {
+          setUnreadCount(count || 0)
+        }
       }
     }
     loadUser()

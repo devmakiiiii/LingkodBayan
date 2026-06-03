@@ -51,7 +51,23 @@ export default function Page() {
         router.push('/citizen/dashboard')
       }
     } catch (error: unknown) {
-      setError(error instanceof Error ? error.message : 'An error occurred')
+      const err = error as any
+      
+      // Check for rate limit error (429) - check multiple possible properties
+      const isRateLimited = err?.status === 429 || 
+                            err?.code === '429' ||
+                            err?.code === 'rate_limit_exceeded' ||
+                            (typeof err?.message === 'string' && err.message.includes('Too Many Requests')) ||
+                            (typeof err?.message === 'string' && err.message.includes('rate_limit')) ||
+                            err?.name === 'RateLimitError'
+      
+      if (isRateLimited) {
+        const retryAfterHeader = err?.headers?.['retry-after'] || err?.headers?.['Retry-After']
+        const retrySeconds = retryAfterHeader ? parseInt(retryAfterHeader, 10) : 30
+        setError(`Rate limit exceeded. Please wait ${retrySeconds} seconds before trying again.`)
+      } else {
+        setError(err?.message || 'An error occurred')
+      }
     } finally {
       setIsLoading(false)
     }

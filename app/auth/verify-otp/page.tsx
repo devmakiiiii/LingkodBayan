@@ -32,6 +32,7 @@ export default function Page() {
   const [message, setMessage] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [isResending, setIsResending] = useState(false)
+  const [resendDisabled, setResendDisabled] = useState(false)
 
   const handleVerify = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -71,7 +72,23 @@ export default function Page() {
 
       router.replace('/citizen/dashboard')
     } catch (error: unknown) {
-      setError(error instanceof Error ? error.message : 'An error occurred while verifying the code.')
+      const err = error as any
+      
+      // Check for rate limit error (429) - check multiple possible properties
+      const isRateLimited = err?.status === 429 || 
+                            err?.code === '429' ||
+                            err?.code === 'rate_limit_exceeded' ||
+                            (typeof err?.message === 'string' && err.message.includes('Too Many Requests')) ||
+                            (typeof err?.message === 'string' && err.message.includes('rate_limit')) ||
+                            err?.name === 'RateLimitError'
+      
+      if (isRateLimited) {
+        const retryAfterHeader = err?.headers?.['retry-after'] || err?.headers?.['Retry-After']
+        const retrySeconds = retryAfterHeader ? parseInt(retryAfterHeader, 10) : 30
+        setError(`Rate limit exceeded. Please wait ${retrySeconds} seconds before trying again.`)
+      } else {
+        setError(err?.message || 'An error occurred while verifying the code.')
+      }
     } finally {
       setIsLoading(false)
     }
@@ -90,6 +107,7 @@ export default function Page() {
 
     const supabase = createClient()
     setIsResending(true)
+    setResendDisabled(true)
     setError(null)
     setMessage(null)
 
@@ -102,8 +120,30 @@ export default function Page() {
       if (error) throw error
 
       setMessage('A new verification code has been sent to your email.')
+      // Re-enable resend button after 30 seconds
+      setTimeout(() => setResendDisabled(false), 30000)
     } catch (error: unknown) {
-      setError(error instanceof Error ? error.message : 'An error occurred while resending the code.')
+      const err = error as any
+      
+      // Check for rate limit error (429) - check multiple possible properties
+      const isRateLimited = err?.status === 429 || 
+                            err?.code === '429' ||
+                            err?.code === 'rate_limit_exceeded' ||
+                            (typeof err?.message === 'string' && err.message.includes('Too Many Requests')) ||
+                            (typeof err?.message === 'string' && err.message.includes('rate_limit')) ||
+                            err?.name === 'RateLimitError'
+      
+      if (isRateLimited) {
+        const retryAfterHeader = err?.headers?.['retry-after'] || err?.headers?.['Retry-After']
+        const retrySeconds = retryAfterHeader ? parseInt(retryAfterHeader, 10) : 30
+        
+        setError(`Rate limit exceeded. Please wait ${retrySeconds} seconds before trying again.`)
+        setResendDisabled(true)
+        setTimeout(() => setResendDisabled(false), retrySeconds * 1000)
+      } else {
+        setError(err?.message || 'An error occurred while resending the code.')
+        setResendDisabled(false)
+      }
     } finally {
       setIsResending(false)
     }
@@ -195,7 +235,7 @@ export default function Page() {
                     <Button
                       type="button"
                       variant="outline"
-                      disabled={isResending}
+                      disabled={isResending || resendDisabled}
                       className="w-full border border-gray-300 text-gray-700 font-medium py-2.5 rounded-lg hover:bg-gray-50 transition-colors"
                       onClick={handleResend}
                     >
