@@ -9,7 +9,7 @@ import { Empty } from '@/components/ui/empty'
 import Link from 'next/link'
 import { Clock, Eye, CheckCircle2 } from 'lucide-react'
 import { getOrCreateResidentProfile } from '@/lib/residents'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, NoCloseDialog } from '@/components/ui/dialog'
 import {
   RequestDetails,
 } from '@/components/request/request-details'
@@ -87,9 +87,9 @@ export default function MyRequestsPage() {
     return getRequestStatusClassName(status)
   }
 
-  return (
+return (
     <div className="space-y-8 p-8">
-      <Dialog open={Boolean(selectedRequest)} onOpenChange={(open) => !open && setSelectedRequest(null)}>
+      <NoCloseDialog open={Boolean(selectedRequest)} onOpenChange={(open) => !open && setSelectedRequest(null)}>
         <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto border-emerald-100 bg-white">
           {selectedRequest && (
             <>
@@ -109,7 +109,7 @@ export default function MyRequestsPage() {
             </>
           )}
         </DialogContent>
-      </Dialog>
+      </NoCloseDialog>
 
       {/* Header */}
       <div className="flex items-center justify-between">

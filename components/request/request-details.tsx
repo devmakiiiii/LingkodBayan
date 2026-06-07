@@ -10,6 +10,7 @@ import {
   getRequestSummaryValue,
   getRequestTypeTitle,
   type RequestPayload,
+  type RequestFileValue,
 } from '@/lib/request-types'
 
 type RequestLike = {
@@ -35,8 +36,8 @@ interface RequestDetailsProps {
   showSystemMeta?: boolean
 }
 
-function isFileCollection(value: unknown): value is Array<{ name: string; content?: string }> {
-  return Array.isArray(value) && value.every((item) => typeof item === 'object' && item !== null && 'name' in item)
+function isFileCollection(value: unknown): value is RequestFileValue[] {
+  return Array.isArray(value) && value.every((item) => typeof item === 'object' && item !== null && 'name' in item && 'type' in item && 'content' in item)
 }
 
 export function RequestDetails({
@@ -136,29 +137,35 @@ export function RequestDetails({
           ) : (
             fieldEntries.map((field) => {
               if (isFileCollection(field.value)) {
-                return (
-                  <div key={field.key} className="space-y-2 rounded-xl border border-dashed border-emerald-200 bg-emerald-50/40 p-4">
-                    <p className="text-xs uppercase tracking-wide text-emerald-700">{field.label}</p>
-                    <div className="space-y-2">
-                      {field.value.length === 0 ? (
-                        <p className="text-sm text-muted-foreground">No files uploaded</p>
-                      ) : (
-                        field.value.map((file) => (
-                          <div key={`${field.key}-${file.name}`} className="flex items-center justify-between gap-3 rounded-lg bg-white px-3 py-2 text-sm shadow-sm">
-                            <span className="truncate font-medium text-foreground">{file.name}</span>
-                            {file.content ? (
-                              <a href={file.content} download={file.name} className="text-emerald-700 hover:underline">
-                                View
-                              </a>
-                            ) : (
-                              <span className="text-muted-foreground">Attached</span>
-                            )}
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  </div>
-                )
+return (
+                   <div key={field.key} className="space-y-2 rounded-xl border border-dashed border-emerald-200 bg-emerald-50/40 p-4">
+                     <p className="text-xs uppercase tracking-wide text-emerald-700">{field.label}</p>
+                     <div className="space-y-2">
+                       {field.value.length === 0 ? (
+                         <p className="text-sm text-muted-foreground">No files uploaded</p>
+                       ) : (
+                         field.value.map((file) => {
+                           const isImage = file.type?.startsWith('image/')
+                           return (
+                             <div key={`${field.key}-${file.name}`} className="space-y-2 rounded-lg bg-white px-3 py-2 text-sm shadow-sm">
+                               <div className="flex items-center justify-between gap-3">
+                                 <span className="truncate font-medium text-foreground">{file.name}</span>
+                                 {file.content && !isImage && (
+                                   <a href={file.content} target="_blank" rel="noopener noreferrer" className="text-emerald-700 hover:underline text-xs">
+                                     View
+                                   </a>
+                                 )}
+                               </div>
+                               {file.content && isImage && (
+                                 <img src={file.content} alt={file.name} className="mt-2 max-h-48 w-full rounded object-contain" />
+                               )}
+                             </div>
+                           )
+                         })
+                       )}
+                     </div>
+                   </div>
+                 )
               }
 
               return (

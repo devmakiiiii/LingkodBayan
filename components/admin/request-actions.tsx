@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { CheckCircle2, Clock3, FileDown, Printer, XCircle } from 'lucide-react'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, NoCloseDialog } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { RequestDetails } from '@/components/request/request-details'
 import {
@@ -368,8 +368,8 @@ export function RequestActions({ request, isOpen, onClose, onStatusChange }: Req
     setStatusMessage(`Request marked as ${status}.`)
   }
 
-  return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+return (
+    <NoCloseDialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-h-[92vh] max-w-5xl overflow-y-auto border-emerald-100 bg-white">
         <DialogHeader>
           <DialogTitle className="text-2xl">Request Details</DialogTitle>
@@ -437,6 +437,6 @@ export function RequestActions({ request, isOpen, onClose, onStatusChange }: Req
           </div>
         </div>
       </DialogContent>
-    </Dialog>
+    </NoCloseDialog>
   )
 }

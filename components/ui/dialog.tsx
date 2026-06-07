@@ -18,6 +18,12 @@ function DialogTrigger({
   return <DialogPrimitive.Trigger data-slot="dialog-trigger" {...props} />
 }
 
+function NoCloseDialog({
+  ...props
+}: React.ComponentProps<typeof DialogPrimitive.Root>) {
+  return <DialogPrimitive.Root data-slot="dialog" {...props} onInteractOutside={(e) => e.preventDefault()} />
+}
+
 function DialogPortal({
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Portal>) {
@@ -140,4 +146,5 @@ export {
   DialogPortal,
   DialogTitle,
   DialogTrigger,
+  NoCloseDialog,
 }
