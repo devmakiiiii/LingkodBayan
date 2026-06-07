@@ -21,9 +21,14 @@ export default function Home() {
           />
           <div className="text-xl sm:text-2xl font-bold text-gray-900">LingkodBayan</div>
         </div>
-        <Link href="/auth/login">
-          <Button variant="outline" className="border-gray-300">Login</Button>
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link href="/auth/login">
+            <Button variant="outline" className="border-gray-300">Login</Button>
+          </Link>
+          <Link href="/auth/sign-up">
+            <Button className="bg-[#28A745] hover:bg-[#228039] text-white">Sign Up</Button>
+          </Link>
+        </div>
       </nav>
 
       {/* Hero Section */}

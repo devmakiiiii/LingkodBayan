@@ -46,17 +46,7 @@ const navItems = [
       { label: 'Generated Reports', href: '/admin/generated-reports' },
     ]
   },
-  { 
-    label: 'Request List',
-    icon: List,
-    hasDropdown: true,
-    items: [
-      { label: 'All Requests', href: '/admin/requests' },
-      { label: 'Pending', href: '/admin/requests?status=pending' },
-      { label: 'In Progress', href: '/admin/requests?status=in_progress' },
-      { label: 'Resolved', href: '/admin/requests?status=resolved' },
-    ]
-  },
+  { label: 'Request List', href: '/admin/requests', icon: List },
   { label: 'Complaints List', href: '/admin/complaints', icon: AlertCircle },
   { 
     label: 'Settings',

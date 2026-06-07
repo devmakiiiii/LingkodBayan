@@ -45,6 +45,8 @@ The database schema includes these tables:
 
 This will create all tables with proper Row Level Security (RLS) policies.
 
+**Post-setup (optional):** If you need file upload functionality for complaints, run `scripts/finalize_complaints_schema.sql` to configure the evidence storage bucket.
+
 ### 2. Environment Variables
 
 The following environment variables are automatically configured by Supabase:

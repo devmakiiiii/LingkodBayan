@@ -1,4 +1,5 @@
 import { AdminSidebar } from '@/components/admin/sidebar'
+import { Toaster } from '@/components/ui/sonner'
 
 export default function AdminLayout({
   children,
@@ -11,6 +12,7 @@ export default function AdminLayout({
       <main className="flex-1 overflow-y-auto">
         {children}
       </main>
+      <Toaster />
     </div>
   )
 }

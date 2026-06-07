@@ -12,39 +12,36 @@ import { Empty } from '@/components/ui/empty'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import {
+  Archive,
   Bell,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
+  Clock3,
   Download,
-  Archive,
+  Eye,
   FileDown,
   FileText,
   Filter,
-  Flag,
+  GripVertical,
+  Image as ImageIcon,
   Loader2,
   MapPinned,
   MessageSquareReply,
   MoreHorizontal,
   Printer,
+  RefreshCcw,
   RefreshCw,
   Search,
-  ShieldCheck,
-  Sparkles,
-  TriangleAlert,
-  UserCircle2,
-  UserPlus,
-  Eye,
-  RefreshCcw,
-  Reply,
   Send,
-  Clock3,
-  GripVertical,
+  ShieldCheck,
+  TriangleAlert,
+  UserPlus,
 } from 'lucide-react'
 import {
   buildCsv,
@@ -334,6 +331,21 @@ function formatDateTime(value: string) {
   })
 }
 
+function formatRelativeTime(value: string) {
+  const date = new Date(value)
+  const now = new Date()
+  const diffMs = now.getTime() - date.getTime()
+  const diffMins = Math.floor(diffMs / 60000)
+  const diffHours = Math.floor(diffMins / 60)
+  const diffDays = Math.floor(diffHours / 24)
+
+  if (diffMins < 1) return 'just now'
+  if (diffMins < 60) return `${diffMins}m ago`
+  if (diffHours < 24) return `${diffHours}h ago`
+  if (diffDays < 7) return `${diffDays}d ago`
+  return formatDateTime(value)
+}
+
 function buildMapEmbedUrl(report: ResidentReportRow) {
   if (report.latitude != null && report.longitude != null) {
     return `https://www.google.com/maps?q=${report.latitude},${report.longitude}&z=17&output=embed`
@@ -354,52 +366,6 @@ function truncateText(value: string, length = 120) {
   return `${value.slice(0, length).trim()}...`
 }
 
-function StatCard({ title, count, subtitle, icon: Icon, gradientClass }: { title: string; count: number; subtitle: string; icon: any; gradientClass: string }) {
-  return (
-    <Card className={`border-0 shadow-lg ${gradientClass}`}>
-      <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
-        <div>
-          <CardTitle className="text-sm font-medium text-slate-700">{title}</CardTitle>
-          <p className="mt-1 text-xs text-slate-500">{subtitle}</p>
-        </div>
-        <div className="rounded-2xl bg-white/70 p-2 text-slate-700 shadow-sm backdrop-blur">
-          <Icon className="h-5 w-5" />
-        </div>
-      </CardHeader>
-      <CardContent>
-        <div className="text-3xl font-bold text-slate-900">{count}</div>
-        <div className="mt-2 inline-flex items-center gap-1 rounded-full bg-white/70 px-2.5 py-1 text-xs font-medium text-slate-600 shadow-sm">
-          <Sparkles className="h-3.5 w-3.5 text-emerald-600" />
-          Live sync
-        </div>
-      </CardContent>
-    </Card>
-  )
-}
-
-function ActionIconButton({
-  label,
-  children,
-  onClick,
-  className,
-}: {
-  label: string
-  children: React.ReactNode
-  onClick: () => void
-  className?: string
-}) {
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <Button type="button" variant="outline" size="icon-sm" className={className} onClick={onClick}>
-          {children}
-        </Button>
-      </TooltipTrigger>
-      <TooltipContent>{label}</TooltipContent>
-    </Tooltip>
-  )
-}
-
 function residentReportColumns(): PrintableColumn[] {
   return [
     { key: 'tracking', label: 'Report ID' },
@@ -407,8 +373,7 @@ function residentReportColumns(): PrintableColumn[] {
     { key: 'category', label: 'Category' },
     { key: 'description', label: 'Description Preview' },
     { key: 'date', label: 'Date Submitted' },
-    { key: 'priority', label: 'Priority Level' },
-    { key: 'status', label: 'Status' },
+    { key: 'statusInfo', label: 'Status Info' },
     { key: 'assigned', label: 'Assigned Official' },
   ]
 }
@@ -794,8 +759,7 @@ if (systemMessage && profileUser) {
       report.category,
       truncateText(report.description, 90),
       getReportDateLabel(report.submittedAt),
-      priorityDefinitions[report.priority].label,
-      statusDefinitions[report.status].label,
+      `${priorityDefinitions[report.priority].label} / ${statusDefinitions[report.status].label}`,
       report.assignedOfficialLabel,
     ])
 
@@ -814,8 +778,7 @@ if (systemMessage && profileUser) {
         report.category,
         truncateText(report.description, 90),
         getReportDateLabel(report.submittedAt),
-        priorityDefinitions[report.priority].label,
-        statusDefinitions[report.status].label,
+        `${priorityDefinitions[report.priority].label} / ${statusDefinitions[report.status].label}`,
         report.assignedOfficialLabel,
       ]),
       subtitle: 'Resident-submitted reports and complaints',
@@ -861,11 +824,22 @@ if (systemMessage && profileUser) {
       </Dialog>
 
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>
-        <DialogContent className="max-h-[92vh] w-[min(96vw,84rem)] overflow-y-auto sm:max-w-none">
+        <DialogContent className="max-h-[92vh] w-[min(96vw,60rem)] overflow-y-auto sm:max-w-none">
           <DialogHeader>
             <DialogTitle className="flex flex-wrap items-center gap-2 text-2xl">
               {selectedReport?.trackingNumber || 'Resident Report'}
               {selectedReport && <Badge className={statusDefinitions[selectedReport.status].badgeClass}>{statusDefinitions[selectedReport.status].label}</Badge>}
+              {selectedReport && (
+                <Badge className={priorityDefinitions[selectedReport.priority].badgeClass} variant="secondary">
+                  {priorityDefinitions[selectedReport.priority].label}
+                  {selectedReport.priorityConfidence < 1 && ` (${Math.round(selectedReport.priorityConfidence * 100)}% confidence)`}
+                </Badge>
+              )}
+              {selectedReport && (
+                <Badge className={categoryDefinitions.find((c) => c.key === selectedReport.categoryKey)?.badgeClass || ''}>
+                  {categoryDefinitions.find((c) => c.key === selectedReport.categoryKey)?.label || 'Other'}
+                </Badge>
+              )}
             </DialogTitle>
             <DialogDescription>
               {selectedReport?.title || 'Report details, admin actions, evidence, and history logs.'}
@@ -881,215 +855,227 @@ if (systemMessage && profileUser) {
               </TabsList>
 
               <TabsContent value="overview" className="mt-6 space-y-6">
-                <div className="grid gap-6 xl:grid-cols-2">
-                  <div className="min-w-0 space-y-4">
-                    <Card className="border-emerald-100">
-                      <CardHeader>
-                        <CardTitle>Resident Information</CardTitle>
-                      </CardHeader>
-                      <CardContent className="grid gap-4 md:grid-cols-2">
-                        <div>
-                          <Label className="text-xs uppercase text-muted-foreground">Full Name</Label>
-                          <p className="font-semibold">{selectedReport.residentName}</p>
-                        </div>
-                        <div>
-                          <Label className="text-xs uppercase text-muted-foreground">Resident ID</Label>
-                          <p className="font-semibold">{selectedReport.residentId}</p>
-                        </div>
-                        <div>
-                          <Label className="text-xs uppercase text-muted-foreground">Contact Number</Label>
-                          <p className="font-semibold">{selectedReport.residentContact}</p>
-                        </div>
-                        <div>
-                          <Label className="text-xs uppercase text-muted-foreground">Address</Label>
-                          <p className="font-semibold">{selectedReport.residentAddress || selectedReport.residentBarangay || 'N/A'}</p>
-                        </div>
-                      </CardContent>
-                    </Card>
+                <div className="space-y-4">
+                  <Card className={`border-emerald-100 ${selectedReport.priority === 'critical' ? 'border-l-4 border-l-rose-600' : selectedReport.priority === 'high' ? 'border-l-4 border-l-red-500' : ''}`}>
+                    <CardHeader>
+                      <CardTitle>Resident Information</CardTitle>
+                    </CardHeader>
+                    <CardContent className="grid gap-4 md:grid-cols-2">
+                      <div>
+                        <Label className="text-xs uppercase text-muted-foreground">Full Name</Label>
+                        <p className="font-semibold">{selectedReport.residentName}</p>
+                      </div>
+                      <div>
+                        <Label className="text-xs uppercase text-muted-foreground">Resident ID</Label>
+                        <p className="font-semibold">{selectedReport.residentId}</p>
+                      </div>
+                      <div>
+                        <Label className="text-xs uppercase text-muted-foreground">Contact Number</Label>
+                        <p className="font-semibold">{selectedReport.residentContact}</p>
+                      </div>
+                      <div>
+                        <Label className="text-xs uppercase text-muted-foreground">Address</Label>
+                        <p className="font-semibold">{selectedReport.residentAddress || selectedReport.residentBarangay || 'N/A'}</p>
+                      </div>
+                    </CardContent>
+                  </Card>
 
-                    <Card className="border-emerald-100">
-                      <CardHeader>
-                        <CardTitle>Report Information</CardTitle>
-                      </CardHeader>
-                      <CardContent className="space-y-4">
-                        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                          <div>
-                            <Label className="text-xs uppercase text-muted-foreground">Tracking Number</Label>
-                            <p className="font-semibold">{selectedReport.trackingNumber}</p>
-                          </div>
-                          <div>
-                            <Label className="text-xs uppercase text-muted-foreground">Date Submitted</Label>
-                            <p className="font-semibold">{formatDateTime(selectedReport.submittedAt)}</p>
-                          </div>
-                          <div>
-                            <Label className="text-xs uppercase text-muted-foreground">Incident Location</Label>
-                            <p className="font-semibold">{selectedReport.locationAddress}</p>
-                          </div>
-                          <div>
-                            <Label className="text-xs uppercase text-muted-foreground">Assigned Official</Label>
-                            <p className="font-semibold">{selectedReport.assignedOfficialLabel}</p>
-                          </div>
+                  <Card className="border-emerald-100">
+                    <CardHeader>
+                      <CardTitle>Report Information</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="grid gap-4 md:grid-cols-2">
+                        <div>
+                          <Label className="text-xs uppercase text-muted-foreground">Tracking Number</Label>
+                          <p className="font-semibold">{selectedReport.trackingNumber}</p>
                         </div>
-                        <div className="rounded-2xl border border-dashed border-emerald-200 bg-emerald-50/50 p-4">
-                          <p className="text-sm font-semibold text-foreground">Full Complaint Description</p>
-                          <p className="mt-2 whitespace-pre-wrap text-sm text-slate-700">{selectedReport.description}</p>
+                        <div>
+                          <Label className="text-xs uppercase text-muted-foreground">Date Submitted</Label>
+                          <p className="font-semibold">{formatDateTime(selectedReport.submittedAt)}</p>
                         </div>
-                      </CardContent>
-                    </Card>
-                  </div>
+                        <div>
+                          <Label className="text-xs uppercase text-muted-foreground">Incident Location</Label>
+                          <p className="font-semibold">{selectedReport.locationAddress}</p>
+                        </div>
+                        <div>
+                          <Label className="text-xs uppercase text-muted-foreground">Assigned Official</Label>
+                          <p className="font-semibold">{selectedReport.assignedOfficialLabel}</p>
+                        </div>
+                      </div>
+                      <div className="rounded-2xl border border-dashed border-emerald-200 bg-emerald-50/50 p-4">
+                        <p className="text-sm font-semibold text-foreground">Full Complaint Description</p>
+                        <p className="mt-2 whitespace-pre-wrap text-sm text-slate-700">{selectedReport.description}</p>
+                      </div>
+                      {selectedReport.priorityReasons && selectedReport.priorityReasons.length > 0 && (
+                        <div className="text-xs text-slate-500">
+                          <span className="font-medium">Priority reasons:</span> {selectedReport.priorityReasons.join(', ')}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
 
-                  <div className="min-w-0 space-y-4">
+                  {selectedReport.evidenceUrls.length > 0 && (
                     <Card className="border-emerald-100">
                       <CardHeader>
                         <CardTitle>Evidence Images</CardTitle>
                         <CardDescription>Preview any attached images or available evidence links.</CardDescription>
                       </CardHeader>
                       <CardContent>
-                        {selectedReport.evidenceUrls.length === 0 ? (
-                          <Empty title="No evidence uploaded" description="The resident did not attach any previewable images for this report." />
-                        ) : (
-                          <div className="grid grid-cols-2 gap-3">
-                            {selectedReport.evidenceUrls.map((url) => (
-                              <a key={url} href={url} target="_blank" rel="noreferrer" className="group overflow-hidden rounded-2xl border border-slate-200 bg-slate-50">
-                                <img src={url} alt="Evidence preview" className="h-40 w-full object-cover transition-transform group-hover:scale-105" />
-                              </a>
-                            ))}
-                          </div>
-                        )}
+                        <div className="grid grid-cols-2 gap-3">
+                          {selectedReport.evidenceUrls.map((url) => (
+                            <a key={url} href={url} target="_blank" rel="noreferrer" className="group overflow-hidden rounded-2xl border border-slate-200 bg-slate-50">
+                              <img src={url} alt="Evidence preview" className="h-40 w-full object-cover transition-transform group-hover:scale-105" />
+                            </a>
+                          ))}
+                        </div>
                       </CardContent>
                     </Card>
+                  )}
 
-                    <Card className="border-emerald-100">
-                      <CardHeader>
-                        <CardTitle>Location Map Preview</CardTitle>
-                        <CardDescription>{selectedReport.locationAddress}</CardDescription>
-                      </CardHeader>
-                      <CardContent>
-                        {buildMapEmbedUrl(selectedReport) ? (
-                          <iframe
-                            title="Report location preview"
-                            src={buildMapEmbedUrl(selectedReport)}
-                            className="h-64 w-full rounded-2xl border border-slate-200"
-                            loading="lazy"
-                          />
-                        ) : (
-                          <div className="flex h-64 items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-slate-50 text-sm text-muted-foreground">
-                            No map coordinates available for this report.
-                          </div>
-                        )}
-                      </CardContent>
-                    </Card>
-                  </div>
+                  <Card className="border-emerald-100">
+                    <CardHeader>
+                      <CardTitle>Location Map Preview</CardTitle>
+                      <CardDescription>{selectedReport.locationAddress}</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      {buildMapEmbedUrl(selectedReport) ? (
+                        <iframe
+                          title="Report location preview"
+                          src={buildMapEmbedUrl(selectedReport)}
+                          className="h-64 w-full rounded-2xl border border-slate-200"
+                          loading="lazy"
+                        />
+                      ) : (
+                        <div className="flex h-64 items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-slate-50 text-sm text-muted-foreground">
+                          No map coordinates available for this report.
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
                 </div>
               </TabsContent>
 
               <TabsContent value="actions" className="mt-6 space-y-6">
-                <div className="grid gap-6 xl:grid-cols-2">
-                  <Card className="min-w-0 border-emerald-100">
-                    <CardHeader>
-                      <CardTitle>Admin Controls</CardTitle>
-                      <CardDescription>Change the report status, assign an official, and save internal notes.</CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div className="grid gap-4 md:grid-cols-2">
-                        <div className="space-y-2">
-                          <Label>Status</Label>
-                          <Select value={statusDraft} onValueChange={(value) => setStatusDraft(value as CanonicalStatus)}>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Change status" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {Object.entries(statusDefinitions).map(([key, definition]) => (
-                                <SelectItem key={key} value={key}>
-                                  {definition.label}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label>Assign Barangay Official</Label>
-                          <Select
-                            value={assignedOfficialDraft || unassignedOfficialValue}
-                            onValueChange={(value) => setAssignedOfficialDraft(value === unassignedOfficialValue ? '' : value)}
-                          >
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select official" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value={unassignedOfficialValue}>Unassigned</SelectItem>
-                              {officials.map((official) => (
-                                <SelectItem key={official.id} value={official.id}>
-                                  {official.label}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                <Card className="border-emerald-100">
+                  <CardHeader>
+                    <CardTitle>Admin Controls</CardTitle>
+                    <CardDescription>Change the report status, assign an official, and save internal notes.</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label>Status</Label>
+                        <Select value={statusDraft} onValueChange={(value) => setStatusDraft(value as CanonicalStatus)}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Change status" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {Object.entries(statusDefinitions).map(([key, definition]) => (
+                              <SelectItem key={key} value={key}>
+                                {definition.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <div className="flex flex-wrap gap-1 pt-1">
+                          {selectedReport.status !== 'resolved' && (
+                            <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => { setStatusDraft('resolved'); updateReport({ status: 'resolved', assignedOfficialId: assignedOfficialDraft || null, adminNotes: adminNotesDraft }, 'Marked as resolved.') }} disabled={savingAction}>
+                              Mark Resolved
+                            </Button>
+                          )}
+                          {selectedReport.status === 'resolved' && (
+                            <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => { setStatusDraft('under_review'); updateReport({ status: 'under_review', assignedOfficialId: assignedOfficialDraft || null, adminNotes: adminNotesDraft }, 'Report reopened.') }} disabled={savingAction}>
+                              Unresolve
+                            </Button>
+                          )}
                         </div>
                       </div>
 
                       <div className="space-y-2">
-                        <Label htmlFor="admin-notes">Admin Notes</Label>
-                        <Textarea
-                          id="admin-notes"
-                          value={adminNotesDraft}
-                          onChange={(event) => setAdminNotesDraft(event.target.value)}
-                          placeholder="Add private notes for the handling team..."
-                          className="min-h-32"
-                        />
+                        <Label>Assign Barangay Official</Label>
+                        <Select
+                          value={assignedOfficialDraft || unassignedOfficialValue}
+                          onValueChange={(value) => setAssignedOfficialDraft(value === unassignedOfficialValue ? '' : value)}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select official" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value={unassignedOfficialValue}>Unassigned</SelectItem>
+                            {officials.map((official) => (
+                              <SelectItem key={official.id} value={official.id}>
+                                {official.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
+                    </div>
 
-                      <div className="flex flex-wrap gap-2">
-                        <Button className="bg-emerald-600 text-white hover:bg-emerald-700" onClick={() => updateReport({ status: statusDraft, assignedOfficialId: assignedOfficialDraft || null, adminNotes: adminNotesDraft }, `Admin updated the report status to ${statusDefinitions[statusDraft].label}.`)} disabled={savingAction}>
-                          {savingAction ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
-                          Save Changes
-                        </Button>
-                        <Button variant="outline" onClick={() => updateReport({ archivedAt: new Date().toISOString(), status: 'rejected' }, `Report archived: ${selectedReport.trackingNumber}`)} disabled={savingAction}>
-                          <Archive className="mr-2 h-4 w-4" />
-                          Archive Report
-                        </Button>
-                        <Button variant="outline" onClick={exportPdf}>
-                          <FileDown className="mr-2 h-4 w-4" />
-                          Generate PDF Report
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
+                    <div className="space-y-2">
+                      <Label htmlFor="admin-notes">Admin Notes</Label>
+                      <Textarea
+                        id="admin-notes"
+                        value={adminNotesDraft}
+                        onChange={(event) => setAdminNotesDraft(event.target.value)}
+                        placeholder="Add private notes for the handling team..."
+                        className="min-h-32"
+                      />
+                    </div>
 
-                  <Card className="min-w-0 border-emerald-100">
-                    <CardHeader>
-                      <CardTitle>Send Response to Resident</CardTitle>
-                      <CardDescription>Use this box to reply directly to the resident.</CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
+                    <div className="flex flex-wrap gap-2">
+                      <Button className="bg-emerald-600 text-white hover:bg-emerald-700" onClick={() => updateReport({ status: statusDraft, assignedOfficialId: assignedOfficialDraft || null, adminNotes: adminNotesDraft }, `Admin updated the report status to ${statusDefinitions[statusDraft].label}.`)} disabled={savingAction}>
+                        {savingAction ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
+                        Save Changes
+                      </Button>
+                      <Button variant="outline" onClick={() => updateReport({ archivedAt: new Date().toISOString(), status: 'rejected' }, `Report archived: ${selectedReport.trackingNumber}`)} disabled={savingAction}>
+                        <Archive className="mr-2 h-4 w-4" />
+                        Archive Report
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={exportPdf} disabled={savingAction}>
+                        <FileDown className="mr-2 h-4 w-4" />
+                        PDF
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="border-emerald-100">
+                  <CardHeader>
+                    <CardTitle>Send Response to Resident</CardTitle>
+                    <CardDescription>Use this box to reply directly to the resident.</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-2">
                       <Textarea
                         value={replyDraft}
                         onChange={(event) => setReplyDraft(event.target.value)}
                         placeholder="Type your response to the resident..."
                         className="min-h-48"
                       />
-                      <div className="flex flex-wrap gap-2">
-                        <Button className="bg-blue-600 text-white hover:bg-blue-700" onClick={sendReply} disabled={savingAction || !replyDraft.trim()}>
-                          {savingAction ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
-                          Send Response
-                        </Button>
-                        <Button variant="outline" onClick={() => setReplyDraft('')}>
-                          Clear
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </div>
+                      <div className="text-xs text-slate-500">{replyDraft.length} characters</div>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Button className="bg-blue-600 text-white hover:bg-blue-700" onClick={sendReply} disabled={savingAction || !replyDraft.trim()}>
+                        {savingAction ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
+                        Send Response
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => setReplyDraft('')} disabled={savingAction || !replyDraft.trim()}>
+                        Clear
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
               </TabsContent>
 
               <TabsContent value="activity" className="mt-6 space-y-6">
                 <Card className="border-emerald-100">
-                  <CardHeader>
+                  <CardHeader className="sticky top-0 bg-white z-10 border-b border-emerald-100">
                     <CardTitle>Timeline / History Logs</CardTitle>
                     <CardDescription>Review every update, reply, and internal action made for this report.</CardDescription>
                   </CardHeader>
-                  <CardContent className="space-y-3">
+                  <CardContent className="space-y-3 pt-4">
                     {selectedReportTimeline.length === 0 ? (
                       <Empty title="No history yet" description="System updates and admin replies will appear here." />
                     ) : (
@@ -1102,7 +1088,7 @@ if (systemMessage && profileUser) {
                             <div className="flex-1">
                               <div className="flex flex-wrap items-center gap-2">
                                 <p className="font-semibold capitalize">{message.message_type || 'system'}</p>
-                                <Badge variant="outline">{formatDateTime(message.created_at)}</Badge>
+                                <Badge variant="outline">{formatRelativeTime(message.created_at)}</Badge>
                               </div>
                               <p className="mt-1 text-sm text-slate-700">{message.message}</p>
                             </div>
@@ -1110,24 +1096,6 @@ if (systemMessage && profileUser) {
                         </div>
                       ))
                     )}
-                  </CardContent>
-                </Card>
-
-                <Card className="border-emerald-100">
-                  <CardHeader>
-                    <CardTitle>Admin Activity Log</CardTitle>
-                    <CardDescription>Latest activity is pulled from the same history stream for consistency.</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                      {selectedReportTimeline.slice(-6).reverse().map((message) => (
-                        <div key={message.id} className="rounded-2xl border border-emerald-100 bg-white p-4 shadow-sm">
-                          <p className="text-sm font-semibold text-slate-900">{message.message_type || 'system'}</p>
-                          <p className="mt-1 text-sm text-slate-600">{truncateText(message.message, 84)}</p>
-                          <p className="mt-2 text-xs text-slate-500">{formatDateTime(message.created_at)}</p>
-                        </div>
-                      ))}
-                    </div>
                   </CardContent>
                 </Card>
               </TabsContent>
@@ -1208,64 +1176,129 @@ if (systemMessage && profileUser) {
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <StatCard title="Total Reports" count={summary.totalReports} subtitle="All resident reports in the queue" icon={FileText} gradientClass="bg-gradient-to-br from-emerald-100 via-white to-lime-100" />
-        <StatCard title="Pending Reports" count={summary.pendingReports} subtitle="Need immediate attention" icon={Clock3} gradientClass="bg-gradient-to-br from-amber-100 via-white to-yellow-100" />
-        <StatCard title="Resolved Reports" count={summary.resolvedReports} subtitle="Cases already closed" icon={CheckCircle2} gradientClass="bg-gradient-to-br from-emerald-100 via-white to-teal-100" />
-        <StatCard title="Urgent Cases" count={summary.urgentCases} subtitle="High and critical priority reports" icon={TriangleAlert} gradientClass="bg-gradient-to-br from-rose-100 via-white to-orange-100" />
-      </div>
+      <div className="flex flex-wrap gap-2">
+          <Button variant={statusFilter === 'pending' ? 'default' : 'outline'} size="sm" onClick={() => setStatusFilter(statusFilter === 'pending' ? 'all' : 'pending')}>
+            <Clock3 className="mr-1.5 h-3.5 w-3.5" />
+            Pending ({summary.pendingReports})
+          </Button>
+          <Button variant={statusFilter === 'under_review' ? 'default' : 'outline'} size="sm" onClick={() => setStatusFilter(statusFilter === 'under_review' ? 'all' : 'under_review')}>
+            <Eye className="mr-1.5 h-3.5 w-3.5" />
+            Under Review
+          </Button>
+          <Button variant={priorityFilter === 'high' || priorityFilter === 'critical' ? 'default' : 'outline'} size="sm" onClick={() => {
+            if (priorityFilter === 'high') {
+              setPriorityFilter('all')
+            } else {
+              setPriorityFilter('high')
+            }
+          }}>
+            <TriangleAlert className="mr-1.5 h-3.5 w-3.5" />
+            Urgent ({summary.urgentCases})
+          </Button>
+          <Button variant={statusFilter === 'resolved' ? 'default' : 'outline'} size="sm" onClick={() => setStatusFilter(statusFilter === 'resolved' ? 'all' : 'resolved')}>
+            <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" />
+            Resolved ({summary.resolvedReports})
+          </Button>
+        </div>
 
-      <Card className="border-emerald-100 bg-white shadow-sm">
-        <CardContent className="grid gap-4 p-4 lg:grid-cols-[1.5fr_0.7fr_0.7fr_0.7fr_0.7fr]">
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search resident name, category, or report ID…" className="pl-9" />
-          </div>
-          <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as 'all' | CanonicalStatus)}>
-            <SelectTrigger>
-              <SelectValue placeholder="Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Status</SelectItem>
-              {Object.entries(statusDefinitions).map(([key, definition]) => (
-                <SelectItem key={key} value={key}>
-                  {definition.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-            <SelectTrigger>
-              <SelectValue placeholder="Category" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Categories</SelectItem>
-              {categoryDefinitions.map((definition) => (
-                <SelectItem key={definition.key} value={definition.key}>
-                  {definition.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={priorityFilter} onValueChange={(value) => setPriorityFilter(value as 'all' | CanonicalPriority)}>
-            <SelectTrigger>
-              <SelectValue placeholder="Priority" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Priorities</SelectItem>
-              {Object.entries(priorityDefinitions).map(([key, definition]) => (
-                <SelectItem key={key} value={key}>
-                  {definition.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <div className="grid grid-cols-2 gap-2">
-            <Input type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} />
-            <Input type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} />
-          </div>
-        </CardContent>
-      </Card>
+        <Card className="border-emerald-100 bg-white shadow-sm">
+          <CardContent className="flex items-center gap-3 p-4">
+            <Sheet>
+              <SheetTrigger asChild>
+                <Button variant="outline" size="sm" className="relative">
+                  <Filter className="mr-2 h-4 w-4" />
+                  Filters
+                  {(statusFilter !== 'all' || categoryFilter !== 'all' || priorityFilter !== 'all' || dateFrom || dateTo) && (
+                    <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-primary"></span>
+                    </span>
+                  )}
+                </Button>
+              </SheetTrigger>
+              <SheetContent>
+                <SheetHeader>
+                  <SheetTitle>Filter Reports</SheetTitle>
+                </SheetHeader>
+                <div className="space-y-4 mt-6">
+                  <div className="space-y-2">
+                    <Label>Status</Label>
+                    <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as 'all' | CanonicalStatus)}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="All Status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Status</SelectItem>
+                        {Object.entries(statusDefinitions).map(([key, definition]) => (
+                          <SelectItem key={key} value={key}>
+                            {definition.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label>Category</Label>
+                    <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="All Categories" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Categories</SelectItem>
+                        {categoryDefinitions.map((definition) => (
+                          <SelectItem key={definition.key} value={definition.key}>
+                            {definition.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label>Priority</Label>
+                    <Select value={priorityFilter} onValueChange={(value) => setPriorityFilter(value as 'all' | CanonicalPriority)}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="All Priorities" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Priorities</SelectItem>
+                        {Object.entries(priorityDefinitions).map(([key, definition]) => (
+                          <SelectItem key={key} value={key}>
+                            {definition.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label>Date Range</Label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <Input type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} />
+                      <Input type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} />
+                    </div>
+                  </div>
+                  
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    className="w-full"
+                    onClick={() => {
+                      setStatusFilter('all')
+                      setCategoryFilter('all')
+                      setPriorityFilter('all')
+                      setDateFrom('')
+                      setDateTo('')
+                    }}
+                  >
+                    Clear All Filters
+                  </Button>
+                </div>
+              </SheetContent>
+            </Sheet>
+          </CardContent>
+        </Card>
 
       <Card className="border-emerald-100 bg-white shadow-sm">
         <CardHeader className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -1311,7 +1344,7 @@ if (systemMessage && profileUser) {
                     const priority = priorityDefinitions[report.priority]
                     const status = statusDefinitions[report.status]
                     const category = categoryDefinitions.find((definition) => definition.key === report.categoryKey) || categoryDefinitions[categoryDefinitions.length - 1]
-                    const PriorityIcon = priority.icon || GripVertical
+const PriorityIcon = priority.icon || GripVertical
 
                     return (
                       <TableRow key={report.id} className={report.priority === 'critical' ? 'bg-rose-50/40' : ''}>
@@ -1329,39 +1362,63 @@ if (systemMessage && profileUser) {
                           <Badge className={category.badgeClass}>{category.label}</Badge>
                         </TableCell>
                         <TableCell>
-                          <span title={report.description}>{truncateText(report.description, 80)}</span>
+                          <span title={report.description} className="flex items-start gap-2">
+                            {truncateText(report.description, 70)}
+                            {report.evidenceUrls.length > 0 && (
+                              <Badge variant="secondary" className="flex items-center gap-1 text-xs">
+                                <ImageIcon className="h-3 w-3" />
+                                {report.evidenceUrls.length}
+                              </Badge>
+                            )}
+                          </span>
                         </TableCell>
                         <TableCell>{getReportDateLabel(report.submittedAt)}</TableCell>
                         <TableCell>
-                          <Badge className={priority.badgeClass}>
-                            {priority.icon ? <PriorityIcon className="mr-1 h-3.5 w-3.5" /> : null}
-                            {priority.label}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Badge className={status.badgeClass}>{status.label}</Badge>
+                          <div className="flex items-center gap-2">
+                            {priority.icon && <PriorityIcon className="h-3.5 w-3.5" />}
+                            <Badge className={priority.badgeClass} variant="secondary">
+                              {priority.label}
+                            </Badge>
+                            <Badge className={status.badgeClass} variant="outline">
+                              {status.label}
+                            </Badge>
+                          </div>
                         </TableCell>
                         <TableCell>
                           <div className="text-sm font-medium">{report.assignedOfficialLabel}</div>
                         </TableCell>
                         <TableCell className="text-right">
-                          <div className="flex justify-end gap-2">
-                            <ActionIconButton label="View Details" onClick={() => openReport(report, 'overview')}>
-                              <Eye className="h-4 w-4" />
-                            </ActionIconButton>
-                            <ActionIconButton label="Assign Official" onClick={() => openReport(report, 'actions')}>
-                              <UserPlus className="h-4 w-4" />
-                            </ActionIconButton>
-                            <ActionIconButton label="Update Status" onClick={() => openReport(report, 'actions')}>
-                              <RefreshCw className="h-4 w-4" />
-                            </ActionIconButton>
-                            <ActionIconButton label="Reply to Resident" onClick={() => openReport(report, 'actions')}>
-                              <MessageSquareReply className="h-4 w-4" />
-                            </ActionIconButton>
-                            <ActionIconButton label="Archive Report" onClick={() => archiveReport(report)} className="border-rose-200 text-rose-700 hover:bg-rose-50">
-                              <Archive className="h-4 w-4" />
-                            </ActionIconButton>
-                          </div>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                                <MoreHorizontal className="h-4 w-4" />
+                                <span className="sr-only">Open actions menu</span>
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => openReport(report, 'overview')}>
+                                <Eye className="mr-2 h-4 w-4" />
+                                View Details
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => openReport(report, 'actions')}>
+                                <UserPlus className="mr-2 h-4 w-4" />
+                                Assign Official
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => openReport(report, 'actions')}>
+                                <RefreshCw className="mr-2 h-4 w-4" />
+                                Update Status
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => openReport(report, 'actions')}>
+                                <MessageSquareReply className="mr-2 h-4 w-4" />
+                                Reply to Resident
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem onClick={() => archiveReport(report)} className="text-rose-600 focus:text-rose-600">
+                                <Archive className="mr-2 h-4 w-4" />
+                                Archive Report
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </TableCell>
                       </TableRow>
                     )

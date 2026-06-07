@@ -43,6 +43,11 @@ CREATE TABLE IF NOT EXISTS public.complaints (
   latitude DECIMAL(10, 8),
   longitude DECIMAL(11, 8),
   location_address TEXT,
+  priority_level TEXT DEFAULT 'medium' CHECK (priority_level IN ('low', 'medium', 'high', 'critical')),
+  assigned_official_id UUID REFERENCES public.officials(id) ON DELETE SET NULL,
+  admin_notes TEXT,
+  archived_at TIMESTAMP WITH TIME ZONE,
+  tracking_number TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );

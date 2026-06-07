@@ -1,23 +1,5 @@
--- Fix: Add missing columns to complaints table that are expected by the app
--- Run this if you get PGRST204 errors about evidence_url, latitude, longitude, or location_address
-
--- Add evidence_url column
-ALTER TABLE public.complaints
-ADD COLUMN IF NOT EXISTS evidence_url TEXT;
-
--- Add geolocation columns
-ALTER TABLE public.complaints
-ADD COLUMN IF NOT EXISTS latitude DECIMAL(10, 8),
-ADD COLUMN IF NOT EXISTS longitude DECIMAL(11, 8),
-ADD COLUMN IF NOT EXISTS location_address TEXT;
-
--- Add additional complaint management columns
-ALTER TABLE public.complaints
-ADD COLUMN IF NOT EXISTS priority_level TEXT DEFAULT 'medium' CHECK (priority_level IN ('low', 'medium', 'high', 'critical')),
-ADD COLUMN IF NOT EXISTS assigned_official_id UUID REFERENCES public.officials(id) ON DELETE SET NULL,
-ADD COLUMN IF NOT EXISTS admin_notes TEXT,
-ADD COLUMN IF NOT EXISTS archived_at TIMESTAMP WITH TIME ZONE,
-ADD COLUMN IF NOT EXISTS tracking_number TEXT;
+-- Post-setup: Configure evidence storage bucket and policies
+-- This script adds the storage bucket configuration for file uploads
 
 -- Create the evidence storage bucket if it doesn't exist
 INSERT INTO storage.buckets (id, name, public)
