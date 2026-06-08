@@ -9,6 +9,7 @@ import { Empty } from '@/components/ui/empty'
 import Link from 'next/link'
 import { AlertCircle, CheckCircle2 } from 'lucide-react'
 import { getOrCreateResidentProfile } from '@/lib/residents'
+import { ChevronRight } from 'lucide-react'
 
 interface Complaint {
   id: string
@@ -113,50 +114,55 @@ export default function MyComplaintsPage() {
           }
         />
       ) : (
-        <div className="space-y-4">
+<div className="space-y-4">
           {complaints.map((complaint) => (
-            <Card key={complaint.id} className="hover:shadow-lg transition-shadow">
-              <CardHeader className="pb-3">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <CardTitle className="text-lg">{complaint.title}</CardTitle>
-                    <CardDescription className="mt-1">{complaint.description}</CardDescription>
+            <Link key={complaint.id} href={`/citizen/my-complaints/${complaint.id}`}>
+              <Card className="hover:shadow-lg transition-shadow cursor-pointer group">
+                <CardHeader className="pb-3">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <CardTitle className="text-lg flex items-center justify-between">
+                        <span>{complaint.title}</span>
+                        <ChevronRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                      </CardTitle>
+                      <CardDescription className="mt-1 line-clamp-2">{complaint.description}</CardDescription>
+                    </div>
+                    <div className="flex items-center gap-2 ml-4">
+                      {getStatusIcon(complaint.status)}
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2 ml-4">
-                    {getStatusIcon(complaint.status)}
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Badge variant="outline" className="bg-background">
+                      {complaint.category}
+                    </Badge>
+                    <Badge className={getStatusColor(complaint.status)}>
+                      {complaint.status.charAt(0).toUpperCase() + complaint.status.slice(1)}
+                    </Badge>
+                    <Badge variant="secondary">
+                      Priority: {complaint.priority.charAt(0).toUpperCase() + complaint.priority.slice(1)}
+                    </Badge>
+                    <span className="text-xs text-muted-foreground ml-auto">
+                      {new Date(complaint.created_at).toLocaleDateString()}
+                    </span>
                   </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <Badge variant="outline" className="bg-background">
-                    {complaint.category}
-                  </Badge>
-                  <Badge className={getStatusColor(complaint.status)}>
-                    {complaint.status.charAt(0).toUpperCase() + complaint.status.slice(1)}
-                  </Badge>
-                  <Badge variant="secondary">
-                    Priority: {complaint.priority.charAt(0).toUpperCase() + complaint.priority.slice(1)}
-                  </Badge>
-                  <span className="text-xs text-muted-foreground ml-auto">
-                    {new Date(complaint.created_at).toLocaleDateString()}
-                  </span>
-                </div>
-{complaint.evidence_url && (
-                   <div className="mt-4 pt-4 border-t border-gray-100">
-                     <p className="text-sm font-semibold text-gray-700 mb-2">Attached Evidence:</p>
-                     <a href={complaint.evidence_url} target="_blank" rel="noopener noreferrer" className="block w-40 h-28 rounded-lg overflow-hidden border shadow-sm group">
-                       <img 
-                         src={complaint.evidence_url} 
-                         alt="Evidence preview" 
-                         className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                         onError={(e) => console.error('[DEBUG] Image load error:', complaint.evidence_url, e)}
-                       />
-                     </a>
-                   </div>
-                 )}
-              </CardContent>
-            </Card>
+                  {complaint.evidence_url && (
+                    <div className="mt-4 pt-4 border-t border-gray-100">
+                      <p className="text-sm font-semibold text-gray-700 mb-2">Attached Evidence:</p>
+                      <a href={complaint.evidence_url} target="_blank" rel="noopener noreferrer" className="block w-40 h-28 rounded-lg overflow-hidden border shadow-sm group">
+                        <img
+                          src={complaint.evidence_url}
+                          alt="Evidence preview"
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                          onError={(e) => console.error('[DEBUG] Image load error:', complaint.evidence_url, e)}
+                        />
+                      </a>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </Link>
           ))}
         </div>
       )}
