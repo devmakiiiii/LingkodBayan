@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { Empty } from '@/components/ui/empty'
 import { Bell, MessageSquare } from 'lucide-react'
+import { useNotifications } from '@/hooks/use-notifications'
 
 type NotificationItem = {
   id: string
@@ -22,6 +23,8 @@ type NotificationItem = {
 export default function NotificationsPage() {
   const [items, setItems] = useState<NotificationItem[]>([])
   const [loading, setLoading] = useState(true)
+
+  const { refreshUnreadCount } = useNotifications()
 
   useEffect(() => {
     async function loadNotifications() {
@@ -40,7 +43,7 @@ export default function NotificationsPage() {
           console.warn('Failed to load notifications:', messagesError.message)
           setItems([])
         } else {
-          const rows = (data || []) as NotificationItem[]
+          const rows = (data || []) as unknown as NotificationItem[]
           setItems(rows)
 
           const unreadIds = rows.filter((item) => !item.is_read).map((item) => item.id)
@@ -51,6 +54,8 @@ export default function NotificationsPage() {
               .in('id', unreadIds)
 
             setItems((current) => current.map((item) => (unreadIds.includes(item.id) ? { ...item, is_read: true } : item)))
+            
+            await refreshUnreadCount()
           }
         }
       } catch (error) {
@@ -61,7 +66,7 @@ export default function NotificationsPage() {
     }
 
     loadNotifications()
-  }, [])
+  }, [refreshUnreadCount])
 
   return (
     <div className="space-y-8 p-8 max-w-4xl">

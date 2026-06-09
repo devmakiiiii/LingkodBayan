@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { toast } from 'sonner'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Empty } from '@/components/ui/empty'
 import { Input } from '@/components/ui/input'
@@ -686,6 +687,7 @@ if (systemMessage && profileUser) {
        }
 
       await loadReports(false)
+      toast.success('Changes saved successfully')
     } catch (error) {
       console.error('Failed to update report:', error)
       alert(error instanceof Error ? error.message : 'Failed to update report')
@@ -734,6 +736,7 @@ if (systemMessage && profileUser) {
         throw new Error(error.message || 'Database insert failed')
       }
 
+      toast.success('Response sent successfully')
       setReplyDraft('')
       await loadReports(false)
     } catch (error) {

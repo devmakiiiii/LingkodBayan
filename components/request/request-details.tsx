@@ -54,130 +54,138 @@ export function RequestDetails({
   const requestTypeTitle = getRequestTypeTitle(request.request_type, request.title)
   const summaryValue = getRequestSummaryValue(request.request_type, request.payload, request.description)
 
-  return (
-    <div className={className}>
-      {showSystemMeta && (
-        <Card className="border-emerald-200/60 bg-emerald-50/40 shadow-none">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base text-emerald-900">Request Overview</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <div>
-              <p className="text-xs uppercase tracking-wide text-emerald-700">Request Type</p>
-              <p className="mt-1 font-semibold text-emerald-950">{requestTypeTitle}</p>
-            </div>
-            <div>
-              <p className="text-xs uppercase tracking-wide text-emerald-700">Status</p>
-              <Badge variant="outline" className={`mt-1 ${getRequestStatusClassName(request.status)}`}>
-                {getRequestStatusLabel(request.status)}
-              </Badge>
-            </div>
-            <div>
-              <p className="text-xs uppercase tracking-wide text-emerald-700">Submitted</p>
-              <p className="mt-1 font-semibold text-emerald-950">
-                {request.created_at ? new Date(request.created_at).toLocaleString('en-PH') : 'N/A'}
-              </p>
-            </div>
-            {showPriority && (
-              <div>
-                <p className="text-xs uppercase tracking-wide text-emerald-700">Priority</p>
-                <p className="mt-1 font-semibold text-emerald-950">
-                  {request.priority ? request.priority.charAt(0).toUpperCase() + request.priority.slice(1) : 'Normal'}
-                </p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
-      {showRequester && (requesterName || requesterEmail || requesterBarangay) && (
-        <Card className="border-emerald-200/60 shadow-none">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">Requester Details</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {requesterName && (
-              <div className="min-w-0">
-                <p className="text-xs uppercase tracking-wide text-muted-foreground">Name</p>
-                <p className="mt-1 wrap-break-word font-medium text-foreground">{requesterName}</p>
-              </div>
-            )}
-            {requesterEmail && (
-              <div className="min-w-0">
-                <p className="text-xs uppercase tracking-wide text-muted-foreground">Email</p>
-                <p className="mt-1 break-all font-medium text-foreground">{requesterEmail}</p>
-              </div>
-            )}
-            {requesterBarangay && (
-              <div className="min-w-0">
-                <p className="text-xs uppercase tracking-wide text-muted-foreground">Barangay</p>
-                <p className="mt-1 wrap-break-word font-medium text-foreground">{requesterBarangay}</p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
-      <Card className="border-emerald-200/60 shadow-none">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base">Request Summary</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground">{summaryValue}</p>
-        </CardContent>
-      </Card>
-
-      <Card className="border-emerald-200/60 shadow-none">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base">Submitted Fields</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {fieldEntries.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No form details were stored with this request.</p>
-          ) : (
-            fieldEntries.map((field) => {
-              if (isFileCollection(field.value)) {
 return (
-                   <div key={field.key} className="space-y-2 rounded-xl border border-dashed border-emerald-200 bg-emerald-50/40 p-4">
-                     <p className="text-xs uppercase tracking-wide text-emerald-700">{field.label}</p>
-                     <div className="space-y-2">
-                       {field.value.length === 0 ? (
-                         <p className="text-sm text-muted-foreground">No files uploaded</p>
-                       ) : (
-                         field.value.map((file) => {
-                           const isImage = file.type?.startsWith('image/')
-                           return (
-                             <div key={`${field.key}-${file.name}`} className="space-y-2 rounded-lg bg-white px-3 py-2 text-sm shadow-sm">
-                               <div className="flex items-center justify-between gap-3">
-                                 <span className="truncate font-medium text-foreground">{file.name}</span>
-                                 {file.content && !isImage && (
-                                   <a href={file.content} target="_blank" rel="noopener noreferrer" className="text-emerald-700 hover:underline text-xs">
-                                     View
-                                   </a>
-                                 )}
-                               </div>
-                               {file.content && isImage && (
-                                 <img src={file.content} alt={file.name} className="mt-2 max-h-48 w-full rounded object-contain" />
-                               )}
-                             </div>
-                           )
-                         })
-                       )}
-                     </div>
-                   </div>
-                 )
-              }
-
-              return (
-                <div key={field.key} className="grid gap-1 rounded-xl border border-emerald-100 bg-white p-4 shadow-sm">
-                  <p className="text-xs uppercase tracking-wide text-muted-foreground">{field.label}</p>
-                  <p className="whitespace-pre-wrap text-sm font-medium text-foreground">{formatRequestFieldValue(field.value)}</p>
+    <div className={className}>
+      <div className="grid gap-6 lg:grid-cols-3">
+        {/* Sidebar - Sticky on larger screens */}
+        <aside className="lg:col-span-1 lg:sticky lg:top-6 space-y-4">
+          {showSystemMeta && (
+            <Card className="border-emerald-200/60 bg-emerald-50/40 shadow-none">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base text-emerald-900">Request Overview</CardTitle>
+              </CardHeader>
+              <CardContent className="grid gap-4">
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-emerald-700">Request Type</p>
+                  <p className="mt-1 font-semibold text-emerald-950">{requestTypeTitle}</p>
                 </div>
-              )
-            })
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-emerald-700">Status</p>
+                  <Badge variant="outline" className={`mt-1 ${getRequestStatusClassName(request.status)}`}>
+                    {getRequestStatusLabel(request.status)}
+                  </Badge>
+                </div>
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-emerald-700">Submitted</p>
+                  <p className="mt-1 font-semibold text-emerald-950">
+                    {request.created_at ? new Date(request.created_at).toLocaleString('en-PH') : 'N/A'}
+                  </p>
+                </div>
+                {showPriority && (
+                  <div>
+                    <p className="text-xs uppercase tracking-wide text-emerald-700">Priority</p>
+                    <p className="mt-1 font-semibold text-emerald-950">
+                      {request.priority ? request.priority.charAt(0).toUpperCase() + request.priority.slice(1) : 'Normal'}
+                    </p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           )}
-        </CardContent>
-      </Card>
+
+          {showRequester && (requesterName || requesterEmail || requesterBarangay) && (
+            <Card className="border-emerald-200/60 shadow-none">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Requester Details</CardTitle>
+              </CardHeader>
+              <CardContent className="grid gap-4">
+                {requesterName && (
+                  <div className="min-w-0">
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Name</p>
+                    <p className="mt-1 wrap-break-word font-medium text-foreground">{requesterName}</p>
+                  </div>
+                )}
+                {requesterEmail && (
+                  <div className="min-w-0">
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Email</p>
+                    <p className="mt-1 break-all font-medium text-foreground">{requesterEmail}</p>
+                  </div>
+                )}
+                {requesterBarangay && (
+                  <div className="min-w-0">
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Barangay</p>
+                    <p className="mt-1 wrap-break-word font-medium text-foreground">{requesterBarangay}</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+        </aside>
+
+        {/* Main Content */}
+        <main className="lg:col-span-2 space-y-6">
+          <Card className="border-emerald-200/60 shadow-none">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">Request Summary</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground">{summaryValue}</p>
+            </CardContent>
+          </Card>
+
+          <Card className="border-emerald-200/60 shadow-none">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">Submitted Fields</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {fieldEntries.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No form details were stored with this request.</p>
+              ) : (
+                fieldEntries.map((field) => {
+                  if (isFileCollection(field.value)) {
+                    return (
+                      <div key={field.key} className="space-y-2 rounded-xl border border-dashed border-emerald-200 bg-emerald-50/40 p-4">
+                        <p className="text-xs uppercase tracking-wide text-emerald-700">{field.label}</p>
+                        <div className="space-y-2">
+                          {field.value.length === 0 ? (
+                            <p className="text-sm text-muted-foreground">No files uploaded</p>
+                          ) : (
+                            field.value.map((file) => {
+                              const isImage = file.type?.startsWith('image/')
+                              return (
+                                <div key={`${field.key}-${file.name}`} className="space-y-2 rounded-lg bg-white px-3 py-2 text-sm shadow-sm">
+                                  <div className="flex items-center justify-between gap-3">
+                                    <span className="truncate font-medium text-foreground">{file.name}</span>
+                                    {file.content && !isImage && (
+                                      <a href={file.content} target="_blank" rel="noopener noreferrer" className="text-emerald-700 hover:underline text-xs">
+                                        View
+                                      </a>
+                                    )}
+                                  </div>
+                                  {file.content && isImage && (
+                                    <img src={file.content} alt={file.name} className="mt-2 max-h-48 w-full rounded object-contain" />
+                                  )}
+                                </div>
+                              )
+                            })
+                          )}
+                        </div>
+                      </div>
+                    )
+                  }
+
+                  return (
+                    <div key={field.key} className="grid gap-1 rounded-xl border border-emerald-100 bg-white p-4 shadow-sm">
+                      <p className="text-xs uppercase tracking-wide text-muted-foreground">{field.label}</p>
+                      <p className="whitespace-pre-wrap text-sm font-medium text-foreground">{formatRequestFieldValue(field.value)}</p>
+                    </div>
+                  )
+                })
+              )}
+            </CardContent>
+          </Card>
+        </main>
+      </div>
     </div>
   )
 }

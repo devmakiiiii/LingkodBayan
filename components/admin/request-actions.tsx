@@ -1,9 +1,35 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { CheckCircle2, Clock3, FileDown, Printer, XCircle } from 'lucide-react'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, NoCloseDialog } from '@/components/ui/dialog'
+import { CheckCircle2, ChevronDown, Clock3, Loader2Icon, Printer, XCircle } from 'lucide-react'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  NoCloseDialog,
+} from '@/components/ui/dialog'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { RequestDetails } from '@/components/request/request-details'
 import {
   getRequestTypeTitle,
@@ -43,6 +69,20 @@ function escapeHtml(value: string) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;')
+}
+
+function getStatusIcon(status: string) {
+  const normalizedStatus = status?.toLowerCase() ?? 'pending'
+  switch (normalizedStatus) {
+    case 'approved':
+      return <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+    case 'processing':
+      return <Clock3 className="h-4 w-4 text-sky-600" />
+    case 'rejected':
+      return <XCircle className="h-4 w-4 text-rose-600" />
+    default:
+      return <Clock3 className="h-4 w-4 text-amber-600" />
+  }
 }
 
 function getRequestFieldValue(request: RequestRecord, fieldName: string) {
@@ -349,10 +389,13 @@ function openPrintWindow(request: RequestRecord) {
 
 export function RequestActions({ request, isOpen, onClose, onStatusChange }: RequestActionsProps) {
   const [statusMessage, setStatusMessage] = useState('')
+  const [isChangingStatus, setIsChangingStatus] = useState(false)
+  const [showRejectConfirm, setShowRejectConfirm] = useState(false)
 
   useEffect(() => {
     if (!isOpen) {
       setStatusMessage('')
+      setIsChangingStatus(false)
     }
   }, [isOpen])
 
@@ -361,14 +404,26 @@ export function RequestActions({ request, isOpen, onClose, onStatusChange }: Req
   }
 
   const requesterName = `${request.residents?.first_name ?? ''} ${request.residents?.last_name ?? ''}`.trim() || 'N/A'
+  const currentStatus = request.status ?? 'pending'
 
   const handleStatusChange = async (status: RequestStatus) => {
     setStatusMessage('')
+    setIsChangingStatus(true)
     await onStatusChange?.(request.id, status)
     setStatusMessage(`Request marked as ${status}.`)
+    setIsChangingStatus(false)
   }
 
-return (
+  const handleRejectClick = () => {
+    setShowRejectConfirm(true)
+  }
+
+  const handleRejectConfirm = async () => {
+    setShowRejectConfirm(false)
+    await handleStatusChange('rejected')
+  }
+
+  return (
     <NoCloseDialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-h-[92vh] max-w-5xl overflow-y-auto border-emerald-100 bg-white">
         <DialogHeader>
@@ -384,13 +439,7 @@ return (
           </div>
         )}
 
-        <div className="space-y-6">
-          <div className="rounded-2xl border border-emerald-200/70 bg-emerald-50/30 p-4">
-            <p className="text-xs uppercase tracking-wide text-emerald-700">Requester</p>
-            <p className="mt-1 text-lg font-semibold text-foreground">{requesterName}</p>
-            <p className="text-sm text-muted-foreground">{request.residents?.email ?? 'No email available'}</p>
-          </div>
-
+<div className="space-y-6">
           <RequestDetails
             request={request}
             requesterName={requesterName}
@@ -403,40 +452,88 @@ return (
               <p className="text-sm font-semibold text-foreground">Status actions</p>
               <p className="text-sm text-muted-foreground">Update the request review state or export the document.</p>
             </div>
-            <div className="flex flex-wrap gap-2">
-              <Button
-                className="bg-emerald-600 text-white hover:bg-emerald-700"
-                onClick={() => handleStatusChange('approved')}
-              >
-                <CheckCircle2 className="mr-2 h-4 w-4" />
-                Approve
-              </Button>
-              <Button
-                className="bg-amber-600 text-white hover:bg-amber-700"
-                onClick={() => handleStatusChange('processing')}
-              >
-                <Clock3 className="mr-2 h-4 w-4" />
-                Mark as Processing
-              </Button>
-              <Button
-                className="bg-rose-600 text-white hover:bg-rose-700"
-                onClick={() => handleStatusChange('rejected')}
-              >
-                <XCircle className="mr-2 h-4 w-4" />
-                Reject
-              </Button>
-              <Button variant="outline" onClick={() => openPrintWindow(request)}>
-                <Printer className="mr-2 h-4 w-4" />
+            <div className="flex flex-wrap items-center gap-2">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" className="w-40 justify-between" disabled={isChangingStatus}>
+                    <span className="flex items-center gap-2">
+                      {isChangingStatus ? <Loader2Icon className="h-4 w-4 animate-spin" /> : getStatusIcon(currentStatus)}
+                      <span>Change Status</span>
+                    </span>
+                    <ChevronDown className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuLabel>Update Status</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuGroup>
+                    <DropdownMenuItem
+                      onClick={() => handleStatusChange('pending')}
+                      disabled={currentStatus === 'pending' || isChangingStatus}
+                      className="focus:bg-amber-50 focus:text-amber-900"
+                    >
+                      <Clock3 className="mr-2 h-4 w-4 text-amber-600" />
+                      Pending
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => handleStatusChange('processing')}
+                      disabled={currentStatus === 'processing' || isChangingStatus}
+                      className="focus:bg-sky-50 focus:text-sky-900"
+                    >
+                      <Clock3 className="mr-2 h-4 w-4 text-sky-600" />
+                      Processing
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => handleStatusChange('approved')}
+                      disabled={currentStatus === 'approved' || isChangingStatus}
+                      className="focus:bg-emerald-50 focus:text-emerald-900"
+                    >
+                      <CheckCircle2 className="mr-2 h-4 w-4 text-emerald-600" />
+                      Approved
+                    </DropdownMenuItem>
+                  </DropdownMenuGroup>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onClick={handleRejectClick}
+                    disabled={currentStatus === 'rejected' || isChangingStatus}
+                    variant="destructive"
+                    className="focus:bg-rose-50 focus:text-rose-900"
+                  >
+                    <XCircle className="mr-2 h-4 w-4" />
+                    Reject
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <Button variant="outline" onClick={() => openPrintWindow(request)} disabled={isChangingStatus}>
+                {isChangingStatus ? <Loader2Icon className="mr-2 h-4 w-4 animate-spin" /> : <Printer className="mr-2 h-4 w-4" />}
                 Print
-              </Button>
-              <Button variant="outline" onClick={() => openPrintWindow(request)}>
-                <FileDown className="mr-2 h-4 w-4" />
-                Export PDF
               </Button>
             </div>
           </div>
+
+          <AlertDialog open={showRejectConfirm} onOpenChange={setShowRejectConfirm}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Reject Request</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will mark the request as rejected. The requester will be notified and the request
+                  cannot be processed further. Are you sure you want to continue?
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={handleRejectConfirm}
+                  className="bg-rose-600 text-white hover:bg-rose-700"
+                >
+                  Reject Request
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       </DialogContent>
     </NoCloseDialog>
   )
 }
+

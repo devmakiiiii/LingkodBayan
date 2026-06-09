@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { CheckCircle, Clock, MessageSquare, X } from 'lucide-react'
+import { toast } from 'sonner'
 import { createClient } from '@/lib/supabase/client'
 
 interface Complaint {
@@ -44,48 +45,51 @@ export function ComplaintActions({ complaint, isOpen, onClose, onAction }: Compl
     }
   }, [isOpen])
 
-  const handleKasunduan = async () => {
-    setIsSubmitting(true)
-    try {
-      onAction?.('kasunduan', { complaintId: complaint?.id, notes })
-      setNotes('')
-      setActiveAction(null)
-      onClose()
-    } finally {
-      setIsSubmitting(false)
-    }
-  }
+const handleKasunduan = async () => {
+     setIsSubmitting(true)
+     try {
+       onAction?.('kasunduan', { complaintId: complaint?.id, notes })
+       toast.success('Complaint marked as resolved')
+       setNotes('')
+       setActiveAction(null)
+       onClose()
+     } finally {
+       setIsSubmitting(false)
+     }
+   }
 
-  const handleSumbong = async () => {
-    setIsSubmitting(true)
-    try {
-      onAction?.('sumbong', { complaintId: complaint?.id, notes })
-      setNotes('')
-      setActiveAction(null)
-    } finally {
-      setIsSubmitting(false)
-    }
-  }
+const handleSumbong = async () => {
+     setIsSubmitting(true)
+     try {
+       onAction?.('sumbong', { complaintId: complaint?.id, notes })
+       toast.success('Complaint marked for investigation')
+       setNotes('')
+       setActiveAction(null)
+     } finally {
+       setIsSubmitting(false)
+     }
+   }
 
-  const handleReply = async () => {
-    setIsSubmitting(true)
-    try {
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw new Error('Admin session not found')
+const handleReply = async () => {
+     setIsSubmitting(true)
+     try {
+       const supabase = createClient()
+       const { data: { user } } = await supabase.auth.getUser()
+       if (!user) throw new Error('Admin session not found')
 
-      onAction?.('reply', {
-        complaintId: complaint?.id,
-        message: replyMessage,
-        senderId: user.id,
-        recipientUserId: complaint?.resident_user_id,
-      })
-      setReplyMessage('')
-      setActiveAction(null)
-    } finally {
-      setIsSubmitting(false)
-    }
-  }
+       onAction?.('reply', {
+         complaintId: complaint?.id,
+         message: replyMessage,
+         senderId: user.id,
+         recipientUserId: complaint?.resident_user_id,
+       })
+       toast.success('Response sent successfully')
+       setReplyMessage('')
+       setActiveAction(null)
+     } finally {
+       setIsSubmitting(false)
+     }
+   }
 
   if (!complaint) return null
 

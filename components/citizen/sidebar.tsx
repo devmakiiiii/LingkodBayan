@@ -16,6 +16,7 @@ import {
   DialogClose,
 } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
+import { useNotifications } from '@/hooks/use-notifications'
 
 const navItems = [
   { href: '/citizen/dashboard', label: 'Dashboard', icon: Home },
@@ -28,9 +29,9 @@ const navItems = [
 export function Sidebar() {
   const [isOpen, setIsOpen] = useState(false)
   const [userName, setUserName] = useState<string>('')
-  const [unreadCount, setUnreadCount] = useState(0)
   const [isLoggingOut, setIsLoggingOut] = useState(false)
   const [showLogoutDialog, setShowLogoutDialog] = useState(false)
+  const { unreadCount } = useNotifications()
   const pathname = usePathname()
   const router = useRouter()
 
@@ -40,19 +41,6 @@ export function Sidebar() {
       const { data: { user } } = await supabase.auth.getUser()
       if (user) {
         setUserName(user.user_metadata?.first_name || user.email?.split('@')[0] || 'Resident')
-
-        const { count, error } = await supabase
-          .from('complaint_messages')
-          .select('id', { count: 'exact', head: true })
-          .eq('is_read', false)
-          .eq('recipient_user_id', user.id)
-
-        if (error) {
-          console.warn('Failed to load unread messages count:', error.message)
-          setUnreadCount(0)
-        } else {
-          setUnreadCount(count || 0)
-        }
       }
     }
     loadUser()

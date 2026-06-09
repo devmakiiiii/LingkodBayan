@@ -90,7 +90,7 @@ export default function MyRequestsPage() {
 return (
     <div className="space-y-8 p-8">
       <NoCloseDialog open={Boolean(selectedRequest)} onOpenChange={(open) => !open && setSelectedRequest(null)}>
-        <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto border-emerald-100 bg-white">
+        <DialogContent className="max-h-[90vh] max-w-5xl overflow-y-auto border-emerald-100 bg-white">
           {selectedRequest && (
             <>
               <DialogHeader>
