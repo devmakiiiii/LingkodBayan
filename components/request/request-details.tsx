@@ -69,8 +69,9 @@ export function RequestDetails({
     { status: 'processing', label: 'Processing', color: 'bg-sky-500' },
     { status: 'approved', label: 'Approved', color: 'bg-emerald-500' },
   ]
-  const currentIndex = progressSteps.findIndex((s) => s.status === request.status)
-  const activeIndex = currentIndex >= 0 ? currentIndex : 0
+  const normalizedStatus = (request.status ?? 'pending').toLowerCase()
+  const activeStatus = normalizedStatus === 'in-progress' ? 'processing' : normalizedStatus
+  const activeIndex = Math.max(0, progressSteps.findIndex((s) => s.status === activeStatus))
 
   return (
     <div className={className}>

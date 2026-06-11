@@ -107,7 +107,7 @@ export default function AdminRequestsPage() {
   const visibleRequests = useMemo(() => {
     const allowedStatuses = getSectionStatuses(activeSection)
 
-    return requests.filter((request) => allowedStatuses.includes(normalizeRequestStatus(request.status)))
+    return requests.filter((request) => allowedStatuses.includes(request.status?.toLowerCase() ?? 'pending'))
   }, [activeSection, requests])
 
   const sectionCounts = useMemo(() => ({

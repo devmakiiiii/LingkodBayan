@@ -31,6 +31,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { RequestDetails } from '@/components/request/request-details'
+import { toast } from 'sonner'
 import {
   getRequestTypeTitle,
   type RequestPayload,
@@ -388,16 +389,14 @@ function openPrintWindow(request: RequestRecord) {
 }
 
 export function RequestActions({ request, isOpen, onClose, onStatusChange }: RequestActionsProps) {
-  const [statusMessage, setStatusMessage] = useState('')
-  const [isChangingStatus, setIsChangingStatus] = useState(false)
-  const [showRejectConfirm, setShowRejectConfirm] = useState(false)
+   const [isChangingStatus, setIsChangingStatus] = useState(false)
+   const [showRejectConfirm, setShowRejectConfirm] = useState(false)
 
-  useEffect(() => {
-    if (!isOpen) {
-      setStatusMessage('')
-      setIsChangingStatus(false)
-    }
-  }, [isOpen])
+   useEffect(() => {
+     if (!isOpen) {
+       setIsChangingStatus(false)
+     }
+   }, [isOpen])
 
   if (!request) {
     return null
@@ -407,11 +406,15 @@ export function RequestActions({ request, isOpen, onClose, onStatusChange }: Req
   const currentStatus = request.status ?? 'pending'
 
   const handleStatusChange = async (status: RequestStatus) => {
-    setStatusMessage('')
     setIsChangingStatus(true)
-    await onStatusChange?.(request.id, status)
-    setStatusMessage(`Request marked as ${status}.`)
-    setIsChangingStatus(false)
+    try {
+      await onStatusChange?.(request.id, status)
+      toast.success(`Request marked as ${status}`)
+    } catch (error) {
+      toast.error('Failed to update request status')
+    } finally {
+      setIsChangingStatus(false)
+    }
   }
 
   const handleRejectClick = () => {
@@ -423,29 +426,23 @@ export function RequestActions({ request, isOpen, onClose, onStatusChange }: Req
     await handleStatusChange('rejected')
   }
 
-  return (
-<NoCloseDialog open={isOpen} onOpenChange={onClose}>
-       <DialogContent className="max-h-[90vh] max-w-4xl w-[95vw] overflow-y-auto border-emerald-100 bg-white p-4 md:p-6">
-         <DialogHeader>
-           <DialogTitle className="text-2xl">Request Details</DialogTitle>
-           <DialogDescription>
-             Review all submitted fields, update the request status, or print the official document.
-           </DialogDescription>
-         </DialogHeader>
+return (
+    <NoCloseDialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="max-h-[90vh] max-w-4xl w-[95vw] overflow-y-auto border-emerald-100 bg-white p-4 md:p-6">
+        <DialogHeader>
+          <DialogTitle className="text-2xl">Request Details</DialogTitle>
+          <DialogDescription>
+            Review all submitted fields, update the request status, or print the official document.
+          </DialogDescription>
+        </DialogHeader>
 
-         {statusMessage && (
-           <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-             {statusMessage}
-           </div>
-         )}
-
-         <div className="space-y-6">
-           <RequestDetails
-             request={request}
-             requesterName={requesterName}
-             requesterEmail={request.residents?.email ?? undefined}
-             requesterBarangay={request.residents?.barangay ?? undefined}
-           />
+        <div className="space-y-6">
+          <RequestDetails
+            request={request}
+            requesterName={requesterName}
+            requesterEmail={request.residents?.email ?? undefined}
+            requesterBarangay={request.residents?.barangay ?? undefined}
+          />
 
           <div className="flex flex-col gap-3 rounded-2xl border border-dashed border-emerald-200 bg-emerald-50/30 p-4 lg:flex-row lg:items-center lg:justify-between">
             <div>

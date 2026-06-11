@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { MapContainer, Marker, Popup, TileLayer, useMap, useMapEvents } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
@@ -17,18 +17,6 @@ const BARANGAY_BARRETTO_BOUNDS: [[number, number], [number, number]] = [
 
 // Center point for Barangay Barretto (14.851°N, 120.263°E)
 const BARANGAY_BARRETTO_CENTER: [number, number] = [14.851, 120.263]
-
-const DefaultIcon = L.icon({
-  iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-  iconSize: [25, 41],
-  shadowSize: [41, 41],
-  iconAnchor: [12, 41],
-  shadowAnchor: [12, 41],
-  popupAnchor: [1, -34],
-})
-
-L.Marker.prototype.setIcon(DefaultIcon)
 
 function MapBoundsSetter() {
   const map = useMap()
@@ -48,8 +36,19 @@ function LocationMarker({ onLocationSelect }: { onLocationSelect: (lat: number, 
     },
   })
 
+  const defaultIcon = useMemo(() =>
+    L.icon({
+      iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+      shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+      iconSize: [25, 41],
+      shadowSize: [41, 41],
+      iconAnchor: [12, 41],
+      shadowAnchor: [12, 41],
+      popupAnchor: [1, -34],
+    }), [])
+
   return position === null ? null : (
-    <Marker position={position}>
+    <Marker position={position} icon={defaultIcon}>
       <Popup>Complaint Location</Popup>
     </Marker>
   )

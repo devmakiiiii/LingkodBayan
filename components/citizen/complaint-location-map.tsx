@@ -1,32 +1,24 @@
 'use client'
 
-import { MapContainer, TileLayer, Marker } from 'react-leaflet'
-import 'leaflet/dist/leaflet.css'
+import dynamic from 'next/dynamic'
 
 interface ComplaintLocationMapProps {
   latitude: number
   longitude: number
 }
 
-export function ComplaintLocationMap({ latitude, longitude }: ComplaintLocationMapProps) {
-  const position: [number, number] = [latitude, longitude]
+const ComplaintLocationMapClient = dynamic(
+  () => import('./complaint-location-map-client'),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-[200px] w-full bg-gray-50 rounded-lg border border-gray-200 flex items-center justify-center">
+        <p className="text-sm text-muted-foreground">Loading map...</p>
+      </div>
+    ),
+  }
+)
 
-  return (
-    <MapContainer
-      // @ts-expect-error - react-leaflet types have issues
-      center={position}
-      zoom={17}
-      style={{ height: '200px', width: '100%' }}
-      scrollWheelZoom={false}
-      dragging={false}
-      doubleClickZoom={false}
-    >
-      <TileLayer
-        // @ts-expect-error - react-leaflet types have issues
-        attribution='&copy; OpenStreetMap'
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-      />
-      <Marker position={position} />
-    </MapContainer>
-  )
+export function ComplaintLocationMap({ latitude, longitude }: ComplaintLocationMapProps) {
+  return <ComplaintLocationMapClient latitude={latitude} longitude={longitude} />
 }
