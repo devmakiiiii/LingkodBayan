@@ -1,7 +1,10 @@
 'use client'
 
+import { useState } from 'react'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Copy } from 'lucide-react'
 import {
   formatRequestFieldValue,
   getRequestFieldEntries,
@@ -50,28 +53,43 @@ export function RequestDetails({
   showPriority = true,
   showSystemMeta = true,
 }: RequestDetailsProps) {
+  const [copiedField, setCopiedField] = useState<string | null>(null)
   const fieldEntries = getRequestFieldEntries(request.request_type, request.payload)
   const requestTypeTitle = getRequestTypeTitle(request.request_type, request.title)
   const summaryValue = getRequestSummaryValue(request.request_type, request.payload, request.description)
 
-return (
+  const copyToClipboard = async (text: string, fieldKey: string) => {
+    await navigator.clipboard.writeText(text)
+    setCopiedField(fieldKey)
+    setTimeout(() => setCopiedField(null), 2000)
+  }
+
+  const progressSteps = [
+    { status: 'pending', label: 'Pending', color: 'bg-amber-500' },
+    { status: 'processing', label: 'Processing', color: 'bg-sky-500' },
+    { status: 'approved', label: 'Approved', color: 'bg-emerald-500' },
+  ]
+  const currentIndex = progressSteps.findIndex((s) => s.status === request.status)
+  const activeIndex = currentIndex >= 0 ? currentIndex : 0
+
+  return (
     <div className={className}>
-      <div className="grid gap-6 lg:grid-cols-3">
-        {/* Sidebar - Sticky on larger screens */}
-        <aside className="lg:col-span-1 lg:sticky lg:top-6 space-y-4">
+      <div className="grid gap-6 lg:grid-cols-3 overflow-hidden">
+        {/* Sidebar */}
+        <aside className="lg:col-span-1 space-y-4">
           {showSystemMeta && (
-            <Card className="border-emerald-200/60 bg-emerald-50/40 shadow-none">
+            <Card className="border-emerald-200/60 bg-emerald-50/40 shadow-none h-fit">
               <CardHeader className="pb-3">
                 <CardTitle className="text-base text-emerald-900">Request Overview</CardTitle>
               </CardHeader>
-              <CardContent className="grid gap-4">
+              <CardContent className="grid gap-3">
                 <div>
                   <p className="text-xs uppercase tracking-wide text-emerald-700">Request Type</p>
-                  <p className="mt-1 font-semibold text-emerald-950">{requestTypeTitle}</p>
+                  <p className="mt-1 font-semibold text-emerald-950 break-words">{requestTypeTitle}</p>
                 </div>
                 <div>
                   <p className="text-xs uppercase tracking-wide text-emerald-700">Status</p>
-                  <Badge variant="outline" className={`mt-1 ${getRequestStatusClassName(request.status)}`}>
+                  <Badge variant="outline" className={`mt-1 ${getRequestStatusClassName(request.status)} w-fit`}>
                     {getRequestStatusLabel(request.status)}
                   </Badge>
                 </div>
@@ -89,12 +107,27 @@ return (
                     </p>
                   </div>
                 )}
+                {/* Workflow Progress */}
+                <div className="mt-2 pt-2 border-t border-emerald-200/40">
+                  <p className="text-xs uppercase tracking-wide text-emerald-700 mb-2">Progress</p>
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-xs">
+                    {progressSteps.map((step, index) => (
+                      <div key={step.status} className="flex items-center gap-1.5">
+                        <span className={`h-2.5 w-2.5 rounded-full flex-shrink-0 ${index <= activeIndex ? step.color : 'bg-slate-300'}`} />
+                        <span className={index <= activeIndex ? 'text-foreground font-medium' : 'text-muted-foreground'}>
+                          {step.label}
+                        </span>
+                        {index < progressSteps.length - 1 && <span className="text-muted-foreground/60 text-base">→</span>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </CardContent>
             </Card>
           )}
 
           {showRequester && (requesterName || requesterEmail || requesterBarangay) && (
-            <Card className="border-emerald-200/60 shadow-none">
+            <Card className="border-emerald-200/60 shadow-none h-fit">
               <CardHeader className="pb-3">
                 <CardTitle className="text-base">Requester Details</CardTitle>
               </CardHeader>
@@ -107,8 +140,20 @@ return (
                 )}
                 {requesterEmail && (
                   <div className="min-w-0">
-                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Email</p>
-                    <p className="mt-1 break-all font-medium text-foreground">{requesterEmail}</p>
+                    <div className="flex items-center justify-between gap-2">
+                      <div>
+                        <p className="text-xs uppercase tracking-wide text-muted-foreground">Email</p>
+                        <p className="mt-1 break-all font-medium text-foreground text-sm">{requesterEmail}</p>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => copyToClipboard(requesterEmail, 'email')}
+                        className="shrink-0"
+                      >
+                        <Copy className={`h-3 w-3 ${copiedField === 'email' ? 'text-emerald-600' : ''}`} />
+                      </Button>
+                    </div>
                   </div>
                 )}
                 {requesterBarangay && (
@@ -129,7 +174,7 @@ return (
               <CardTitle className="text-base">Request Summary</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-sm text-muted-foreground">{summaryValue}</p>
+              <p className="text-sm text-muted-foreground break-words">{summaryValue}</p>
             </CardContent>
           </Card>
 
@@ -154,10 +199,10 @@ return (
                               const isImage = file.type?.startsWith('image/')
                               return (
                                 <div key={`${field.key}-${file.name}`} className="space-y-2 rounded-lg bg-white px-3 py-2 text-sm shadow-sm">
-                                  <div className="flex items-center justify-between gap-3">
-                                    <span className="truncate font-medium text-foreground">{file.name}</span>
+                                  <div className="flex items-center justify-between gap-2 min-w-0">
+                                    <span className="truncate font-medium text-foreground min-w-0 flex-1">{file.name}</span>
                                     {file.content && !isImage && (
-                                      <a href={file.content} target="_blank" rel="noopener noreferrer" className="text-emerald-700 hover:underline text-xs">
+                                      <a href={file.content} target="_blank" rel="noopener noreferrer" className="text-emerald-700 hover:underline text-xs shrink-0">
                                         View
                                       </a>
                                     )}
@@ -177,7 +222,7 @@ return (
                   return (
                     <div key={field.key} className="grid gap-1 rounded-xl border border-emerald-100 bg-white p-4 shadow-sm">
                       <p className="text-xs uppercase tracking-wide text-muted-foreground">{field.label}</p>
-                      <p className="whitespace-pre-wrap text-sm font-medium text-foreground">{formatRequestFieldValue(field.value)}</p>
+                      <p className="whitespace-pre-wrap text-sm font-medium text-foreground break-words">{formatRequestFieldValue(field.value)}</p>
                     </div>
                   )
                 })

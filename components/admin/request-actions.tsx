@@ -424,28 +424,28 @@ export function RequestActions({ request, isOpen, onClose, onStatusChange }: Req
   }
 
   return (
-    <NoCloseDialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-h-[92vh] max-w-5xl overflow-y-auto border-emerald-100 bg-white">
-        <DialogHeader>
-          <DialogTitle className="text-2xl">Request Details</DialogTitle>
-          <DialogDescription>
-            Review all submitted fields, update the request status, or print the official document.
-          </DialogDescription>
-        </DialogHeader>
+<NoCloseDialog open={isOpen} onOpenChange={onClose}>
+       <DialogContent className="max-h-[90vh] max-w-4xl w-[95vw] overflow-y-auto border-emerald-100 bg-white p-4 md:p-6">
+         <DialogHeader>
+           <DialogTitle className="text-2xl">Request Details</DialogTitle>
+           <DialogDescription>
+             Review all submitted fields, update the request status, or print the official document.
+           </DialogDescription>
+         </DialogHeader>
 
-        {statusMessage && (
-          <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-            {statusMessage}
-          </div>
-        )}
+         {statusMessage && (
+           <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+             {statusMessage}
+           </div>
+         )}
 
-<div className="space-y-6">
-          <RequestDetails
-            request={request}
-            requesterName={requesterName}
-            requesterEmail={request.residents?.email ?? undefined}
-            requesterBarangay={request.residents?.barangay ?? undefined}
-          />
+         <div className="space-y-6">
+           <RequestDetails
+             request={request}
+             requesterName={requesterName}
+             requesterEmail={request.residents?.email ?? undefined}
+             requesterBarangay={request.residents?.barangay ?? undefined}
+           />
 
           <div className="flex flex-col gap-3 rounded-2xl border border-dashed border-emerald-200 bg-emerald-50/30 p-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
@@ -536,4 +536,5 @@ export function RequestActions({ request, isOpen, onClose, onStatusChange }: Req
     </NoCloseDialog>
   )
 }
+
 
