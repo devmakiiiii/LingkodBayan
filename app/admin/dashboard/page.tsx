@@ -54,7 +54,7 @@ export default function AdminDashboard() {
           .select('*', { count: 'exact' })
 
         const pendingRequests = requests?.filter(r => r.status === 'pending').length || 0
-        const resolvedRequests = requests?.filter(r => r.status === 'resolved').length || 0
+        const resolvedRequests = requests?.filter(r => ['approved', 'rejected', 'resolved'].includes(r.status)).length || 0
         const openComplaints = complaints?.filter(c => c.status === 'open').length || 0
 
         setStats({

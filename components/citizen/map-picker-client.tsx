@@ -9,13 +9,11 @@ interface MapPickerClientProps {
   onLocationSelect: (lat: number, lng: number, address: string) => void
 }
 
-// Barangay Barretto bounds in [lat, lng] format for Leaflet
 const BARANGAY_BARRETTO_BOUNDS: [[number, number], [number, number]] = [
-  [14.840, 120.253], // Southwest
-  [14.860, 120.270], // Northeast
+  [14.840, 120.253],
+  [14.860, 120.270],
 ]
 
-// Center point for Barangay Barretto (14.851°N, 120.263°E)
 const BARANGAY_BARRETTO_CENTER: [number, number] = [14.851, 120.263]
 
 function MapBoundsSetter() {
@@ -55,15 +53,7 @@ function LocationMarker({ onLocationSelect }: { onLocationSelect: (lat: number, 
 }
 
 export default function MapPickerClient({ onLocationSelect }: MapPickerClientProps) {
-  const [selectedLocation, setSelectedLocation] = useState<{ lat: number; lng: number } | null>(null)
-
-  useEffect(() => {
-    setSelectedLocation(null)
-  }, [])
-
   const handleLocationSelect = async (lat: number, lng: number) => {
-    setSelectedLocation({ lat, lng })
-
     try {
       const response = await fetch(
         `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`,
@@ -77,22 +67,13 @@ export default function MapPickerClient({ onLocationSelect }: MapPickerClientPro
   }
 
   return (
-    <div className="w-full overflow-hidden rounded-lg border border-gray-200 shadow-sm">
-      <MapContainer center={BARANGAY_BARRETTO_CENTER} zoom={15} style={{ height: '500px', width: '100%' }}>
-        <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        />
-        <MapBoundsSetter />
-        <LocationMarker onLocationSelect={handleLocationSelect} />
-      </MapContainer>
-      {selectedLocation && (
-        <div className="border-t border-gray-200 bg-blue-50 p-4">
-          <p className="text-sm text-gray-700">
-            <strong>Selected Location:</strong> {selectedLocation.lat.toFixed(4)}, {selectedLocation.lng.toFixed(4)}
-          </p>
-        </div>
-      )}
-    </div>
+    <MapContainer center={BARANGAY_BARRETTO_CENTER} zoom={15} style={{ height: '250px', width: '100%' }}>
+      <TileLayer
+        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+      />
+      <MapBoundsSetter />
+      <LocationMarker onLocationSelect={handleLocationSelect} />
+    </MapContainer>
   )
 }

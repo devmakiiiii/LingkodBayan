@@ -82,7 +82,7 @@ export default function MyComplaintsPage() {
   }
 
   return (
-    <div className="space-y-8 p-8">
+    <div className="p-6 md:p-8 max-w-4xl space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>

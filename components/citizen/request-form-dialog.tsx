@@ -253,7 +253,7 @@ export function RequestFormDialog({ open, onOpenChange, requestType }: RequestFo
               </div>
             )}
 
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid gap-3 md:grid-cols-2">
               {config.fields.map((field) => (
                 <div key={field.name} className={field.type === 'textarea' || field.type === 'file' ? 'md:col-span-2' : ''}>
                   <Label htmlFor={field.name} className="mb-2 block text-sm font-medium text-foreground">
@@ -321,7 +321,7 @@ export function RequestFormDialog({ open, onOpenChange, requestType }: RequestFo
               ))}
             </div>
 
-            <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-end">
+            <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-end">
               <Button variant="outline" onClick={closeDialog} disabled={isSubmitting}>
                 Cancel
               </Button>

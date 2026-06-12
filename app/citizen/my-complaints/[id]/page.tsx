@@ -112,7 +112,7 @@ export default function ComplaintDetailPage({ params }: { params: Promise<{ id: 
 
   if (loading) {
     return (
-      <div className="space-y-8 p-8">
+      <div className="p-6 md:p-8">
         <div className="text-center py-12">
           <p className="text-muted-foreground">Loading complaint...</p>
         </div>
@@ -122,7 +122,7 @@ export default function ComplaintDetailPage({ params }: { params: Promise<{ id: 
 
   if (!complaint) {
     return (
-      <div className="space-y-8 p-8">
+      <div className="p-6 md:p-8 max-w-2xl">
         <Empty
           title="Complaint not found"
           description="The complaint you are looking for does not exist or you do not have permission to view it"
@@ -137,7 +137,7 @@ export default function ComplaintDetailPage({ params }: { params: Promise<{ id: 
   }
 
   return (
-    <div className="space-y-8 p-8">
+    <div className="p-6 md:p-8 max-w-4xl space-y-6">
       <div className="flex items-center gap-4">
         <Link href="/citizen/my-complaints">
           <Button variant="ghost" size="icon">

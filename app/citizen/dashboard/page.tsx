@@ -64,7 +64,7 @@ export default function CitizenDashboard() {
           const totalRequests = requests?.length || 0
           const totalComplaints = complaints?.length || 0
           const pendingRequests = requests?.filter(r => r.status === 'pending').length || 0
-          const resolvedRequests = requests?.filter(r => r.status === 'resolved').length || 0
+          const resolvedRequests = requests?.filter(r => ['approved', 'rejected', 'resolved'].includes(r.status)).length || 0
 
           setStats({
             totalRequests,
@@ -91,7 +91,7 @@ export default function CitizenDashboard() {
   }, [])
 
   return (
-    <div className="space-y-8 p-8">
+    <div className="p-6 md:p-8 space-y-6">
       {/* Header */}
       <div>
         <h1 className="text-3xl font-bold">Welcome back, {userName}! 👋</h1>
