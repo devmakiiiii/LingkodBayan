@@ -82,24 +82,21 @@ export default function MyComplaintsPage() {
   }
 
   return (
-    <div className="p-6 md:p-8 max-w-4xl space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+    <div className="p-4 md:p-6 max-w-4xl space-y-4">
+      <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-3xl font-bold">My Complaints</h1>
-          <p className="text-muted-foreground mt-2">Track all complaints you&apos;ve filed with your barangay</p>
+          <h1 className="text-2xl font-bold">My Complaints</h1>
+          <p className="text-muted-foreground text-sm mt-1">Track all complaints you&apos;ve filed with your barangay</p>
         </div>
         <Link href="/citizen/file-complaint">
-          <Button className="bg-primary hover:bg-primary/90">
-            + File Complaint
-          </Button>
+          <Button size="sm">File Complaint</Button>
         </Link>
       </div>
 
       {/* Complaints List */}
       {loading ? (
-        <div className="text-center py-12">
-          <p className="text-muted-foreground">Loading complaints...</p>
+        <div className="text-center py-8">
+          <p className="text-muted-foreground text-sm">Loading complaints...</p>
         </div>
       ) : complaints.length === 0 ? (
         <Empty
@@ -107,64 +104,62 @@ export default function MyComplaintsPage() {
           description="File your first complaint to report an issue"
           action={
             <Link href="/citizen/file-complaint">
-              <Button className="bg-primary hover:bg-primary/90">
-                File Complaint
-              </Button>
+              <Button size="sm">File Complaint</Button>
             </Link>
           }
         />
       ) : (
-<div className="space-y-4">
-          {complaints.map((complaint) => (
-            <Link key={complaint.id} href={`/citizen/my-complaints/${complaint.id}`}>
-              <Card className="hover:shadow-lg transition-shadow cursor-pointer group">
-                <CardHeader className="pb-3">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <CardTitle className="text-lg flex items-center justify-between">
-                        <span>{complaint.title}</span>
-                        <ChevronRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
-                      </CardTitle>
-                      <CardDescription className="mt-1 line-clamp-2">{complaint.description}</CardDescription>
-                    </div>
-                    <div className="flex items-center gap-2 ml-4">
-                      {getStatusIcon(complaint.status)}
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <Badge variant="outline" className="bg-background">
-                      {complaint.category}
-                    </Badge>
-                    <Badge className={getStatusColor(complaint.status)}>
-                      {complaint.status.charAt(0).toUpperCase() + complaint.status.slice(1)}
-                    </Badge>
-                    <Badge variant="secondary">
-                      Priority: {complaint.priority.charAt(0).toUpperCase() + complaint.priority.slice(1)}
-                    </Badge>
-                    <span className="text-xs text-muted-foreground ml-auto">
-                      {new Date(complaint.created_at).toLocaleDateString()}
-                    </span>
-                  </div>
-                  {complaint.evidence_url && (
-                    <div className="mt-4 pt-4 border-t border-gray-100">
-                      <p className="text-sm font-semibold text-gray-700 mb-2">Attached Evidence:</p>
-                      <a href={complaint.evidence_url} target="_blank" rel="noopener noreferrer" className="block w-40 h-28 rounded-lg overflow-hidden border shadow-sm group">
-                        <img
-                          src={complaint.evidence_url}
-                          alt="Evidence preview"
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                          onError={(e) => console.error('[DEBUG] Image load error:', complaint.evidence_url, e)}
-                        />
-                      </a>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </Link>
-          ))}
-        </div>
+<div className="space-y-3">
+           {complaints.map((complaint) => (
+             <Link key={complaint.id} href={`/citizen/my-complaints/${complaint.id}`}>
+               <Card className="hover:shadow-md transition-shadow cursor-pointer group py-4">
+                 <CardHeader className="pb-2 px-4">
+                   <div className="flex items-start justify-between gap-2">
+                     <div className="flex-1 min-w-0">
+                       <CardTitle className="text-base flex items-center justify-between gap-2">
+                         <span className="truncate">{complaint.title}</span>
+                         <ChevronRight className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+                       </CardTitle>
+                       <CardDescription className="mt-1 text-xs line-clamp-2">{complaint.description}</CardDescription>
+                     </div>
+                     <div className="flex items-center gap-2 shrink-0">
+                       {getStatusIcon(complaint.status)}
+                     </div>
+                   </div>
+                 </CardHeader>
+                 <CardContent className="px-4 py-2">
+                   <div className="flex items-center gap-1.5 flex-wrap">
+                     <Badge variant="outline" className="text-xs px-2 py-0">
+                       {complaint.category}
+                     </Badge>
+                     <Badge className={`text-xs px-2 py-0 ${getStatusColor(complaint.status)}`}>
+                       {complaint.status.charAt(0).toUpperCase() + complaint.status.slice(1)}
+                     </Badge>
+                     <Badge variant="secondary" className="text-xs px-2 py-0">
+                       {complaint.priority.charAt(0).toUpperCase() + complaint.priority.slice(1)}
+                     </Badge>
+                     <span className="text-xs text-muted-foreground ml-auto">
+                       {new Date(complaint.created_at).toLocaleDateString()}
+                     </span>
+                   </div>
+                   {complaint.evidence_url && (
+                     <div className="mt-3 pt-3 border-t border-gray-100">
+                       <p className="text-xs font-semibold text-gray-700 mb-1.5">Attached Evidence:</p>
+                       <a href={complaint.evidence_url} target="_blank" rel="noopener noreferrer" className="block w-32 h-20 rounded-md overflow-hidden border shadow-sm group">
+                         <img
+                           src={complaint.evidence_url}
+                           alt="Evidence preview"
+                           className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                           onError={(e) => console.error('[DEBUG] Image load error:', complaint.evidence_url, e)}
+                         />
+                       </a>
+                     </div>
+                   )}
+                 </CardContent>
+               </Card>
+             </Link>
+           ))}
+         </div>
       )}
     </div>
   )

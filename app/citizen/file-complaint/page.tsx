@@ -108,55 +108,50 @@ export default function FileComplaintPage() {
   }
 
   return (
-    <div className="p-6 md:p-8 max-w-5xl space-y-6">
+<div className="p-4 md:p-6 max-w-5xl space-y-4">
       <div>
-        <h1 className="text-3xl font-bold">File a Complaint</h1>
-        <p className="text-muted-foreground mt-2">Report issues or concerns with government services</p>
+        <h1 className="text-2xl font-bold">File a Complaint</h1>
+        <p className="text-muted-foreground text-sm mt-1">Report issues or concerns with government services</p>
       </div>
 
       <Card>
-        <CardHeader>
-          <CardTitle>Complaint Details</CardTitle>
-          <CardDescription>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">Complaint Details</CardTitle>
+          <CardDescription className="text-xs">
             Provide detailed information to help us address your concern promptly
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="title">Complaint Title</Label>
+        <CardContent className="px-4 py-3">
+          <form onSubmit={handleSubmit} className="space-y-3">
+            <div className="space-y-1">
+              <Label htmlFor="title" className="text-xs font-semibold">Complaint Title</Label>
               <Input
                 id="title"
                 placeholder="Brief summary of your complaint"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 required
+                className="h-9"
               />
-              <p className="text-xs text-muted-foreground">
-                Provide a clear and concise title
-              </p>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="description">Detailed Description</Label>
+            <div className="space-y-1">
+              <Label htmlFor="description" className="text-xs font-semibold">Detailed Description</Label>
               <Textarea
                 id="description"
                 placeholder="Explain your complaint in detail. Include dates, names, and specific incidents..."
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 required
-                className="min-h-24"
+                className="min-h-20"
               />
-              <p className="text-xs text-muted-foreground">
-                The more details you provide, the better we can assist you
-              </p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="category">Category</Label>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label htmlFor="category" className="text-xs font-semibold">Category</Label>
                 <Select value={category} onValueChange={(value) => setCategory(value as ComplaintCategory)} required>
-                  <SelectTrigger>
+                  <SelectTrigger className="h-9">
                     <SelectValue placeholder="Select a category" />
                   </SelectTrigger>
                   <SelectContent>
@@ -169,14 +164,14 @@ export default function FileComplaintPage() {
                 </Select>
               </div>
 
-              <div className="flex items-center justify-between py-3 px-4 rounded-lg bg-gray-50/50 border">
-                <Label className="flex items-center gap-2 mb-0">
-                  <Zap size={18} className="text-amber-600" />
+              <div className="flex items-center justify-between h-9 px-3 rounded-md bg-gray-50/50 border">
+                <Label className="flex items-center gap-1.5 mb-0 text-xs font-semibold">
+                  <Zap size={16} className="text-amber-600" />
                   Detected Priority
                 </Label>
                 <Badge
                   variant="secondary"
-                  className={
+                  className={`text-xs px-2 py-0 ${
                     detectedPriority === 'critical'
                       ? 'border-red-200 bg-red-50 text-red-700'
                       : detectedPriority === 'high'
@@ -184,22 +179,21 @@ export default function FileComplaintPage() {
                       : detectedPriority === 'medium'
                       ? 'border-amber-200 bg-amber-50 text-amber-700'
                       : 'border-slate-200 bg-slate-50 text-slate-700'
-                  }
+                  }`}
                 >
-                  <Zap className="h-3 w-3 mr-1" />
                   {detectedPriority.charAt(0).toUpperCase() + detectedPriority.slice(1)}
                 </Badge>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <Label className="flex items-center gap-2">
-                  <MapPin size={18} />
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <Label className="flex items-center gap-1.5 text-xs font-semibold">
+                  <MapPin size={16} />
                   Pinpoint Complaint Location
                 </Label>
                 <div>
-                  <Suspense fallback={<div className="h-[250px] bg-gray-100 rounded-lg flex items-center justify-center">Loading map...</div>}>
+                  <Suspense fallback={<div className="h-[200px] bg-gray-100 rounded-md flex items-center justify-center text-xs">Loading map...</div>}>
                     <MapPicker
                       onLocationSelect={(lat, lng, address) => {
                         setLatitude(lat)
@@ -210,27 +204,27 @@ export default function FileComplaintPage() {
                   </Suspense>
                 </div>
                 {locationAddress && (
-                  <div className="bg-blue-50 p-2 rounded-lg border border-blue-200">
-                    <p className="text-sm text-blue-900">
+                  <div className="bg-blue-50 p-1.5 rounded-md border border-blue-200">
+                    <p className="text-xs text-blue-900 truncate">
                       <strong>Selected:</strong> {locationAddress}
                     </p>
                   </div>
                 )}
               </div>
 
-              <div className="space-y-2">
-                <Label className="flex items-center gap-2">
-                  <ImageIcon size={18} />
+              <div className="space-y-1">
+                <Label className="flex items-center gap-1.5 text-xs font-semibold">
+                  <ImageIcon size={16} />
                   Evidence Photo (Optional)
                 </Label>
                 <p className="text-xs text-muted-foreground">
                   Attach an image to support your complaint (max 5MB)
                 </p>
-                
+
                 {!evidencePreview ? (
-                  <div className="relative border-2 border-dashed rounded-lg p-4 h-32 flex flex-col items-center justify-center bg-gray-50/50 hover:bg-gray-50 transition-colors">
-                    <Upload className="h-5 w-5 text-gray-400 mb-1" />
-                    <p className="text-xs text-gray-600 font-medium">Click to upload or drag and drop</p>
+                  <div className="relative border-2 border-dashed rounded-lg p-3 h-24 flex flex-col items-center justify-center bg-gray-50/50 hover:bg-gray-50 transition-colors">
+                    <Upload className="h-4 w-4 text-gray-400 mb-0.5" />
+                    <p className="text-xs text-gray-600 font-medium">Click to upload</p>
                     <p className="text-xs text-gray-500">PNG, JPG or WEBP</p>
                     <Input
                       id="evidence"
@@ -257,12 +251,12 @@ export default function FileComplaintPage() {
                   </div>
                 ) : (
                   <div className="relative rounded-lg overflow-hidden border">
-                    <img src={evidencePreview} alt="Evidence preview" className="w-full h-32 object-cover" />
+                    <img src={evidencePreview} alt="Evidence preview" className="w-full h-24 object-cover" />
                     <Button
                       type="button"
                       variant="destructive"
                       size="icon"
-                      className="absolute top-2 right-2 h-8 w-8 rounded-full"
+                      className="absolute top-1.5 right-1.5 h-7 w-7 rounded-full"
                       onClick={() => {
                         setEvidenceFile(null)
                         setEvidencePreview(null)
@@ -270,7 +264,7 @@ export default function FileComplaintPage() {
                         if (fileInput) fileInput.value = ''
                       }}
                     >
-                      <X className="h-4 w-4" />
+                      <X className="h-3 w-3" />
                     </Button>
                   </div>
                 )}
@@ -278,16 +272,16 @@ export default function FileComplaintPage() {
             </div>
 
             {error && (
-              <div className="flex items-start gap-3 p-3 rounded-lg bg-destructive/10 border border-destructive/20">
-                <AlertCircle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
-                <p className="text-sm text-destructive">{error}</p>
+              <div className="flex items-start gap-2 p-2.5 rounded-md bg-destructive/10 border border-destructive/20">
+                <AlertCircle className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
+                <p className="text-xs text-destructive">{error}</p>
               </div>
             )}
 
-            <div className="flex gap-3 pt-3">
+            <div className="flex gap-2 pt-1">
               <Button
                 type="submit"
-                className="flex-1 bg-primary hover:bg-primary/90"
+                className="flex-1"
                 disabled={isLoading}
               >
                 {isLoading ? 'Filing...' : 'File Complaint'}
@@ -295,6 +289,7 @@ export default function FileComplaintPage() {
               <Button
                 type="button"
                 variant="outline"
+                size="sm"
                 onClick={() => router.back()}
               >
                 Cancel

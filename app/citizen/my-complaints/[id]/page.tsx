@@ -112,9 +112,9 @@ export default function ComplaintDetailPage({ params }: { params: Promise<{ id: 
 
   if (loading) {
     return (
-      <div className="p-6 md:p-8">
-        <div className="text-center py-12">
-          <p className="text-muted-foreground">Loading complaint...</p>
+      <div className="p-4 md:p-6">
+        <div className="text-center py-8">
+          <p className="text-muted-foreground text-sm">Loading complaint...</p>
         </div>
       </div>
     )
@@ -122,13 +122,13 @@ export default function ComplaintDetailPage({ params }: { params: Promise<{ id: 
 
   if (!complaint) {
     return (
-      <div className="p-6 md:p-8 max-w-2xl">
+      <div className="p-4 md:p-6 max-w-2xl">
         <Empty
           title="Complaint not found"
           description="The complaint you are looking for does not exist or you do not have permission to view it"
           action={
             <Link href="/citizen/my-complaints">
-              <Button variant="outline">Back to My Complaints</Button>
+              <Button variant="outline" size="sm">Back to My Complaints</Button>
             </Link>
           }
         />
@@ -137,46 +137,46 @@ export default function ComplaintDetailPage({ params }: { params: Promise<{ id: 
   }
 
   return (
-    <div className="p-6 md:p-8 max-w-4xl space-y-6">
-      <div className="flex items-center gap-4">
+    <div className="p-4 md:p-6 max-w-5xl space-y-4">
+      <div className="flex items-center gap-3">
         <Link href="/citizen/my-complaints">
-          <Button variant="ghost" size="icon">
+          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
             <ArrowLeft className="h-4 w-4" />
           </Button>
         </Link>
         <div>
-          <h1 className="text-3xl font-bold">{complaint.title}</h1>
-          <p className="text-muted-foreground mt-2">Complaint details and conversation</p>
+          <h1 className="text-2xl font-bold">{complaint.title}</h1>
+          <p className="text-muted-foreground text-sm">Complaint details and conversation</p>
         </div>
       </div>
 
-      <div className="grid gap-8 lg:grid-cols-3">
-        <div className="lg:col-span-2 space-y-6">
+      <div className="grid gap-6 lg:grid-cols-3">
+        <div className="lg:col-span-2 space-y-4">
           <Card>
-            <CardHeader>
-              <CardTitle>Complaint Information</CardTitle>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">Complaint Information</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-3 px-4 py-3">
               <div>
-                <label className="text-sm font-semibold text-gray-700">Description</label>
+                <label className="text-xs font-semibold text-gray-700">Description</label>
                 <p className="text-sm text-gray-600 mt-1 whitespace-pre-wrap">{complaint.description}</p>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-sm font-semibold text-gray-700">Category</label>
+                  <label className="text-xs font-semibold text-gray-700">Category</label>
                   <p className="text-sm text-gray-600 mt-1">{complaint.category}</p>
                 </div>
                 <div>
-                  <label className="text-sm font-semibold text-gray-700">Priority</label>
+                  <label className="text-xs font-semibold text-gray-700">Priority</label>
                   <p className="text-sm text-gray-600 mt-1 capitalize">{complaint.priority}</p>
                 </div>
               </div>
 
               {complaint.location_address && (
                 <div>
-                  <label className="text-sm font-semibold text-gray-700 flex items-center gap-1">
-                    <MapPin className="h-4 w-4" />
+                  <label className="text-xs font-semibold text-gray-700 flex items-center gap-1">
+                    <MapPin className="h-3.5 w-3.5" />
                     Location
                   </label>
                   <p className="text-sm text-gray-600 mt-1">{complaint.location_address}</p>
@@ -185,15 +185,15 @@ export default function ComplaintDetailPage({ params }: { params: Promise<{ id: 
 
               {complaint.evidence_url && (
                 <div>
-                  <label className="text-sm font-semibold text-gray-700 flex items-center gap-1">
-                    <ImageIcon className="h-4 w-4" />
+                  <label className="text-xs font-semibold text-gray-700 flex items-center gap-1">
+                    <ImageIcon className="h-3.5 w-3.5" />
                     Evidence
                   </label>
-                  <a href={complaint.evidence_url} target="_blank" rel="noopener noreferrer" className="block mt-2">
+                  <a href={complaint.evidence_url} target="_blank" rel="noopener noreferrer" className="block mt-1.5">
                     <img
                       src={complaint.evidence_url}
                       alt="Evidence"
-                      className="max-w-full h-auto rounded-lg border shadow-sm"
+                      className="max-w-full max-h-48 rounded-md border shadow-sm"
                     />
                   </a>
                 </div>
@@ -202,17 +202,17 @@ export default function ComplaintDetailPage({ params }: { params: Promise<{ id: 
           </Card>
 
           <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <MessageSquare className="h-5 w-5" />
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <MessageSquare className="h-4 w-4" />
                 Conversation History
               </CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="px-4 py-3">
               {messages.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No messages yet. Admin replies will appear here.</p>
               ) : (
-                <div className="space-y-4">
+                <div className="space-y-3">
                   {messages.map((msg) => {
                     const isAdmin = msg.sender_id !== userId
                     return (
@@ -221,14 +221,14 @@ export default function ComplaintDetailPage({ params }: { params: Promise<{ id: 
                         className={`flex ${isAdmin ? 'justify-start' : 'justify-end'}`}
                       >
                         <div
-                          className={`max-w-[80%] rounded-lg p-3 ${
+                          className={`max-w-[80%] rounded-lg p-2.5 text-sm ${
                             isAdmin
                               ? 'bg-gray-100'
                               : 'bg-primary text-primary-foreground'
                           }`}
                         >
-                          <p className="text-sm whitespace-pre-wrap">{msg.message}</p>
-                          <p className={`text-xs mt-2 ${isAdmin ? 'text-gray-500' : 'text-primary-foreground/70'}`}>
+                          <p className="whitespace-pre-wrap">{msg.message}</p>
+                          <p className={`text-xs mt-1.5 ${isAdmin ? 'text-gray-500' : 'text-primary-foreground/70'}`}>
                             {new Date(msg.created_at).toLocaleString('en-PH')}
                           </p>
                         </div>
@@ -241,15 +241,15 @@ export default function ComplaintDetailPage({ params }: { params: Promise<{ id: 
           </Card>
         </div>
 
-        <div className="space-y-6">
+        <div className="space-y-4">
           <Card>
-            <CardHeader>
-              <CardTitle>Status</CardTitle>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">Status</CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="flex items-center gap-3">
+            <CardContent className="px-4 py-3">
+              <div className="flex items-center gap-2">
                 {getStatusIcon(complaint.status)}
-                <Badge className={getStatusColor(complaint.status)}>
+                <Badge className={`text-xs px-2 py-0.5 ${getStatusColor(complaint.status)}`}>
                   {complaint.status.charAt(0).toUpperCase() + complaint.status.slice(1)}
                 </Badge>
               </div>
@@ -258,11 +258,11 @@ export default function ComplaintDetailPage({ params }: { params: Promise<{ id: 
 
           {complaint.latitude && complaint.longitude && (
             <Card>
-              <CardHeader>
-                <CardTitle>Location Map</CardTitle>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Location Map</CardTitle>
               </CardHeader>
-              <CardContent>
-                <div className="w-full overflow-hidden rounded-lg border shadow-sm">
+              <CardContent className="px-4 py-3">
+                <div className="w-full overflow-hidden rounded-md border shadow-sm">
                   <ComplaintLocationMap
                     latitude={complaint.latitude}
                     longitude={complaint.longitude}
@@ -273,17 +273,17 @@ export default function ComplaintDetailPage({ params }: { params: Promise<{ id: 
           )}
 
           <Card>
-            <CardHeader>
-              <CardTitle>Timeline</CardTitle>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">Timeline</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex items-center gap-2 text-sm">
-                <Calendar className="h-4 w-4 text-muted-foreground" />
+            <CardContent className="space-y-2 px-4 py-3">
+              <div className="flex items-center gap-1.5 text-xs">
+                <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
                 <span className="text-gray-600">Submitted:</span>
                 <span className="font-medium">{new Date(complaint.created_at).toLocaleString('en-PH')}</span>
               </div>
-              <div className="flex items-center gap-2 text-sm">
-                <Calendar className="h-4 w-4 text-muted-foreground" />
+              <div className="flex items-center gap-1.5 text-xs">
+                <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
                 <span className="text-gray-600">Last Updated:</span>
                 <span className="font-medium">{new Date(complaint.updated_at).toLocaleString('en-PH')}</span>
               </div>
