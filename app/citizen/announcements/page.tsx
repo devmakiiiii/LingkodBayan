@@ -13,6 +13,7 @@ interface Announcement {
   content: string
   category: string
   created_at: string
+  image_url?: string | null
 }
 
 export default function AnnouncementsPage() {
@@ -91,19 +92,26 @@ export default function AnnouncementsPage() {
                   </Badge>
                 </div>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div
-                  className="prose prose-slate max-w-none text-foreground/80 prose-p:my-3 prose-headings:mb-3 prose-headings:mt-0 prose-ul:my-3 prose-ol:my-3"
-                  dangerouslySetInnerHTML={{ __html: announcement.content }}
-                />
-                <p className="text-xs text-muted-foreground">
-                  {new Date(announcement.created_at).toLocaleDateString('en-US', {
-                    year: 'numeric',
-                    month: 'long',
-                    day: 'numeric',
-                  })}
-                </p>
-              </CardContent>
+<CardContent className="space-y-4">
+                 {announcement.image_url && (
+                   <img
+                     src={announcement.image_url}
+                     alt={announcement.title}
+                     className="w-full rounded-lg object-cover max-h-64"
+                   />
+                 )}
+                 <div
+                   className="prose prose-slate max-w-none text-foreground/80 prose-p:my-3 prose-headings:mb-3 prose-headings:mt-0 prose-ul:my-3 prose-ol:my-3"
+                   dangerouslySetInnerHTML={{ __html: announcement.content }}
+                 />
+                 <p className="text-xs text-muted-foreground">
+                   {new Date(announcement.created_at).toLocaleDateString('en-US', {
+                     year: 'numeric',
+                     month: 'long',
+                     day: 'numeric',
+                   })}
+                 </p>
+               </CardContent>
             </Card>
           ))}
         </div>

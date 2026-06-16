@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { ServiceCard, servicesList } from '@/components/citizen/service-card'
+import { useState, useEffect } from 'react'
+import { ServiceCard, DynamicServiceCard } from '@/components/citizen/service-card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -11,52 +11,112 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Search, X } from 'lucide-react'
+import { Search, X, Loader2 } from 'lucide-react'
 import { RequestFormDialog } from '@/components/citizen/request-form-dialog'
-import { type RequestType } from '@/lib/request-types'
+import type { RequestType } from '@/lib/request-types'
+import type { DynamicServiceInfo } from '@/lib/request-types'
+import { createClient } from '@/lib/supabase/client'
+
+interface ServiceCategory {
+  id: string
+  slug: string
+  title: string
+  description: string | null
+  category_type: 'document' | 'appointment' | 'incident'
+  is_active: boolean
+  sort_order: number
+}
 
 const filterOptions = [
   { value: 'all', label: 'All Services' },
-  { value: 'certificates', label: 'Certificates & Documents' },
-  { value: 'clearances', label: 'Clearances' },
-  { value: 'permits', label: 'Permits' },
-  { value: 'assistance', label: 'Social Assistance' },
+  { value: 'document', label: 'Document Requests' },
+  { value: 'appointment', label: 'Appointments' },
+  { value: 'incident', label: 'Incidents' },
 ]
-
-const serviceFilters: Record<string, string[]> = {
-  all: ['barangay-clearance', 'certificate-residency', 'business-permit', 'good-moral', 'indigency'],
-  certificates: ['certificate-residency', 'good-moral'],
-  clearances: ['barangay-clearance'],
-  permits: ['business-permit'],
-  assistance: ['indigency'],
-}
 
 export default function RequestServicePage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedFilter, setSelectedFilter] = useState('all')
   const [selectedRequestType, setSelectedRequestType] = useState<RequestType | null>(null)
+  const [selectedServiceInfo, setSelectedServiceInfo] = useState<DynamicServiceInfo | null>(null)
   const [isFormOpen, setIsFormOpen] = useState(false)
+  const [services, setServices] = useState<ServiceCategory[]>([])
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
+
+  useEffect(() => {
+    loadServices()
+  }, [])
+
+  async function loadServices() {
+    try {
+      setLoading(true)
+      setLoadError(null)
+      const supabase = createClient()
+      
+      const { data, error } = await supabase
+        .from('service_categories')
+        .select('*')
+        .eq('is_active', true)
+        .order('sort_order', { ascending: true })
+
+      if (error) {
+        setLoadError(error?.message || 'Failed to load services')
+        return
+      }
+
+      setServices(data || [])
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : 'Failed to load services')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Use dynamic services from database, fallback to static for development
+  const servicesList = services.length > 0 ? services : [
+    { id: 'static-1', slug: 'barangay-clearance', title: 'Barangay Clearance', description: 'Official document required for various transactions', category_type: 'document' as const, is_active: true, sort_order: 1 },
+    { id: 'static-2', slug: 'certificate-residency', title: 'Certificate of Residency', description: 'Legal document certifying local residency', category_type: 'document' as const, is_active: true, sort_order: 2 },
+    { id: 'static-3', slug: 'business-permit', title: 'Business Permit', description: 'For new applications and renewals of local businesses', category_type: 'document' as const, is_active: true, sort_order: 3 },
+    { id: 'static-4', slug: 'good-moral', title: 'Good Moral Certificate', description: 'Certifies good character for school or employment', category_type: 'document' as const, is_active: true, sort_order: 4 },
+    { id: 'static-5', slug: 'indigency', title: 'Indigency Certificate', description: 'Required for welfare benefits and assistance programs', category_type: 'document' as const, is_active: true, sort_order: 5 },
+  ]
+
+  const serviceFilters: Record<string, string[]> = {
+    all: servicesList.map((s) => s.slug),
+    document: servicesList.filter((s) => s.category_type === 'document').map((s) => s.slug),
+    appointment: servicesList.filter((s) => s.category_type === 'appointment').map((s) => s.slug),
+    incident: servicesList.filter((s) => s.category_type === 'incident').map((s) => s.slug),
+  }
 
   // Filter services based on search and category
   const filteredServices = servicesList.filter((service) => {
     const matchesSearch =
       service.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      service.description.toLowerCase().includes(searchQuery.toLowerCase())
+      (service.description || '').toLowerCase().includes(searchQuery.toLowerCase())
     
-    const matchesFilter = serviceFilters[selectedFilter]?.includes(service.id) ?? true
+    const matchesFilter = serviceFilters[selectedFilter]?.includes(service.slug) ?? true
     
     return matchesSearch && matchesFilter
   })
 
-  const handleServiceRequest = (serviceId: string) => {
-    setSelectedRequestType(serviceId as RequestType)
+  const handleServiceRequest = (service: ServiceCategory) => {
+    const knownTypes = ['barangay-clearance', 'certificate-residency', 'business-permit', 'good-moral', 'indigency']
+    const isKnownType = knownTypes.includes(service.slug)
+    
+    if (isKnownType) {
+      setSelectedRequestType(service.slug as RequestType)
+      setSelectedServiceInfo(null)
+    } else {
+      setSelectedRequestType(null)
+      setSelectedServiceInfo({
+        slug: service.slug,
+        title: service.title,
+        category: service.category_type,
+        description: service.description || '',
+      })
+    }
     setIsFormOpen(true)
-  }
-
-  const handleExploreAll = () => {
-    // Reset filters to show all
-    setSearchQuery('')
-    setSelectedFilter('all')
   }
 
   return (
@@ -65,6 +125,7 @@ export default function RequestServicePage() {
         open={isFormOpen}
         onOpenChange={setIsFormOpen}
         requestType={selectedRequestType}
+        serviceInfo={selectedServiceInfo}
       />
 
       {/* Main Content */}
@@ -78,6 +139,9 @@ export default function RequestServicePage() {
             <p className="text-gray-600">
               Browse and request available barangay services and documents
             </p>
+            {loadError && (
+              <p className="text-amber-600 text-sm mt-2">Note: Showing default services. Database unavailable.</p>
+            )}
           </div>
 
           {/* Search and Filter Section */}
@@ -150,13 +214,22 @@ export default function RequestServicePage() {
           </div>
 
           {/* Services Grid */}
-          {filteredServices.length > 0 ? (
+          {loading ? (
+            <div className="text-center py-12">
+              <div className="text-gray-400 mb-4">
+                <Loader2 className="w-12 h-12 mx-auto opacity-50 animate-spin" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                Loading services...
+              </h3>
+            </div>
+          ) : filteredServices.length > 0 ? (
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {filteredServices.map((service) => (
-                <ServiceCard
+                <DynamicServiceCard
                   key={service.id}
-                  {...service}
-                  onRequestClick={() => handleServiceRequest(service.id)}
+                  service={service}
+                  onRequestClick={() => handleServiceRequest(service)}
                 />
               ))}
             </div>

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, Suspense } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -18,13 +18,21 @@ import { Textarea } from '@/components/ui/textarea'
 import { AlertCircle, MapPin, Upload, X, ImageIcon, Zap } from 'lucide-react'
 import { MapPicker } from '@/components/citizen/map-picker'
 import { getOrCreateResidentProfile } from '@/lib/residents'
-import { complaintCategories, type ComplaintCategory, analyzeComplaintPriority, complaintCategoryFallbackPriorities } from '@/lib/complaint-categories'
+import { complaintCategories, type ComplaintCategory, analyzeComplaintPriority, complaintCategoryFallbackPriorities, complaintCategoryKeywords } from '@/lib/complaint-categories'
 import { Badge } from '@/components/ui/badge'
+
+interface IncidentCategory {
+  id: string
+  slug: string
+  title: string
+  description: string | null
+  is_active: boolean
+}
 
 export default function FileComplaintPage() {
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
-  const [category, setCategory] = useState<ComplaintCategory>('Sanitation')
+  const [category, setCategory] = useState<string>('')
   const [latitude, setLatitude] = useState<number | null>(null)
   const [longitude, setLongitude] = useState<number | null>(null)
   const [locationAddress, setLocationAddress] = useState<string | null>(null)
@@ -32,13 +40,64 @@ export default function FileComplaintPage() {
   const [evidencePreview, setEvidencePreview] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+  const [incidentCategories, setIncidentCategories] = useState<IncidentCategory[]>([])
+  const [loadingCategories, setLoadingCategories] = useState(true)
   const router = useRouter()
+
+  // Default incident categories when DB is unavailable
+  const defaultCategories = complaintCategories.map((cat, idx) => ({
+    id: `default-${idx}`,
+    slug: cat.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, ''),
+    title: cat,
+    description: cat,
+    is_active: true,
+  }))
+
+  const activeCategories = incidentCategories.length > 0 ? incidentCategories : defaultCategories
+  const selectedCategoryObj = activeCategories.find((c) => c.title === category)
 
   const detectedPriority = analyzeComplaintPriority(
     title,
     description,
-    complaintCategoryFallbackPriorities[category]
+    category ? complaintCategoryFallbackPriorities[category as ComplaintCategory] : 'low'
   ).priority
+
+  useEffect(() => {
+    loadIncidentCategories()
+  }, [])
+
+  async function loadIncidentCategories() {
+    try {
+      setLoadingCategories(true)
+      const supabase = createClient()
+      
+      const { data, error } = await supabase
+        .from('service_categories')
+        .select('id, slug, title, description, is_active')
+        .eq('category_type', 'incident')
+        .eq('is_active', true)
+        .order('sort_order', { ascending: true })
+
+      if (error) {
+        console.warn('Database unavailable, using default categories:', error.message)
+        setIncidentCategories([])
+        return
+      }
+
+      setIncidentCategories(data || [])
+    } catch (err) {
+      setIncidentCategories([])
+    } finally {
+      setLoadingCategories(false)
+    }
+  }
+
+  // Initialize category with first available
+  useEffect(() => {
+    if (activeCategories.length > 0 && !category) {
+      setCategory(activeCategories[0].title)
+    }
+  }, [activeCategories])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -76,7 +135,7 @@ export default function FileComplaintPage() {
       const priorityAnalysis = analyzeComplaintPriority(
         title,
         description,
-        complaintCategoryFallbackPriorities[category]
+        category ? complaintCategoryFallbackPriorities[category as ComplaintCategory] || 'low' : 'low'
       )
       const complaintData: Record<string, any> = {
         resident_id: resident.id,
@@ -150,14 +209,14 @@ export default function FileComplaintPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div className="space-y-1">
                 <Label htmlFor="category" className="text-xs font-semibold">Category</Label>
-                <Select value={category} onValueChange={(value) => setCategory(value as ComplaintCategory)} required>
+                <Select value={category} onValueChange={setCategory} required>
                   <SelectTrigger className="h-9">
                     <SelectValue placeholder="Select a category" />
                   </SelectTrigger>
                   <SelectContent>
-                    {complaintCategories.map((cat) => (
-                      <SelectItem key={cat} value={cat}>
-                        {cat}
+                    {activeCategories.map((cat) => (
+                      <SelectItem key={cat.id} value={cat.title}>
+                        {cat.title}
                       </SelectItem>
                     ))}
                   </SelectContent>

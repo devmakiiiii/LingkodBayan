@@ -14,3 +14,7 @@ next.user-config.*
 node_modules
 .next/
 .DS_Store
+
+# Kilo internal
+.kilo/node_modules/
+.kilo/worktrees/

@@ -13,16 +13,19 @@ import { createClient } from '@/lib/supabase/client'
 import { getOrCreateResidentProfile } from '@/lib/residents'
 import {
   getRequestSummaryValue,
-  getRequestTypeConfig,
+  getRequestTypeConfigAny,
   type RequestFileValue,
   type RequestPayload,
   type RequestType,
+  type DynamicServiceInfo,
+  type RequestTypeConfig,
 } from '@/lib/request-types'
 
 type RequestFormDialogProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
   requestType: RequestType | null
+  serviceInfo?: DynamicServiceInfo | null
 }
 
 type SubmittedState = {
@@ -30,8 +33,7 @@ type SubmittedState = {
   message: string
 }
 
-function createInitialValues(requestType: RequestType | null) {
-  const config = requestType ? getRequestTypeConfig(requestType) : null
+function createInitialValues(config: RequestTypeConfig | null) {
   const values: Record<string, string> = {}
 
   config?.fields.forEach((field) => {
@@ -61,10 +63,10 @@ function fileToDataUrl(file: File) {
   })
 }
 
-export function RequestFormDialog({ open, onOpenChange, requestType }: RequestFormDialogProps) {
+export function RequestFormDialog({ open, onOpenChange, requestType, serviceInfo }: RequestFormDialogProps) {
   const router = useRouter()
-  const config = requestType ? getRequestTypeConfig(requestType) : null
-  const [values, setValues] = useState<Record<string, string>>(() => createInitialValues(requestType))
+  const config = getRequestTypeConfigAny(requestType, serviceInfo)
+  const [values, setValues] = useState<Record<string, string>>(() => createInitialValues(config))
   const [files, setFiles] = useState<Record<string, File[]>>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
@@ -72,7 +74,7 @@ export function RequestFormDialog({ open, onOpenChange, requestType }: RequestFo
 
   useEffect(() => {
     if (!open) {
-      setValues(createInitialValues(requestType))
+      setValues(createInitialValues(config))
       setFiles({})
       setIsSubmitting(false)
       setErrorMessage('')
@@ -86,7 +88,7 @@ export function RequestFormDialog({ open, onOpenChange, requestType }: RequestFo
         data: { user },
       } = await supabase.auth.getUser()
 
-      if (!user || !requestType) return
+      if (!user) return
 
       const resident = await getOrCreateResidentProfile(supabase, user)
       if (!resident) return
@@ -107,7 +109,7 @@ export function RequestFormDialog({ open, onOpenChange, requestType }: RequestFo
     }
 
     prefillFromProfile()
-  }, [open, requestType])
+  }, [open])
 
   const handleValueChange = (fieldName: string, fieldValue: string) => {
     setValues((currentValues) => ({
@@ -214,7 +216,7 @@ export function RequestFormDialog({ open, onOpenChange, requestType }: RequestFo
         requestId: data.id,
         message: `${config.title} has been submitted successfully and is now pending review.`,
       })
-      setValues(createInitialValues(requestType))
+      setValues(createInitialValues(config))
       setFiles({})
     } catch (submitError) {
       setErrorMessage(submitError instanceof Error ? submitError.message : 'Failed to submit request.')

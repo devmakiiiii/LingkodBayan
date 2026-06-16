@@ -58,6 +58,7 @@ CREATE TABLE IF NOT EXISTS public.announcements (
   title TEXT NOT NULL,
   content TEXT NOT NULL,
   category TEXT NOT NULL,
+  image_url TEXT,
   is_published BOOLEAN DEFAULT FALSE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()

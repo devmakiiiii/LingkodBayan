@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
-import { LogOut, Menu, X, Home, Users, BarChart3, List, AlertCircle, Settings, ChevronDown, Loader2 } from 'lucide-react'
+import { LogOut, Menu, X, Home, Users, BarChart3, List, AlertCircle, Settings, ChevronDown, Loader2, Megaphone } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -48,6 +48,7 @@ const navItems = [
   },
   { label: 'Request List', href: '/admin/requests', icon: List },
   { label: 'Complaints List', href: '/admin/complaints', icon: AlertCircle },
+  { label: 'Announcements', href: '/admin/announcements', icon: Megaphone },
   { 
     label: 'Settings',
     icon: Settings,

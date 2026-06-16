@@ -15,6 +15,32 @@ interface ServiceCardProps {
   onRequestClick?: (id: string) => void
 }
 
+interface Service {
+  id: string
+  slug: string
+  title: string
+  description: string | null
+  category_type: 'document' | 'appointment' | 'incident'
+  is_active: boolean
+  sort_order: number
+}
+
+const iconMap: Record<string, React.ReactNode> = {
+  'barangay-clearance': <FileText className="w-6 h-6" />,
+  'certificate-residency': <CheckCircle className="w-6 h-6" />,
+  'business-permit': <Briefcase className="w-6 h-6" />,
+  'good-moral': <Award className="w-6 h-6" />,
+  'indigency': <Heart className="w-6 h-6" />,
+}
+
+const defaultIcons = [
+  <FileText className="w-4 h-4" />,
+  <CheckCircle className="w-4 h-4" />,
+  <Briefcase className="w-4 h-4" />,
+  <Award className="w-4 h-4" />,
+  <Heart className="w-4 h-4" />,
+]
+
 export function ServiceCard({
   id,
   icon,
@@ -71,45 +97,34 @@ export function ServiceCard({
   )
 }
 
-export const servicesList = [
-  {
-    id: 'barangay-clearance',
-    icon: <FileText className="w-6 h-6" />,
-    title: 'Barangay Clearance',
-    description: 'Official document required for various transactions, confirming local residency in good standing.',
-    tag: 'Express Processing',
-    buttonLabel: 'Request Now',
-  },
-  {
-    id: 'certificate-residency',
-    icon: <CheckCircle className="w-6 h-6" />,
-    title: 'Certificate of Residency',
-    description: 'A legal document certifying that a citizen is a permanent resident of the barangay.',
-    tag: 'Resident Only',
-    buttonLabel: 'Request Now',
-  },
-  {
-    id: 'business-permit',
-    icon: <Briefcase className="w-6 h-6" />,
-    title: 'Business Permit',
-    description: 'For new applications and renewals of local businesses.',
-    tag: 'Professional',
-    buttonLabel: 'Request Now',
-  },
-  {
-    id: 'good-moral',
-    icon: <Award className="w-6 h-6" />,
-    title: 'Good Moral Certificate',
-    description: 'Certifies good character, commonly required for school or employment.',
-    tag: 'Character Ref',
-    buttonLabel: 'Request Now',
-  },
-  {
-    id: 'indigency',
-    icon: <Heart className="w-6 h-6" />,
-    title: 'Indigency Certificate',
-    description: 'Required for welfare benefits, scholarships, and assistance programs.',
-    tag: 'Social Assistance',
-    buttonLabel: 'Request Now',
-  },
-]
+function getDefaultTag(categoryType: string): string {
+  switch (categoryType) {
+    case 'document': return 'Document'
+    case 'appointment': return 'Appointment'
+    case 'incident': return 'Incident'
+    default: return 'Service'
+  }
+}
+
+export function DynamicServiceCard({
+  service,
+  onRequestClick,
+}: {
+  service: Service
+  onRequestClick?: (id: string) => void
+}) {
+  const iconIndex = Math.abs(service.slug.split('').reduce((a, c) => a + c.charCodeAt(0), 0)) % defaultIcons.length
+  const icon = iconMap[service.slug] || defaultIcons[iconIndex]
+  
+  return (
+    <ServiceCard
+      id={service.slug}
+      icon={icon}
+      title={service.title}
+      description={service.description || 'No description available'}
+      tag={getDefaultTag(service.category_type)}
+      buttonLabel="Request Now"
+      onRequestClick={onRequestClick}
+    />
+  )
+}

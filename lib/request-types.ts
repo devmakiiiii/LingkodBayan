@@ -8,6 +8,30 @@ export const requestTypes = [
 
 export type RequestType = (typeof requestTypes)[number]
 
+// Dynamic request type for services not in the hardcoded list
+export type DynamicRequestType = string & { __brand?: 'dynamic' }
+
+// Check if a request type is supported with predefined form fields
+export function isKnownRequestType(requestType?: string | null): requestType is RequestType {
+  return !!requestType && requestTypes.includes(requestType as RequestType)
+}
+
+// Fallback form for dynamic services - basic fields that work for any document service
+export const dynamicRequestFormFields: RequestFieldConfig[] = [
+  { name: 'fullName', label: 'Full Name', type: 'text', required: true, placeholder: 'Juan Dela Cruz' },
+  { name: 'address', label: 'Address', type: 'textarea', required: true, placeholder: 'House No., Street, Barangay' },
+  { name: 'contactNumber', label: 'Contact Number', type: 'tel', required: true, placeholder: '09xx xxx xxxx' },
+  { name: 'purpose', label: 'Purpose', type: 'textarea', required: true, placeholder: 'State the purpose of your request' },
+]
+
+// Interface for dynamic service info
+export interface DynamicServiceInfo {
+  slug: string
+  title: string
+  category: string
+  description: string
+}
+
 export const requestStatuses = [
   'pending',
   'processing',
@@ -132,12 +156,34 @@ export const requestTypeConfigs: Record<RequestType, RequestTypeConfig> = {
   },
 }
 
-export function getRequestTypeConfig(requestType?: string | null) {
+export function getRequestTypeConfig(requestType?: string | null): RequestTypeConfig | null {
   if (requestType && requestType in requestTypeConfigs) {
     return requestTypeConfigs[requestType as RequestType]
   }
-
   return null
+}
+
+// Get config for dynamic services (created via admin portal)
+export function getDynamicRequestTypeConfig(serviceInfo: DynamicServiceInfo | null): RequestTypeConfig | null {
+  if (!serviceInfo) return null
+  
+  return {
+    requestType: serviceInfo.slug as RequestType,
+    title: serviceInfo.title,
+    category: serviceInfo.category,
+    summaryField: 'purpose',
+    fields: dynamicRequestFormFields,
+  }
+}
+
+// Unified function to get any request type config
+export function getRequestTypeConfigAny(requestType?: string | null, serviceInfo?: DynamicServiceInfo | null): RequestTypeConfig | null {
+  // First try hardcoded config
+  const knownConfig = getRequestTypeConfig(requestType)
+  if (knownConfig) return knownConfig
+  
+  // Fall back to dynamic config
+  return getDynamicRequestTypeConfig(serviceInfo ?? null)
 }
 
 export function getRequestTypeTitle(requestType?: string | null, fallbackTitle?: string | null) {
