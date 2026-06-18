@@ -6,10 +6,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Empty } from '@/components/ui/empty'
+import { Textarea } from '@/components/ui/textarea'
 import Link from 'next/link'
-import { AlertCircle, CheckCircle2, ArrowLeft, MapPin, Calendar, ImageIcon, MessageSquare } from 'lucide-react'
+import { AlertCircle, CheckCircle2, ArrowLeft, MapPin, Calendar, ImageIcon, MessageSquare, Send, Loader2 } from 'lucide-react'
 import { getOrCreateResidentProfile } from '@/lib/residents'
 import { ComplaintLocationMap } from '@/components/citizen/complaint-location-map'
+import { toast } from 'sonner'
 
 interface Complaint {
   id: string
@@ -41,6 +43,8 @@ export default function ComplaintDetailPage({ params }: { params: Promise<{ id: 
   const [messages, setMessages] = useState<ComplaintMessage[]>([])
   const [loading, setLoading] = useState(true)
   const [userId, setUserId] = useState<string | null>(null)
+  const [replyText, setReplyText] = useState('')
+  const [sendingReply, setSendingReply] = useState(false)
 
   useEffect(() => {
     async function loadComplaint() {
@@ -83,6 +87,34 @@ export default function ComplaintDetailPage({ params }: { params: Promise<{ id: 
 
     loadComplaint()
   }, [id])
+
+  const handleSendReply = async () => {
+    if (!replyText.trim() || !userId || !complaint) return
+
+    setSendingReply(true)
+    try {
+      const response = await fetch('/api/citizen/complaint-reply', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ complaintId: complaint.id, message: replyText.trim() }),
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to send reply')
+      }
+
+      const { message } = await response.json()
+      setMessages(prev => [...prev, message])
+      setReplyText('')
+      toast.success('Reply sent successfully')
+    } catch (error) {
+      console.error('Error sending reply:', error)
+      toast.error(error instanceof Error ? error.message : 'Failed to send reply')
+    } finally {
+      setSendingReply(false)
+    }
+  }
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -137,7 +169,7 @@ export default function ComplaintDetailPage({ params }: { params: Promise<{ id: 
   }
 
   return (
-    <div className="p-4 md:p-6 max-w-5xl space-y-4">
+    <div className="p-4 md:p-6 space-y-4">
       <div className="flex items-center gap-3">
         <Link href="/citizen/my-complaints">
           <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
@@ -150,8 +182,8 @@ export default function ComplaintDetailPage({ params }: { params: Promise<{ id: 
         </div>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        <div className="lg:col-span-2 space-y-4">
+      <div className="grid gap-6 lg:grid-cols-4">
+        <div className="lg:col-span-3 space-y-4">
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base">Complaint Information</CardTitle>
@@ -208,11 +240,11 @@ export default function ComplaintDetailPage({ params }: { params: Promise<{ id: 
                 Conversation History
               </CardTitle>
             </CardHeader>
-            <CardContent className="px-4 py-3">
+            <CardContent className="px-4 py-3 space-y-4">
               {messages.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No messages yet. Admin replies will appear here.</p>
               ) : (
-                <div className="space-y-3">
+                <div className="space-y-3 max-h-64 overflow-y-auto pr-2">
                   {messages.map((msg) => {
                     const isAdmin = msg.sender_id !== userId
                     return (
@@ -237,6 +269,27 @@ export default function ComplaintDetailPage({ params }: { params: Promise<{ id: 
                   })}
                 </div>
               )}
+
+              {/* Reply Form */}
+              <div className="pt-3 border-t">
+                <div className="flex gap-2">
+                  <Textarea
+                    placeholder="Type your reply..."
+                    value={replyText}
+                    onChange={(e) => setReplyText(e.target.value)}
+                    className="min-h-10 resize-none text-sm"
+                    disabled={sendingReply}
+                  />
+                  <Button
+                    size="sm"
+                    onClick={handleSendReply}
+                    disabled={!replyText.trim() || sendingReply}
+                    className="h-10 px-3"
+                  >
+                    {sendingReply ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                  </Button>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </div>
@@ -244,14 +297,26 @@ export default function ComplaintDetailPage({ params }: { params: Promise<{ id: 
         <div className="space-y-4">
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-base">Status</CardTitle>
+              <CardTitle className="text-base">Status & Timeline</CardTitle>
             </CardHeader>
-            <CardContent className="px-4 py-3">
+            <CardContent className="space-y-3 px-4 py-3">
               <div className="flex items-center gap-2">
                 {getStatusIcon(complaint.status)}
                 <Badge className={`text-xs px-2 py-0.5 ${getStatusColor(complaint.status)}`}>
                   {complaint.status.charAt(0).toUpperCase() + complaint.status.slice(1)}
                 </Badge>
+              </div>
+              <div className="space-y-2 pt-2 border-t">
+                <div className="flex items-center gap-1.5 text-xs">
+                  <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
+                  <span className="text-gray-600">Submitted:</span>
+                  <span className="font-medium">{new Date(complaint.created_at).toLocaleString('en-PH')}</span>
+                </div>
+                <div className="flex items-center gap-1.5 text-xs">
+                  <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
+                  <span className="text-gray-600">Last Updated:</span>
+                  <span className="font-medium">{new Date(complaint.updated_at).toLocaleString('en-PH')}</span>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -271,24 +336,6 @@ export default function ComplaintDetailPage({ params }: { params: Promise<{ id: 
               </CardContent>
             </Card>
           )}
-
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base">Timeline</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2 px-4 py-3">
-              <div className="flex items-center gap-1.5 text-xs">
-                <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
-                <span className="text-gray-600">Submitted:</span>
-                <span className="font-medium">{new Date(complaint.created_at).toLocaleString('en-PH')}</span>
-              </div>
-              <div className="flex items-center gap-1.5 text-xs">
-                <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
-                <span className="text-gray-600">Last Updated:</span>
-                <span className="font-medium">{new Date(complaint.updated_at).toLocaleString('en-PH')}</span>
-              </div>
-            </CardContent>
-          </Card>
         </div>
       </div>
     </div>

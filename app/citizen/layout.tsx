@@ -1,5 +1,6 @@
 import { Sidebar } from '@/components/citizen/sidebar'
 import { NotificationProvider } from '@/hooks/use-notifications'
+import { Toaster } from '@/components/ui/sonner'
 
 export default function CitizenLayout({
   children,
@@ -14,6 +15,7 @@ export default function CitizenLayout({
           {children}
         </main>
       </div>
+      <Toaster />
     </NotificationProvider>
   )
 }
