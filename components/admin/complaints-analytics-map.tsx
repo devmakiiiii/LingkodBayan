@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import dynamic from 'next/dynamic'
 
@@ -32,5 +32,9 @@ const ComplaintsAnalyticsMapClient = dynamic(
 )
 
 export function ComplaintsAnalyticsMap({ complaints, onMarkerClick }: ComplaintsAnalyticsMapProps) {
-  return <ComplaintsAnalyticsMapClient complaints={complaints} onMarkerClick={onMarkerClick} />
+  return (
+    <div className="isolate">
+      <ComplaintsAnalyticsMapClient complaints={complaints} onMarkerClick={onMarkerClick} />
+    </div>
+  )
 }

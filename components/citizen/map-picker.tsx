@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import dynamic from 'next/dynamic'
 
@@ -17,8 +17,10 @@ const MapPickerClient = dynamic(() => import('./map-picker-client'), {
 
 export function MapPicker({ onLocationSelect }: MapPickerProps) {
   return (
-    <MapPickerClient
-      onLocationSelect={onLocationSelect}
-    />
+    <div className="isolate">
+      <MapPickerClient
+        onLocationSelect={onLocationSelect}
+      />
+    </div>
   )
 }

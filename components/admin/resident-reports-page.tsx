@@ -94,6 +94,7 @@ type ResidentReportRow = {
   description: string
   category: string
   categoryKey: string
+  categoryBadgeClass: string
   status: CanonicalStatus
   priority: CanonicalPriority
   priorityConfidence: number
@@ -123,6 +124,14 @@ type NotificationAlert = {
   createdAt: string
 }
 
+type ServiceCategory = {
+  id: string
+  slug: string
+  title: string
+  description: string | null
+  is_active: boolean
+}
+
 type CategoryDefinition = {
   key: string
   label: string
@@ -130,65 +139,6 @@ type CategoryDefinition = {
   keywords: string[]
   fallbackPriority: CanonicalPriority
 }
-
-const categoryDefinitions: CategoryDefinition[] = [
-  {
-    key: 'noise-complaint',
-    label: 'Noise Complaint',
-    badgeClass: complaintCategoryBadgeClasses['Noise Complaint'],
-    keywords: complaintCategoryKeywords['Noise Complaint'],
-    fallbackPriority: complaintCategoryFallbackPriorities['Noise Complaint'],
-  },
-  {
-    key: 'public-disturbance',
-    label: 'Public Disturbance',
-    badgeClass: complaintCategoryBadgeClasses['Public Disturbance'],
-    keywords: complaintCategoryKeywords['Public Disturbance'],
-    fallbackPriority: complaintCategoryFallbackPriorities['Public Disturbance'],
-  },
-  {
-    key: 'sanitation',
-    label: 'Sanitation',
-    badgeClass: complaintCategoryBadgeClasses['Sanitation'],
-    keywords: complaintCategoryKeywords['Sanitation'],
-    fallbackPriority: complaintCategoryFallbackPriorities['Sanitation'],
-  },
-  {
-    key: 'infrastructure-issue',
-    label: 'Infrastructure Issue',
-    badgeClass: complaintCategoryBadgeClasses['Infrastructure Issue'],
-    keywords: complaintCategoryKeywords['Infrastructure Issue'],
-    fallbackPriority: complaintCategoryFallbackPriorities['Infrastructure Issue'],
-  },
-  {
-    key: 'barangay-incident',
-    label: 'Barangay Incident',
-    badgeClass: complaintCategoryBadgeClasses['Barangay Incident'],
-    keywords: complaintCategoryKeywords['Barangay Incident'],
-    fallbackPriority: complaintCategoryFallbackPriorities['Barangay Incident'],
-  },
-  {
-    key: 'illegal-parking',
-    label: 'Illegal Parking',
-    badgeClass: complaintCategoryBadgeClasses['Illegal Parking'],
-    keywords: complaintCategoryKeywords['Illegal Parking'],
-    fallbackPriority: complaintCategoryFallbackPriorities['Illegal Parking'],
-  },
-  {
-    key: 'street-light-problem',
-    label: 'Street Light Problem',
-    badgeClass: complaintCategoryBadgeClasses['Street Light Problem'],
-    keywords: complaintCategoryKeywords['Street Light Problem'],
-    fallbackPriority: complaintCategoryFallbackPriorities['Street Light Problem'],
-  },
-  {
-    key: 'other-concerns',
-    label: 'Other Concerns',
-    badgeClass: complaintCategoryBadgeClasses['Other Concerns'],
-    keywords: complaintCategoryKeywords['Other Concerns'],
-    fallbackPriority: complaintCategoryFallbackPriorities['Other Concerns'],
-  },
-]
 
 const statusDefinitions: Record<CanonicalStatus, { label: string; badgeClass: string; rawValues: string[] }> = {
   pending: {
@@ -256,39 +206,64 @@ function normalizeStatus(raw?: string | null): CanonicalStatus {
   return (match?.[0] as CanonicalStatus) || 'pending'
 }
 
-function normalizeCategory(row: any): CategoryDefinition {
+function normalizeCategory(row: any, dynamicCategories: ServiceCategory[]): CategoryDefinition {
   const rawCategory = (row.category || '').toLowerCase().trim()
   const rawText = `${row.title || ''} ${row.description || ''}`.toLowerCase()
 
-  for (const definition of categoryDefinitions) {
-    if (definition.label.toLowerCase() === rawCategory) {
-      return definition
+  for (const cat of dynamicCategories) {
+    if (cat.slug.toLowerCase() === rawCategory || cat.title.toLowerCase() === rawCategory) {
+      const fallbackPriority = complaintCategoryFallbackPriorities[cat.title as ComplaintCategory] || 'low'
+      const keywords = complaintCategoryKeywords[cat.title as ComplaintCategory] || []
+      const badgeClass = complaintCategoryBadgeClasses[cat.title as ComplaintCategory] || ''
+      return {
+        key: cat.slug,
+        label: cat.title,
+        badgeClass,
+        keywords,
+        fallbackPriority,
+      }
     }
   }
 
-  for (const definition of categoryDefinitions) {
-    if (definition.key === 'other-concerns') {
+  for (const cat of dynamicCategories) {
+    if (cat.title === 'Other Concerns') {
       continue
     }
 
-    const keywords = complaintCategoryKeywords[definition.label as ComplaintCategory] || []
+    const keywords = complaintCategoryKeywords[cat.title as ComplaintCategory] || []
     if (keywords.some((kw) => rawText.includes(kw))) {
-      return definition
+      const fallbackPriority = complaintCategoryFallbackPriorities[cat.title as ComplaintCategory] || 'low'
+      const badgeClass = complaintCategoryBadgeClasses[cat.title as ComplaintCategory] || ''
+      return {
+        key: cat.slug,
+        label: cat.title,
+        badgeClass,
+        keywords,
+        fallbackPriority,
+      }
     }
   }
 
-  return categoryDefinitions[categoryDefinitions.length - 1]
+  const defaultCat = dynamicCategories.find((c) => c.title === 'Other Concerns') || { slug: 'other-concerns', title: 'Other Concerns', description: null, is_active: true }
+  return {
+    key: defaultCat.slug,
+    label: defaultCat.title,
+    badgeClass: complaintCategoryBadgeClasses['Other Concerns'],
+    keywords: [],
+    fallbackPriority: 'low',
+  }
 }
 
-function normalizePriority(row: any, category: CategoryDefinition): CanonicalPriority {
-  const explicit = String(row.priority_level || row.priority || '').toLowerCase().trim()
-
-  if (explicit === 'low' || explicit === 'medium' || explicit === 'high' || explicit === 'critical') {
-    return explicit
+function buildMapEmbedUrl(report: ResidentReportRow) {
+  if (report.latitude != null && report.longitude != null) {
+    return `https://www.google.com/maps?q=${report.latitude},${report.longitude}&z=17&output=embed`
   }
 
-  const analysis = analyzeComplaintPriority(row.title || '', row.description || '', category.fallbackPriority)
-  return analysis.priority
+  if (report.locationAddress) {
+    return `https://www.google.com/maps?q=${encodeURIComponent(report.locationAddress)}&z=15&output=embed`
+  }
+
+  return ''
 }
 
 function extractEvidenceUrls(row: any) {
@@ -347,18 +322,6 @@ function formatRelativeTime(value: string) {
   return formatDateTime(value)
 }
 
-function buildMapEmbedUrl(report: ResidentReportRow) {
-  if (report.latitude != null && report.longitude != null) {
-    return `https://www.google.com/maps?q=${report.latitude},${report.longitude}&z=17&output=embed`
-  }
-
-  if (report.locationAddress) {
-    return `https://www.google.com/maps?q=${encodeURIComponent(report.locationAddress)}&z=15&output=embed`
-  }
-
-  return ''
-}
-
 function truncateText(value: string, length = 120) {
   if (value.length <= length) {
     return value
@@ -407,6 +370,7 @@ export function ResidentReportsPage() {
   const [adminNotesDraft, setAdminNotesDraft] = useState('')
   const [replyDraft, setReplyDraft] = useState('')
   const [savingAction, setSavingAction] = useState(false)
+  const [dynamicCategories, setDynamicCategories] = useState<ServiceCategory[]>([])
 
   useEffect(() => {
     loadReports()
@@ -441,8 +405,9 @@ export function ResidentReportsPage() {
       }
 
       const supabase = createClient()
-      const [{ data: userData }, { data: complaintRows, error: complaintError }, { data: residentsData, error: residentsError }, { data: officialsData, error: officialsError }, { data: messagesData, error: messagesError }] = await Promise.all([
+      const [{ data: userData }, { data: categoriesData }, { data: complaintRows, error: complaintError }, { data: residentsData, error: residentsError }, { data: officialsData, error: officialsError }, { data: messagesData, error: messagesError }] = await Promise.all([
         supabase.auth.getUser(),
+        supabase.from('service_categories').select('id, slug, title, description, is_active').eq('category_type', 'incident').eq('is_active', true).order('sort_order', { ascending: true }),
         supabase.from('complaints').select('*').order('created_at', { ascending: false }),
         supabase.from('residents').select('*'),
         supabase.from('officials').select('id, full_name, designation_id, designations(id, name, category, priority_order, badge_color)').order('created_at', { ascending: false }),
@@ -469,8 +434,11 @@ export function ResidentReportsPage() {
 
       setOfficials(officialOptions)
 
+      const currentCategories = (categoriesData || []) as ServiceCategory[]
+      setDynamicCategories(currentCategories)
+
       const messagesByComplaintId = new Map<string, ComplaintMessageRow[]>()
-      ;(messagesData || []).forEach((message: any) => {
+       ;(messagesData || []).forEach((message: any) => {
         const entry = messagesByComplaintId.get(message.complaint_id) || []
         entry.push(message)
         messagesByComplaintId.set(message.complaint_id, entry)
@@ -478,7 +446,7 @@ export function ResidentReportsPage() {
 
       const mappedReports = (complaintRows || []).map((row: any) => {
         const resident = row.resident_id ? residentsById.get(row.resident_id) || null : null
-        const categoryDefinition = normalizeCategory(row)
+        const categoryDefinition = normalizeCategory(row, currentCategories)
         const status = normalizeStatus(row.status)
         const explicitPriority = String(row.priority_level || row.priority || '').toLowerCase().trim()
         const analysis = explicitPriority && ['low', 'medium', 'high', 'critical'].includes(explicitPriority)
@@ -515,9 +483,10 @@ export function ResidentReportsPage() {
           assignedOfficialLabel: assignedOfficial?.label || 'Unassigned',
           adminNotes: row.admin_notes || '',
           archivedAt: row.archived_at || null,
-          evidenceUrls: extractEvidenceUrls(row),
-          messages: messagesByComplaintId.get(row.id) || [],
-        } satisfies ResidentReportRow
+evidenceUrls: extractEvidenceUrls(row),
+           categoryBadgeClass: categoryDefinition.badgeClass,
+           messages: messagesByComplaintId.get(row.id) || [],
+         } satisfies ResidentReportRow
       })
 
       setReports(mappedReports)
@@ -838,11 +807,11 @@ if (systemMessage && profileUser) {
                   {selectedReport.priorityConfidence < 1 && ` (${Math.round(selectedReport.priorityConfidence * 100)}% confidence)`}
                 </Badge>
               )}
-              {selectedReport && (
-                <Badge className={categoryDefinitions.find((c) => c.key === selectedReport.categoryKey)?.badgeClass || ''}>
-                  {categoryDefinitions.find((c) => c.key === selectedReport.categoryKey)?.label || 'Other'}
-                </Badge>
-              )}
+{selectedReport && (
+                 <Badge className={selectedReport.categoryBadgeClass}>
+                   {selectedReport.category}
+                 </Badge>
+               )}
             </DialogTitle>
             <DialogDescription>
               {selectedReport?.title || 'Report details, admin actions, evidence, and history logs.'}
@@ -1249,9 +1218,9 @@ if (systemMessage && profileUser) {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="all">All Categories</SelectItem>
-                        {categoryDefinitions.map((definition) => (
-                          <SelectItem key={definition.key} value={definition.key}>
-                            {definition.label}
+                        {dynamicCategories.map((cat) => (
+                          <SelectItem key={cat.id} value={cat.slug}>
+                            {cat.title}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -1343,27 +1312,26 @@ if (systemMessage && profileUser) {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {paginatedReports.map((report) => {
-                    const priority = priorityDefinitions[report.priority]
-                    const status = statusDefinitions[report.status]
-                    const category = categoryDefinitions.find((definition) => definition.key === report.categoryKey) || categoryDefinitions[categoryDefinitions.length - 1]
-const PriorityIcon = priority.icon || GripVertical
+{paginatedReports.map((report) => {
+                     const priority = priorityDefinitions[report.priority]
+                     const status = statusDefinitions[report.status]
+                     const PriorityIcon = priority.icon || GripVertical
 
-                    return (
-                      <TableRow key={report.id} className={report.priority === 'critical' ? 'bg-rose-50/40' : ''}>
-                        <TableCell className="font-semibold text-slate-900">
-                          <div className="flex items-center gap-2">
-                            {report.trackingNumber}
-                            {report.priority === 'critical' && <TriangleAlert className="h-4 w-4 text-rose-700" />}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="font-medium">{report.residentName}</div>
-                          <div className="text-xs text-muted-foreground">{report.residentBarangay || report.residentAddress || 'Resident profile'}</div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge className={category.badgeClass}>{category.label}</Badge>
-                        </TableCell>
+                     return (
+                       <TableRow key={report.id} className={report.priority === 'critical' ? 'bg-rose-50/40' : ''}>
+                         <TableCell className="font-semibold text-slate-900">
+                           <div className="flex items-center gap-2">
+                             {report.trackingNumber}
+                             {report.priority === 'critical' && <TriangleAlert className="h-4 w-4 text-rose-700" />}
+                           </div>
+                         </TableCell>
+                         <TableCell>
+                           <div className="font-medium">{report.residentName}</div>
+                           <div className="text-xs text-muted-foreground">{report.residentBarangay || report.residentAddress || 'Resident profile'}</div>
+                         </TableCell>
+                         <TableCell>
+                           <Badge className={report.categoryBadgeClass}>{report.category}</Badge>
+                         </TableCell>
                         <TableCell>
                           <span title={report.description} className="flex items-start gap-2">
                             {truncateText(report.description, 70)}

@@ -19,7 +19,20 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
-import { analyticsTrendLabels, complaintCategoryColors, complaintCategoryLabels, complaintCategories, getRequestTypeLabel, analyticsTrendViews, type AnalyticsTrendView, statusPalette, normalizeComplaintCategory, normalizeRequestStatus, type RequestReportRow } from '@/lib/admin-reporting'
+import {
+  analyticsTrendLabels,
+  analyticsTrendViews,
+  complaintCategoryColors,
+  complaintCategoryLabels,
+  complaintCategories,
+  statusPalette,
+  normalizeComplaintCategory,
+  normalizeRequestStatus,
+  getRequestTypeLabel,
+  type AnalyticsTrendView,
+  type RequestReportRow,
+} from '@/lib/admin-reporting'
+import { complaintCategoryBadgeClasses } from '@/lib/complaint-categories'
 import { requestTypes } from '@/lib/request-types'
 import { AlertTriangle, BarChart3, CalendarRange, FileText, Users } from 'lucide-react'
 

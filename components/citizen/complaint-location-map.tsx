@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import dynamic from 'next/dynamic'
 
@@ -20,5 +20,9 @@ const ComplaintLocationMapClient = dynamic(
 )
 
 export function ComplaintLocationMap({ latitude, longitude }: ComplaintLocationMapProps) {
-  return <ComplaintLocationMapClient latitude={latitude} longitude={longitude} />
+  return (
+    <div className="isolate">
+      <ComplaintLocationMapClient latitude={latitude} longitude={longitude} />
+    </div>
+  )
 }
