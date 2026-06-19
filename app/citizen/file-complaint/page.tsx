@@ -15,6 +15,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
+import { useSearchParams } from 'next/navigation'
 import { AlertCircle, MapPin, Upload, X, ImageIcon, Zap } from 'lucide-react'
 import { MapPicker } from '@/components/citizen/map-picker'
 import { getOrCreateResidentProfile } from '@/lib/residents'
@@ -42,6 +43,8 @@ export default function FileComplaintPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [incidentCategories, setIncidentCategories] = useState<IncidentCategory[]>([])
   const [loadingCategories, setLoadingCategories] = useState(true)
+  const searchParams = useSearchParams()
+  const preselectedCategory = searchParams.get('category')
   const router = useRouter()
 
   // Default incident categories when DB is unavailable
@@ -92,12 +95,16 @@ export default function FileComplaintPage() {
     }
   }
 
-  // Initialize category with first available
+  // Initialize category with first available or preselected from URL
   useEffect(() => {
-    if (activeCategories.length > 0 && !category) {
-      setCategory(activeCategories[0].title)
+    if (activeCategories.length > 0) {
+      if (preselectedCategory && activeCategories.some(c => c.title === preselectedCategory)) {
+        setCategory(preselectedCategory)
+      } else if (!category) {
+        setCategory(activeCategories[0].title)
+      }
     }
-  }, [activeCategories])
+  }, [activeCategories, preselectedCategory])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()

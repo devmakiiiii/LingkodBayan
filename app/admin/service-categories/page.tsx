@@ -19,7 +19,7 @@ interface ServiceCategory {
   slug: string
   title: string
   description: string | null
-  category_type: 'document' | 'appointment' | 'incident'
+  category_type: 'document' | 'appointment'
   is_active: boolean
   sort_order: number
   created_at: string
@@ -30,7 +30,7 @@ interface FormData {
   slug: string
   title: string
   description: string
-  category_type: 'document' | 'appointment' | 'incident'
+  category_type: 'document' | 'appointment'
   is_active: boolean
   sort_order: number
 }
@@ -38,7 +38,6 @@ interface FormData {
 const categoryLabels: Record<string, { label: string; color: string }> = {
   document: { label: 'Document Request', color: 'bg-blue-100 text-blue-800 border-blue-300' },
   appointment: { label: 'Appointment Type', color: 'bg-purple-100 text-purple-800 border-purple-300' },
-  incident: { label: 'Incident/Blotter', color: 'bg-orange-100 text-orange-800 border-orange-300' },
 }
 
 export default function AdminServiceCategoriesPage() {
@@ -244,7 +243,7 @@ export default function AdminServiceCategoriesPage() {
     )
   }
 
-  if (loadError) {
+if (loadError) {
     return (
       <div className="space-y-6 p-6">
         <Card className="border-amber-200 bg-amber-50">
@@ -260,14 +259,13 @@ export default function AdminServiceCategoriesPage() {
 
   const documentCategories = categories.filter((c) => c.category_type === 'document')
   const appointmentCategories = categories.filter((c) => c.category_type === 'appointment')
-  const incidentCategories = categories.filter((c) => c.category_type === 'incident')
 
   return (
     <div className="space-y-6 p-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Service Categories</h1>
-          <p className="text-gray-500 mt-2">Manage document requests, appointment types, and incident categories</p>
+          <p className="text-gray-500 mt-2">Manage document requests and appointment types</p>
         </div>
         <Button onClick={openCreateDialog} className="bg-green-600 hover:bg-green-700 gap-2">
           <Plus className="w-4 h-4" />
@@ -407,72 +405,6 @@ export default function AdminServiceCategoriesPage() {
         </div>
       </Card>
 
-      {/* Incident/Blotter Categories */}
-      <Card className="border-l-4 border-l-orange-600">
-        <div className="p-6">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4 flex items-center gap-2">
-            <CheckCircle className="w-5 h-5 text-orange-600" />
-            Incident &amp; Blotter Categories
-          </h2>
-
-          {incidentCategories.length === 0 ? (
-            <p className="text-gray-500 text-sm py-8 text-center">No incident categories yet</p>
-          ) : (
-            <div className="space-y-2">
-              {incidentCategories.map((category, idx) => (
-                <div key={category.id} className="flex items-center gap-4 p-3 border rounded-lg hover:bg-gray-50">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <h3 className="font-medium text-gray-900">{category.title}</h3>
-                      <Badge variant={category.is_active ? 'default' : 'secondary'}>
-                        {category.is_active ? 'Active' : 'Inactive'}
-                      </Badge>
-                    </div>
-                    {category.description && <p className="text-sm text-gray-600 mt-1">{category.description}</p>}
-                    <p className="text-xs text-gray-500 mt-1">Slug: {category.slug}</p>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <Switch
-                      checked={category.is_active}
-                      onCheckedChange={() => handleToggleActive(category.id, category.is_active)}
-                    />
-
-                    <Button
-                      onClick={() => handleReorderUp(category)}
-                      variant="ghost"
-                      size="sm"
-                      disabled={idx === 0}
-                      className="gap-1"
-                    >
-                      <ChevronUp className="w-4 h-4" />
-                    </Button>
-
-                    <Button
-                      onClick={() => handleReorderDown(category)}
-                      variant="ghost"
-                      size="sm"
-                      disabled={idx === incidentCategories.length - 1}
-                      className="gap-1"
-                    >
-                      <ChevronDown className="w-4 h-4" />
-                    </Button>
-
-                    <Button onClick={() => openEditDialog(category)} variant="ghost" size="sm" className="gap-1">
-                      <Edit2 className="w-4 h-4" />
-                    </Button>
-
-                    <Button onClick={() => handleDelete(category.id)} variant="ghost" size="sm" className="text-red-600 hover:text-red-700">
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </Card>
-
       {/* Edit/Create Dialog */}
       {showDialog && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
@@ -525,7 +457,6 @@ export default function AdminServiceCategoriesPage() {
                   >
                     <option value="document">Document Request</option>
                     <option value="appointment">Appointment Type</option>
-                    <option value="incident">Incident/Blotter</option>
                   </select>
                 </div>
 

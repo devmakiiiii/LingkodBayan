@@ -15,6 +15,7 @@ import { Search, X, Loader2 } from 'lucide-react'
 import { RequestFormDialog } from '@/components/citizen/request-form-dialog'
 import type { RequestType } from '@/lib/request-types'
 import type { DynamicServiceInfo } from '@/lib/request-types'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
 interface ServiceCategory {
@@ -31,7 +32,6 @@ const filterOptions = [
   { value: 'all', label: 'All Services' },
   { value: 'document', label: 'Document Requests' },
   { value: 'appointment', label: 'Appointments' },
-  { value: 'incident', label: 'Incidents' },
 ]
 
 export default function RequestServicePage() {
@@ -43,6 +43,7 @@ export default function RequestServicePage() {
   const [services, setServices] = useState<ServiceCategory[]>([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
+  const router = useRouter()
 
   useEffect(() => {
     loadServices()
@@ -58,6 +59,7 @@ export default function RequestServicePage() {
         .from('service_categories')
         .select('*')
         .eq('is_active', true)
+        .neq('category_type', 'incident')
         .order('sort_order', { ascending: true })
 
       if (error) {
@@ -86,7 +88,6 @@ export default function RequestServicePage() {
     all: servicesList.map((s) => s.slug),
     document: servicesList.filter((s) => s.category_type === 'document').map((s) => s.slug),
     appointment: servicesList.filter((s) => s.category_type === 'appointment').map((s) => s.slug),
-    incident: servicesList.filter((s) => s.category_type === 'incident').map((s) => s.slug),
   }
 
   // Filter services based on search and category

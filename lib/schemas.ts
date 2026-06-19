@@ -81,8 +81,8 @@ export const serviceCategorySchema = z.object({
   slug: z.string().min(1, 'Slug is required').regex(/^[a-z0-9-]+$/, 'Slug must be lowercase alphanumeric with hyphens'),
   title: z.string().min(1, 'Title is required'),
   description: z.string().optional(),
-  category_type: z.enum(['document', 'appointment', 'incident'], {
-    errorMap: () => ({ message: 'Category type must be document, appointment, or incident' }),
+  category_type: z.enum(['document', 'appointment'], {
+    errorMap: () => ({ message: 'Category type must be document or appointment' }),
   }),
   is_active: z.boolean().default(true),
   sort_order: z.coerce.number().int().min(0, 'Sort order must be 0 or greater').default(999),

@@ -11,7 +11,8 @@ VALUES
   ('indigency', 'Indigency Certificate', 'Required for welfare benefits, scholarships, and assistance programs.', 'document', 5, true)
 ON CONFLICT (slug) DO NOTHING;
 
--- Incident/complaint categories - seeded to match complaint-categories.ts
+-- Incident/complaint categories - used for File Complaint page
+-- (Filtered out from Request Service to avoid user confusion)
 INSERT INTO public.service_categories (slug, title, description, category_type, sort_order, is_active)
 VALUES
   ('noise-complaint', 'Noise Complaint', 'Report excessive noise disturbances in the community.', 'incident', 1, true),

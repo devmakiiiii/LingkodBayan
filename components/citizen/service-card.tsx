@@ -101,7 +101,6 @@ function getDefaultTag(categoryType: string): string {
   switch (categoryType) {
     case 'document': return 'Document'
     case 'appointment': return 'Appointment'
-    case 'incident': return 'Incident'
     default: return 'Service'
   }
 }
@@ -115,6 +114,7 @@ export function DynamicServiceCard({
 }) {
   const iconIndex = Math.abs(service.slug.split('').reduce((a, c) => a + c.charCodeAt(0), 0)) % defaultIcons.length
   const icon = iconMap[service.slug] || defaultIcons[iconIndex]
+  const buttonLabel = 'Request Now'
   
   return (
     <ServiceCard
@@ -123,7 +123,7 @@ export function DynamicServiceCard({
       title={service.title}
       description={service.description || 'No description available'}
       tag={getDefaultTag(service.category_type)}
-      buttonLabel="Request Now"
+      buttonLabel={buttonLabel}
       onRequestClick={onRequestClick}
     />
   )
