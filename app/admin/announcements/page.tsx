@@ -2,7 +2,7 @@
 
 import dynamic from 'next/dynamic'
 import { useEffect, useState, useMemo } from 'react'
-import { createClient } from '@/lib/supabase/client'
+import { hasSupabaseConfig } from '@/lib/supabase/client'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -89,6 +89,11 @@ export default function AdminAnnouncementsPage() {
   const [loadingAnnouncements, setLoadingAnnouncements] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<'all' | 'published' | 'draft'>('all')
+  const [configError, setConfigError] = useState<string | null>(null)
+
+  useEffect(() => {
+    loadAnnouncements()
+  }, [])
 
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
@@ -105,22 +110,36 @@ export default function AdminAnnouncementsPage() {
 
   const [savingEdit, setSavingEdit] = useState(false)
 
-  useEffect(() => {
-    loadAnnouncements()
-  }, [])
-
   async function loadAnnouncements() {
     setLoadingAnnouncements(true)
-    try {
-      const supabase = createClient()
-      const { data } = await supabase
-        .from('announcements')
-        .select('id, title, content, category, created_at, is_published, image_url')
-        .order('created_at', { ascending: false })
+    setConfigError(null)
 
-      setAnnouncements(data || [])
-    } catch (error) {
+    if (!hasSupabaseConfig()) {
+      setConfigError('Supabase environment variables are missing. Create .env.local with NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY, then restart pnpm dev.')
+      setAnnouncements([])
+      setLoadingAnnouncements(false)
+      return
+    }
+
+    try {
+      const response = await fetch('/api/admin/announcements')
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        throw new Error(`Failed to fetch announcements: ${response.status} ${errorText}`)
+      }
+
+      const result = await response.json()
+
+      if (result.error) {
+        throw new Error(result.error)
+      }
+
+      setAnnouncements(result.announcements || [])
+    } catch (error: any) {
       console.error('Error loading announcements:', error)
+      setError(error.message || 'Failed to load announcements')
+      setAnnouncements([])
     } finally {
       setLoadingAnnouncements(false)
     }
@@ -170,7 +189,6 @@ export default function AdminAnnouncementsPage() {
       return
     }
 
-    const supabase = createClient()
     setIsLoading(true)
     setError(null)
     setSuccess(false)
@@ -182,17 +200,22 @@ export default function AdminAnnouncementsPage() {
         imageUrl = await uploadImage(imageFile)
       }
 
-      const { error: insertError } = await supabase.from('announcements').insert([
-        {
+      const response = await fetch('/api/admin/announcements', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
           title,
           content,
           category,
           is_published: isPublished,
           image_url: imageUrl,
-        },
-      ])
+        }),
+      })
 
-      if (insertError) throw insertError
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to create announcement')
+      }
 
       setTitle('')
       setContent('')
@@ -233,26 +256,29 @@ export default function AdminAnnouncementsPage() {
     setError(null)
 
     try {
-      const supabase = createClient()
-
       let finalImageUrl = editImageUrl
 
       if (editImageFile) {
         finalImageUrl = await uploadImage(editImageFile)
       }
 
-      const { error: updateError } = await supabase
-        .from('announcements')
-        .update({
+      const response = await fetch('/api/admin/announcements', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: editingAnnouncement.id,
           title: editTitle,
           content: editContent,
           category: editCategory,
           is_published: editIsPublished,
           image_url: finalImageUrl,
-        })
-        .eq('id', editingAnnouncement.id)
+        }),
+      })
 
-      if (updateError) throw updateError
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to update announcement')
+      }
 
       setEditDialogOpen(false)
       setEditImageFile(null)
@@ -269,13 +295,16 @@ export default function AdminAnnouncementsPage() {
     if (!confirm(`Delete "${announcement.title}"? This action cannot be undone.`)) return
 
     try {
-      const supabase = createClient()
-      const { error: deleteError } = await supabase
-        .from('announcements')
-        .delete()
-        .eq('id', announcement.id)
+      const response = await fetch('/api/admin/announcements', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: announcement.id }),
+      })
 
-      if (deleteError) throw deleteError
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to delete announcement')
+      }
 
       loadAnnouncements()
     } catch (err) {
@@ -285,13 +314,19 @@ export default function AdminAnnouncementsPage() {
 
   async function togglePublish(announcement: Announcement) {
     try {
-      const supabase = createClient()
-      const { error: updateError } = await supabase
-        .from('announcements')
-        .update({ is_published: !announcement.is_published })
-        .eq('id', announcement.id)
+      const response = await fetch('/api/admin/announcements', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: announcement.id,
+          is_published: !announcement.is_published,
+        }),
+      })
 
-      if (updateError) throw updateError
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to update announcement status')
+      }
 
       loadAnnouncements()
     } catch (err) {
@@ -500,6 +535,14 @@ export default function AdminAnnouncementsPage() {
               <CardTitle>Manage Announcements</CardTitle>
               <CardDescription>View, edit, and manage all announcements</CardDescription>
             </CardHeader>
+            {configError && (
+              <div className="px-6 pb-4">
+                <div className="flex items-start gap-3 p-3 rounded-lg bg-amber-50 border border-amber-200">
+                  <AlertCircle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+                  <p className="text-sm text-amber-800">{configError}</p>
+                </div>
+              </div>
+            )}
             <CardContent>
               {/* Filters */}
               <div className="flex flex-col sm:flex-row gap-4 mb-4">

@@ -1,7 +1,4 @@
-'use client'
-
-import { useEffect, useState } from 'react'
-import { createClient } from '@/lib/supabase/client'
+import { getPublishedAnnouncements } from '@/lib/db'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Empty } from '@/components/ui/empty'
@@ -16,31 +13,19 @@ interface Announcement {
   image_url?: string | null
 }
 
-export default function AnnouncementsPage() {
-  const [announcements, setAnnouncements] = useState<Announcement[]>([])
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    async function loadAnnouncements() {
-      try {
-        const supabase = createClient()
-        
-        const { data } = await supabase
-          .from('announcements')
-          .select('*')
-          .eq('is_published', true)
-          .order('created_at', { ascending: false })
-
-        setAnnouncements(data || [])
-      } catch (error) {
-        console.error('Error loading announcements:', error)
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    loadAnnouncements()
-  }, [])
+export default async function AnnouncementsPage() {
+  let announcements: Announcement[] = []
+  
+  try {
+    const data = await getPublishedAnnouncements()
+    announcements = data.map((a: any) => ({
+      ...a,
+      image_url: a.image_url || null,
+    }))
+  } catch (error) {
+    console.error('Error loading announcements:', error)
+    announcements = []
+  }
 
   const getCategoryColor = (category: string) => {
     const colors: Record<string, string> = {
@@ -69,11 +54,7 @@ export default function AnnouncementsPage() {
       </div>
 
       {/* Announcements Grid */}
-      {loading ? (
-        <div className="text-center py-12">
-          <p className="text-muted-foreground">Loading announcements...</p>
-        </div>
-      ) : announcements.length === 0 ? (
+      {announcements.length === 0 ? (
         <Empty
           title="No announcements yet"
           description="Check back later for updates from your barangay"
@@ -92,7 +73,7 @@ export default function AnnouncementsPage() {
                   </Badge>
                 </div>
               </CardHeader>
-<CardContent className="space-y-4">
+              <CardContent className="space-y-4">
                  {announcement.image_url && (
                    <img
                      src={announcement.image_url}
