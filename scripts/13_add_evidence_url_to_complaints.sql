@@ -16,6 +16,7 @@ BEGIN
   ) THEN
     CREATE POLICY "Public read access for evidence bucket"
     ON storage.objects FOR SELECT
+    TO public
     USING ( bucket_id = 'evidence' );
   END IF;
 

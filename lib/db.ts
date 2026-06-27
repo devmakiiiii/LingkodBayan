@@ -115,14 +115,68 @@ export async function getResidentComplaints(residentId: string) {
 export async function getPublishedAnnouncements() {
   const supabase = await createClient()
   
-  const { data, error } = await supabase
+  let { data, error }: { data: any[] | null; error: any } = await supabase
     .from('announcements')
-    .select('*')
+    .select('id, title, content, category, created_at, is_published, image_url, excerpt')
     .eq('is_published', true)
     .order('created_at', { ascending: false })
 
+  if ((error && error.message?.includes('image_url')) || (error && error.message?.includes('excerpt'))) {
+    const result = await supabase
+      .from('announcements')
+      .select('id, title, content, category, created_at, is_published')
+      .eq('is_published', true)
+      .order('created_at', { ascending: false })
+    data = result.data
+    error = result.error
+
+    // Add image_url and excerpt fields if missing (for schema compatibility)
+    data = (data || []).map((announcement: any) => ({
+      ...announcement,
+      image_url: announcement.image_url || null,
+      excerpt: announcement.excerpt || null,
+    }))
+  }
+
   if (error) throw new Error(`Failed to get announcements: ${error.message}`)
   return data || []
+}
+
+export async function getPublishedAnnouncementById(id: string) {
+  const supabase = await createClient()
+  
+  let { data, error }: { data: any | null; error: any } = await supabase
+    .from('announcements')
+    .select('id, title, content, category, created_at, is_published, image_url, excerpt')
+    .eq('is_published', true)
+    .eq('id', id)
+    .single()
+
+  if ((error && error.message?.includes('image_url')) || (error && error.message?.includes('excerpt'))) {
+    const result = await supabase
+      .from('announcements')
+      .select('id, title, content, category, created_at, is_published')
+      .eq('is_published', true)
+      .eq('id', id)
+      .single()
+    data = result.data
+    error = result.error
+
+    // Add image_url and excerpt if missing (for schema compatibility)
+    if (data) {
+      data = {
+        ...data,
+        image_url: data.image_url || null,
+        excerpt: data.excerpt || null,
+      }
+    }
+  }
+
+  if (error?.code === 'PGRST116') {
+    return null
+  }
+  if (error) throw new Error(`Failed to get announcement: ${error.message}`)
+  return data
 }
 
 // Admin functions

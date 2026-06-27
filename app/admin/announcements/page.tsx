@@ -45,6 +45,7 @@ interface Announcement {
   id: string
   title: string
   content: string
+  excerpt?: string | null
   category: string
   created_at: string
   is_published: boolean
@@ -79,6 +80,7 @@ function truncateText(text: string, length = 80) {
 export default function AdminAnnouncementsPage() {
   const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
+  const [excerpt, setExcerpt] = useState('')
   const [category, setCategory] = useState('')
   const [isPublished, setIsPublished] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -102,6 +104,7 @@ export default function AdminAnnouncementsPage() {
   const [editingAnnouncement, setEditingAnnouncement] = useState<Announcement | null>(null)
   const [editTitle, setEditTitle] = useState('')
   const [editContent, setEditContent] = useState('')
+  const [editExcerpt, setEditExcerpt] = useState('')
   const [editCategory, setEditCategory] = useState('')
   const [editIsPublished, setEditIsPublished] = useState(false)
   const [editImageUrl, setEditImageUrl] = useState<string | null>(null)
@@ -206,6 +209,7 @@ export default function AdminAnnouncementsPage() {
         body: JSON.stringify({
           title,
           content,
+          excerpt: excerpt || null,
           category,
           is_published: isPublished,
           image_url: imageUrl,
@@ -219,6 +223,7 @@ export default function AdminAnnouncementsPage() {
 
       setTitle('')
       setContent('')
+      setExcerpt('')
       setCategory('')
       setIsPublished(false)
       setImageFile(null)
@@ -238,6 +243,7 @@ export default function AdminAnnouncementsPage() {
     setEditingAnnouncement(announcement)
     setEditTitle(announcement.title)
     setEditContent(announcement.content)
+    setEditExcerpt(announcement.excerpt || '')
     setEditCategory(announcement.category)
     setEditIsPublished(announcement.is_published)
     setEditImageUrl(announcement.image_url || null)
@@ -269,6 +275,7 @@ export default function AdminAnnouncementsPage() {
           id: editingAnnouncement.id,
           title: editTitle,
           content: editContent,
+          excerpt: editExcerpt || null,
           category: editCategory,
           is_published: editIsPublished,
           image_url: finalImageUrl,
@@ -419,6 +426,23 @@ export default function AdminAnnouncementsPage() {
                   />
                   <p className="text-xs text-muted-foreground">
                     Rich text content will be saved and shown to residents with formatting.
+                  </p>
+                </div>
+
+                {/* Excerpt */}
+                <div className="space-y-2">
+                  <Label htmlFor="excerpt">Excerpt / Summary (Optional)</Label>
+                  <textarea
+                    id="excerpt"
+                    placeholder="Brief summary for the announcement preview... (auto-generated if left empty)"
+                    value={excerpt}
+                    onChange={(e) => setExcerpt(e.target.value)}
+                    className="w-full px-3 py-2 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                    rows={3}
+                    maxLength={300}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    A short preview text shown on announcement cards. If empty, the first few lines of content will be used.
                   </p>
                 </div>
 
@@ -722,6 +746,22 @@ export default function AdminAnnouncementsPage() {
                   placeholder: 'Write your announcement here...',
                 }}
               />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="edit-excerpt">Excerpt / Summary (Optional)</Label>
+              <textarea
+                id="edit-excerpt"
+                placeholder="Brief summary for the announcement preview..."
+                value={editExcerpt}
+                onChange={(e) => setEditExcerpt(e.target.value)}
+                className="w-full px-3 py-2 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                rows={3}
+                maxLength={300}
+              />
+              <p className="text-xs text-muted-foreground">
+                A short preview text shown on announcement cards. If empty, the first few lines of content will be used.
+              </p>
             </div>
 
             <div className="space-y-2">
