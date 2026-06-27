@@ -21,11 +21,25 @@ function buildSafeFileName(originalName: string) {
 async function ensureBucketExists() {
   const supabase = createAdminClient()
 
-  const { error: getBucketError } = await supabase.storage.getBucket(bucketName)
-  if (!getBucketError) {
+  const { data: bucketData, error: getBucketError } = await supabase.storage.getBucket(bucketName)
+  if (!getBucketError && bucketData) {
+    // Check if bucket is public, if not update it
+    if (!bucketData.public) {
+      console.log('[DEBUG] Bucket exists but not public, updating...')
+      const { error: updateError } = await supabase.storage.updateBucket(bucketName, {
+        public: true,
+        allowedMimeTypes: ['image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'image/gif'],
+        fileSizeLimit: 5242880,
+      })
+      if (updateError) {
+        console.error('[DEBUG] Failed to update bucket to public:', updateError)
+        throw updateError
+      }
+    }
     return supabase
   }
 
+  console.log('[DEBUG] Creating announcement-images bucket...')
   const { error: createBucketError } = await supabase.storage.createBucket(bucketName, {
     public: true,
     allowedMimeTypes: ['image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'image/gif'],
@@ -33,9 +47,11 @@ async function ensureBucketExists() {
   })
 
   if (createBucketError) {
+    console.error('[DEBUG] Failed to create bucket:', createBucketError)
     throw createBucketError
   }
 
+  console.log('[DEBUG] Bucket created successfully')
   return supabase
 }
 
@@ -83,19 +99,24 @@ export async function POST(request: NextRequest) {
     const arrayBuffer = await file.arrayBuffer()
     const uploadFile = Buffer.from(arrayBuffer)
 
+    console.log('[DEBUG] Uploading file to announcement-images bucket:', { fileName, fileType: file.type, fileSize: file.size })
+
     const { error: uploadError } = await adminClient.storage.from(bucketName).upload(fileName, uploadFile, {
       contentType: file.type || 'image/png',
       upsert: true,
     })
 
     if (uploadError) {
+      console.error('[DEBUG] Upload error:', uploadError)
       return NextResponse.json({ error: uploadError.message }, { status: 500 })
     }
 
     const { data } = adminClient.storage.from(bucketName).getPublicUrl(fileName)
+    console.log('[DEBUG] Generated public URL:', data.publicUrl)
 
     return NextResponse.json({ url: data.publicUrl, path: fileName })
-  } catch (error) {
+  } catch (error: any) {
+    console.error('[DEBUG] Error in announcement-images upload:', error)
     const message = error instanceof Error ? error.message : 'Failed to upload image.'
     return NextResponse.json({ error: message }, { status: 500 })
   }
