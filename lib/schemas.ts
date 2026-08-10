@@ -107,3 +107,43 @@ export type MissionVisionInput = z.infer<typeof missionVisionSchema>
 export type SignatureUploadInput = z.infer<typeof signatureUploadSchema>
 export type ServiceCategoryInput = z.infer<typeof serviceCategorySchema>
 export type ServiceCategoryRequirementInput = z.infer<typeof serviceCategoryRequirementSchema>
+
+// Identity Verification schemas
+export const verificationMatchSchema = z.object({
+  firstName: z.string().min(1, 'First name is required'),
+  lastName: z.string().min(1, 'Last name is required'),
+  middleName: z.string().optional(),
+  email: z.string().email('Invalid email address'),
+  phone: z.string().optional(),
+  address: z.string().optional(),
+  barangay: z.string().optional(),
+  dateOfBirth: z.string().optional(),
+  nationalId: z.string().optional(),
+})
+
+export const preRegisteredResidentSchema = z.object({
+  firstName: z.string().min(1, 'First name is required'),
+  lastName: z.string().min(1, 'Last name is required'),
+  middleName: z.string().optional(),
+  dateOfBirth: z.string().optional(),
+  email: z.string().email('Invalid email address'),
+  phone: z.string().optional(),
+  streetAddress: z.string().optional(),
+  barangay: z.string().min(1, 'Barangay is required'),
+  cityMunicipality: z.string().optional(),
+  province: z.string().optional(),
+  postalCode: z.string().optional(),
+  nationalId: z.string().optional(),
+  idType: z.string().optional(),
+  source: z.string().optional(),
+  importBatchId: z.string().optional(),
+})
+
+export const verificationReviewSchema = z.object({
+  status: z.enum(['matched', 'rejected']),
+  notes: z.string().optional(),
+})
+
+export type VerificationMatchInput = z.infer<typeof verificationMatchSchema>
+export type PreRegisteredResidentInput = z.infer<typeof preRegisteredResidentSchema>
+export type VerificationReviewInput = z.infer<typeof verificationReviewSchema>

@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Empty } from '@/components/ui/empty'
-import { Users, Mail, MapPin } from 'lucide-react'
+import { Users, Mail, MapPin, CheckCircle2, Clock, ShieldAlert } from 'lucide-react'
 
 interface Resident {
   id: string
@@ -16,6 +16,7 @@ interface Resident {
   address: string | null
   barangay: string
   created_at: string
+  verification_status?: string | null
 }
 
 export default function AdminResidentsPage() {
@@ -116,6 +117,31 @@ export default function AdminResidentsPage() {
                   <MapPin className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                   <Badge variant="outline">{resident.barangay}</Badge>
                 </div>
+
+                {resident.verification_status && (
+                  <div className="flex items-center gap-2 pt-2">
+                    {resident.verification_status === 'auto_verified' || resident.verification_status === 'id_verified' ? (
+                      <Badge className="bg-green-100 text-green-800">
+                        <CheckCircle2 className="h-3 w-3 mr-1" />
+                        Verified
+                      </Badge>
+                    ) : resident.verification_status === 'needs_review' ? (
+                      <Badge className="bg-yellow-100 text-yellow-800">
+                        <Clock className="h-3 w-3 mr-1" />
+                        Under Review
+                      </Badge>
+                    ) : resident.verification_status === 'rejected' ? (
+                      <Badge className="bg-red-100 text-red-800">
+                        <ShieldAlert className="h-3 w-3 mr-1" />
+                        Rejected
+                      </Badge>
+                    ) : (
+                      <Badge className="bg-gray-100 text-gray-800">
+                        Unverified
+                      </Badge>
+                    )}
+                  </div>
+                )}
 
                 <p className="text-xs text-muted-foreground pt-2">
                   Registered: {new Date(resident.created_at).toLocaleDateString()}

@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { LogOut, Menu, X, Home, FileText, AlertCircle, Megaphone, Plus, Bell, Loader2 } from 'lucide-react'
+import { LogOut, Menu, X, Home, FileText, AlertCircle, Megaphone, Plus, Bell, Loader2, ShieldCheck } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -20,6 +20,7 @@ import { useNotifications } from '@/hooks/use-notifications'
 
 const navItems = [
   { href: '/citizen/dashboard', label: 'Dashboard', icon: Home },
+  { href: '/citizen/verify-id', label: 'Identity Verification', icon: ShieldCheck },
   { href: '/citizen/my-requests', label: 'My Requests', icon: FileText },
   { href: '/citizen/request-service', label: 'Request Service', icon: Plus },
   { href: '/citizen/my-complaints', label: 'My Complaints', icon: AlertCircle },

@@ -12,6 +12,14 @@ function readMigrationScript() {
   return sql;
 }
 
+function readMigrationFile(filename) {
+  const sqlPath = path.join(__dirname, filename);
+  if (fs.existsSync(sqlPath)) {
+    return fs.readFileSync(sqlPath, 'utf-8');
+  }
+  return `-- ${filename} not found, skipping`;
+}
+
 console.log('\n================================');
 console.log('LingkodBayan Database Setup');
 console.log('================================\n');
@@ -24,7 +32,13 @@ console.log('3. Click "New Query" to create a new SQL query\n');
 console.log('4. Copy and paste the following SQL script:\n');
 console.log('---BEGIN SQL---\n');
 
-const sql = readMigrationScript();
+const sql = readMigrationScript()
+  + '\n'
+  + '--- Migration 16: Verification Schema ---\n'
+  + readMigrationFile('16_add_verification_schema.sql')
+  + '\n'
+  + '--- Migration 17: ID Documents Storage Bucket ---\n'
+  + readMigrationFile('17_create_verification_buckets.sql');
 console.log(sql);
 
 console.log('\n---END SQL---\n');

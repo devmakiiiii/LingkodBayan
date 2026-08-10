@@ -13,8 +13,9 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import Link from "next/link";
-import { AlertCircle, CheckCircle2, Clock, Bell } from "lucide-react";
+import { AlertCircle, CheckCircle2, Clock, Bell, Shield, ShieldCheck, ShieldAlert } from "lucide-react";
 import { getOrCreateResidentProfile } from "@/lib/residents";
+import { getResidentVerification } from "@/lib/db";
 import { useNotifications } from "@/hooks/use-notifications";
 import {
   getRequestTypeTitle,
@@ -66,6 +67,8 @@ export default function CitizenDashboard() {
   const [recentComplaints, setRecentComplaints] = useState<RecentComplaint[]>(
     [],
   );
+  const [verificationStatus, setVerificationStatus] = useState<string>("unverified");
+  const [verificationConfidence, setVerificationConfidence] = useState<number | null>(null);
   const { unreadCount } = useNotifications();
 
   useEffect(() => {
@@ -89,6 +92,17 @@ export default function CitizenDashboard() {
           : null;
 
         if (resident) {
+          // Check verification status
+          try {
+            const verification = await getResidentVerification(user!.id);
+            if (verification) {
+              setVerificationStatus(verification.verification_status);
+              setVerificationConfidence(verification.verification_confidence);
+            }
+          } catch (verError) {
+            console.warn("Failed to fetch verification status:", verError);
+          }
+
           const { data: requests, error: requestsError } = await supabase
             .from("requests")
             .select("*")
@@ -212,6 +226,72 @@ export default function CitizenDashboard() {
           <p className="font-semibold">Error loading dashboard:</p>
           <p className="text-sm">{fetchError}</p>
         </div>
+      )}
+
+      {/* Verification Status Banner */}
+      {!loading && verificationStatus !== "auto_verified" && verificationStatus !== "id_verified" && (
+        <Card className={
+          verificationStatus === "needs_review"
+            ? "border-orange-200 bg-orange-50"
+            : verificationStatus === "rejected"
+              ? "border-red-200 bg-red-50"
+              : "border-yellow-200 bg-yellow-50"
+        }>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              {verificationStatus === "needs_review" ? (
+                <Clock className="h-5 w-5 text-orange-600" />
+              ) : verificationStatus === "rejected" ? (
+                <ShieldAlert className="h-5 w-5 text-red-600" />
+              ) : (
+                <Shield className="h-5 w-5 text-yellow-600" />
+              )}
+              <span className={
+                verificationStatus === "needs_review" ? "text-orange-800"
+                : verificationStatus === "rejected" ? "text-red-800"
+                : "text-yellow-800"
+              }>
+                {verificationStatus === "needs_review"
+                  ? "Identity Verification Under Review"
+                  : verificationStatus === "rejected"
+                    ? "Identity Verification Rejected"
+                    : "Complete Your Identity Verification"}
+              </span>
+            </CardTitle>
+            <CardDescription className={
+              verificationStatus === "needs_review" ? "text-orange-700"
+              : verificationStatus === "rejected" ? "text-red-700"
+              : "text-yellow-700"
+            }>
+              {verificationStatus === "needs_review"
+                ? "Your ID is being reviewed by an administrator. You'll be notified once approved."
+                : verificationStatus === "rejected"
+                  ? "Your ID submission was rejected. Please upload a clearer image of a valid ID."
+                  : "Verify your identity to access all civic services. Upload a valid government ID."}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Link href="/citizen/verify-id">
+              <Button size="sm" className="bg-primary hover:bg-primary/90">
+                {verificationStatus === "rejected" ? "Re-upload ID" : "Verify Now"}
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
+      )}
+
+      {!loading && (verificationStatus === "auto_verified" || verificationStatus === "id_verified") && (
+        <Card className="border-green-200 bg-green-50">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg text-green-800">
+              <ShieldCheck className="h-5 w-5" />
+              Identity Verified
+            </CardTitle>
+            <CardDescription className="text-green-700">
+              Your identity has been verified with {verificationConfidence !== null ? `${Math.round(verificationConfidence)}% confidence` : "high"} confidence.
+            </CardDescription>
+          </CardHeader>
+        </Card>
       )}
 
       {/* Stats Grid */}

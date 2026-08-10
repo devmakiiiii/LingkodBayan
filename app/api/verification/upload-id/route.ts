@@ -1,0 +1,111 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { createServerClient } from '@supabase/ssr'
+
+const bucketName = 'id-documents'
+
+function buildSafeFileName(originalName: string): string {
+  const extensionMatch = originalName.match(/\.[a-z0-9]+$/i)
+  const extension = extensionMatch ? extensionMatch[0].toLowerCase() : '.png'
+  const baseName = originalName
+    .replace(extensionMatch?.[0] || '', '')
+    .normalize('NFKD')
+    .replace(/[^a-zA-Z0-9]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, 60)
+
+  return `${crypto.randomUUID()}-${Date.now()}-${baseName || 'id-document'}${extension}`
+}
+
+export async function POST(request: NextRequest) {
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll()
+        },
+        setAll() {},
+      },
+    },
+  )
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) {
+    return NextResponse.json({ error: 'Authentication required.' }, { status: 401 })
+  }
+
+  try {
+    const formData = await request.formData()
+    const file = formData.get('file')
+    const idType = formData.get('idType')?.toString() || 'philsys'
+
+    if (!(file instanceof File)) {
+      return NextResponse.json({ error: 'No file provided.' }, { status: 400 })
+    }
+
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf']
+    if (!allowedTypes.includes(file.type)) {
+      return NextResponse.json({ error: 'Invalid file type. Only JPG, PNG, and PDF are allowed.' }, { status: 400 })
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      return NextResponse.json({ error: 'File size must be less than 5MB.' }, { status: 400 })
+    }
+
+    const adminClient = createAdminClient()
+
+    // Ensure bucket exists
+    const { error: getBucketError } = await adminClient.storage.getBucket(bucketName)
+    if (getBucketError) {
+      const { error: createBucketError } = await adminClient.storage.createBucket(bucketName, {
+        public: false,
+        allowedMimeTypes: ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'],
+        fileSizeLimit: 5 * 1024 * 1024,
+      })
+      if (createBucketError) {
+        throw createBucketError
+      }
+    }
+
+    // Save to user-specific folder
+    const fileName = `id-documents/${user.id}/${buildSafeFileName(file.name)}`
+    const arrayBuffer = await file.arrayBuffer()
+    const uploadFile = Buffer.from(arrayBuffer)
+
+    const { error: uploadError } = await adminClient.storage.from(bucketName).upload(fileName, uploadFile, {
+      contentType: file.type || 'image/png',
+      upsert: true,
+    })
+
+    if (uploadError) {
+      console.error('[verification/upload-id] Upload error:', uploadError)
+      return NextResponse.json({ error: uploadError.message }, { status: 500 })
+    }
+
+    // Generate a signed URL for processing (valid for 5 minutes)
+    const { data: signedUrlData, error: signedUrlError } = await adminClient.storage
+      .from(bucketName)
+      .createSignedUrl(fileName, 300)
+
+    if (signedUrlError) {
+      console.error('[verification/upload-id] Signed URL error:', signedUrlError)
+      return NextResponse.json({ error: signedUrlError.message }, { status: 500 })
+    }
+
+    return NextResponse.json({
+      storagePath: fileName,
+      signedUrl: signedUrlData.signedUrl,
+      idType,
+    })
+  } catch (error: unknown) {
+    console.error('[verification/upload-id] Error:', error)
+    const message = error instanceof Error ? error.message : 'Failed to upload ID document.'
+    return NextResponse.json({ error: message }, { status: 500 })
+  }
+}

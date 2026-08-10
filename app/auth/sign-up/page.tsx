@@ -1,8 +1,6 @@
 'use client'
 
-import { createClient } from '@/lib/supabase/client'
-import { hasSupabaseConfig } from '@/lib/supabase/client'
-import { getOrCreateResidentProfile } from '@/lib/residents'
+import { createClient, hasSupabaseConfig } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -12,11 +10,14 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { PasswordInput } from '@/components/ui/password-input'
 import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
+import { CheckCircle2, AlertCircle, Loader2 } from 'lucide-react'
 
 export default function Page() {
   const [email, setEmail] = useState('')
@@ -24,29 +25,90 @@ export default function Page() {
   const [repeatPassword, setRepeatPassword] = useState('')
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
+  const [middleName, setMiddleName] = useState('')
+  const [dateOfBirth, setDateOfBirth] = useState('')
   const [barangay, setBarangay] = useState('')
   const [phone, setPhone] = useState('')
   const [address, setAddress] = useState('')
+  const [nationalId, setNationalId] = useState('')
+  const [idType, setIdType] = useState('philsys')
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+  const [isCheckingMatch, setIsCheckingMatch] = useState(false)
   const [rateLimitCountdown, setRateLimitCountdown] = useState<number | null>(null)
+  const [matchResult, setMatchResult] = useState<{
+    matched: boolean
+    confidence: number
+    action: 'auto_verify' | 'id_verify' | 'needs_review' | 'no_match'
+    matchedResident?: { firstName: string; lastName: string; email: string; barangay: string } | null
+  } | null>(null)
   const router = useRouter()
 
-  // Countdown timer for rate limit
   useEffect(() => {
     if (rateLimitCountdown === null) return
-    
+
     if (rateLimitCountdown <= 0) {
       setRateLimitCountdown(null)
       return
     }
-    
+
     const timer = setTimeout(() => {
       setRateLimitCountdown(rateLimitCountdown - 1)
     }, 1000)
-    
+
     return () => clearTimeout(timer)
   }, [rateLimitCountdown])
+
+  const checkVerificationMatch = async () => {
+    if (!email || !firstName || !lastName) {
+      return
+    }
+
+    setIsCheckingMatch(true)
+    setError(null)
+    setMatchResult(null)
+
+    try {
+      const response = await fetch('/api/verification/match', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          firstName,
+          lastName,
+          middleName,
+          email,
+          phone,
+          address,
+          barangay,
+          dateOfBirth,
+          nationalId,
+        }),
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to check verification match')
+      }
+
+      setMatchResult(result)
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to check verification'
+      setError(message)
+    } finally {
+      setIsCheckingMatch(false)
+    }
+  }
+
+  useEffect(() => {
+    if (firstName && lastName && email) {
+      const timer = setTimeout(() => {
+        checkVerificationMatch()
+      }, 500)
+
+      return () => clearTimeout(timer)
+    }
+  }, [firstName, lastName, email])
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -67,40 +129,44 @@ export default function Page() {
     }
 
     try {
-      const { data, error } = await supabase.auth.signUp({
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('signup_password', password)
+        sessionStorage.setItem('signup_verification_action', matchResult?.action || 'no_match')
+        sessionStorage.setItem('signup_national_id', nationalId || '')
+      }
+
+      const { data, error } = await supabase.auth.signInWithOtp({
         email,
-        password,
         options: {
+          shouldCreateUser: true,
           data: {
             first_name: firstName,
             last_name: lastName,
+            middle_name: middleName || undefined,
             barangay,
             phone: phone || undefined,
             address: address || undefined,
+            date_of_birth: dateOfBirth || undefined,
+            national_id: nationalId || undefined,
+            id_type: idType,
             role: 'citizen',
+            verification_action: matchResult?.action || 'no_match',
           },
         },
       })
       if (error) throw error
 
-      if (data.user && data.session) {
-        await getOrCreateResidentProfile(supabase, data.user)
-        router.push('/citizen/dashboard')
-        return
-      }
-
       router.push(`/auth/verify-otp?email=${encodeURIComponent(email)}`)
     } catch (error: unknown) {
       const err = error as any
-      
-      // Check for rate limit error (429) - check multiple possible properties
-      const isRateLimited = err?.status === 429 || 
+
+      const isRateLimited = err?.status === 429 ||
                             err?.code === '429' ||
                             err?.code === 'rate_limit_exceeded' ||
                             (typeof err?.message === 'string' && err.message.includes('Too Many Requests')) ||
                             (typeof err?.message === 'string' && err.message.includes('rate_limit')) ||
                             err?.name === 'RateLimitError'
-      
+
       if (isRateLimited) {
         const retryAfterHeader = err?.headers?.['retry-after'] || err?.headers?.['Retry-After']
         const retrySeconds = retryAfterHeader ? parseInt(retryAfterHeader, 10) : 30
@@ -112,6 +178,53 @@ export default function Page() {
     } finally {
       setIsLoading(false)
     }
+  }
+
+  const getMatchStatusDisplay = () => {
+    if (isCheckingMatch) {
+      return (
+        <div className="flex items-center gap-2 text-blue-700 bg-blue-50 border border-blue-200 px-4 py-2.5 rounded-lg text-sm">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          <span>Checking against pre-registered data...</span>
+        </div>
+      )
+    }
+
+    if (!matchResult) return null
+
+    if (matchResult.action === 'auto_verify') {
+      return (
+        <div className="flex items-center gap-2 text-green-700 bg-green-50 border border-green-200 px-4 py-2.5 rounded-lg text-sm">
+          <CheckCircle2 className="h-4 w-4" />
+          <span>Your details match our records. Your account will be auto-verified.</span>
+        </div>
+      )
+    }
+
+    if (matchResult.action === 'id_verify') {
+      return (
+        <div className="flex items-center gap-2 text-amber-700 bg-amber-50 border border-amber-200 px-4 py-2.5 rounded-lg text-sm">
+          <AlertCircle className="h-4 w-4" />
+          <span>Partial match found ({Math.round(matchResult.confidence)}% confidence). You may need to upload an ID after sign-up.</span>
+        </div>
+      )
+    }
+
+    if (matchResult.action === 'needs_review') {
+      return (
+        <div className="flex items-center gap-2 text-orange-700 bg-orange-50 border border-orange-200 px-4 py-2.5 rounded-lg text-sm">
+          <AlertCircle className="h-4 w-4" />
+          <span>Your details need manual review ({Math.round(matchResult.confidence)}% confidence). You may need to upload an ID after sign-up.</span>
+        </div>
+      )
+    }
+
+    return (
+      <div className="flex items-center gap-2 text-gray-700 bg-gray-50 border border-gray-200 px-4 py-2.5 rounded-lg text-sm">
+        <AlertCircle className="h-4 w-4" />
+        <span>No match found in pre-registered data. You can still sign up, but you may need to upload an ID for verification.</span>
+      </div>
+    )
   }
 
   return (
@@ -169,6 +282,36 @@ export default function Page() {
                     className="bg-[#E8F4FD] border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#28A745]"
                   />
                 </div>
+
+                {/* Middle Name */}
+                <div className="space-y-2">
+                  <Label htmlFor="middle-name" className="text-sm font-medium text-gray-700">
+                    Middle Name
+                  </Label>
+                  <Input
+                    id="middle-name"
+                    type="text"
+                    placeholder="Santos"
+                    value={middleName}
+                    onChange={(e) => setMiddleName(e.target.value)}
+                    className="bg-[#E8F4FD] border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#28A745]"
+                  />
+                </div>
+
+                {/* Date of Birth */}
+                <div className="space-y-2">
+                  <Label htmlFor="date-of-birth" className="text-sm font-medium text-gray-700">
+                    Date of Birth
+                  </Label>
+                  <Input
+                    id="date-of-birth"
+                    type="date"
+                    required
+                    value={dateOfBirth}
+                    onChange={(e) => setDateOfBirth(e.target.value)}
+                    className="bg-[#E8F4FD] border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#28A745]"
+                  />
+                </div>
               </div>
 
               <div className="space-y-4 mb-4">
@@ -196,7 +339,7 @@ export default function Page() {
                   <Input
                     id="barangay"
                     type="text"
-                    placeholder="e.g., Barangay 1"
+                    placeholder="e.g., Barangay San Antonio"
                     required
                     value={barangay}
                     onChange={(e) => setBarangay(e.target.value)}
@@ -234,20 +377,55 @@ export default function Page() {
                   />
                 </div>
 
+                {/* National ID */}
+                <div className="space-y-2">
+                  <Label htmlFor="national-id" className="text-sm font-medium text-gray-700">
+                    National ID (Optional)
+                  </Label>
+                  <Input
+                    id="national-id"
+                    type="text"
+                    placeholder="12-digit PhilSys number"
+                    value={nationalId}
+                    onChange={(e) => setNationalId(e.target.value)}
+                    className="w-full bg-[#E8F4FD] border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#28A745]"
+                  />
+                </div>
+
+                {/* ID Type */}
+                <div className="space-y-2">
+                  <Label htmlFor="id-type" className="text-sm font-medium text-gray-700">
+                    ID Type
+                  </Label>
+                  <Select value={idType} onValueChange={setIdType}>
+                    <SelectTrigger className="w-full bg-[#E8F4FD] border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#28A745]">
+                      <SelectValue placeholder="Select ID type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="philsys">PhilSys (Philhealth ID)</SelectItem>
+                      <SelectItem value="drivers_license">Driver's License</SelectItem>
+                      <SelectItem value="voter">Voter's ID</SelectItem>
+                      <SelectItem value="passport">Passport</SelectItem>
+                      <SelectItem value="umid">UMID</SelectItem>
+                      <SelectItem value="sss">SSS ID</SelectItem>
+                      <SelectItem value="tin">TIN ID</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
                 {/* Password */}
                 <div className="space-y-2">
                   <Label htmlFor="password" className="text-sm font-medium text-gray-700">
                     Password
                   </Label>
-                  <Input
-                    id="password"
-                    type="password"
-                    placeholder="••••••••"
-                    required
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="w-full bg-[#E8F4FD] border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#28A745]"
-                  />
+                 <PasswordInput
+                   id="password"
+                   placeholder="••••••••"
+                   required
+                   value={password}
+                   onChange={(e) => setPassword(e.target.value)}
+                   className="w-full bg-[#E8F4FD] border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#28A745]"
+                 />
                 </div>
 
                 {/* Confirm Password */}
@@ -255,15 +433,19 @@ export default function Page() {
                   <Label htmlFor="repeat-password" className="text-sm font-medium text-gray-700">
                     Confirm Password
                   </Label>
-                  <Input
-                    id="repeat-password"
-                    type="password"
-                    placeholder="••••••••"
-                    required
-                    value={repeatPassword}
-                    onChange={(e) => setRepeatPassword(e.target.value)}
-                    className="w-full bg-[#E8F4FD] border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#28A745]"
-                  />
+                 <PasswordInput
+                   id="repeat-password"
+                   placeholder="••••••••"
+                   required
+                   value={repeatPassword}
+                   onChange={(e) => setRepeatPassword(e.target.value)}
+                   className="w-full bg-[#E8F4FD] border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#28A745]"
+                 />
+                </div>
+
+                {/* Verification Match Status */}
+                <div className="pt-2">
+                  {getMatchStatusDisplay()}
                 </div>
 
                 {/* Error Message */}
@@ -281,7 +463,7 @@ export default function Page() {
                   disabled={isLoading || rateLimitCountdown !== null}
                   className="w-full bg-[#28A745] hover:bg-[#228039] text-white font-medium py-2.5 rounded-lg transition-colors"
                 >
-                  {isLoading ? 'Creating account...' : 
+                  {isLoading ? 'Creating account...' :
                    rateLimitCountdown !== null ? `Wait ${rateLimitCountdown}s...` : 'Create Account'}
                 </Button>
 

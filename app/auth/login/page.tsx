@@ -11,6 +11,7 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { PasswordInput } from '@/components/ui/password-input'
 import { Label } from '@/components/ui/label'
 import Image from 'next/image'
 import Link from 'next/link'
@@ -45,7 +46,8 @@ export default function Page() {
       
       // Check user role and redirect accordingly
       const { data: { user } } = await supabase.auth.getUser()
-      if (user?.user_metadata?.role === 'admin') {
+      const role = user?.user_metadata?.role || user?.app_metadata?.role
+      if (role === 'admin' || role === 'super_admin') {
         router.push('/admin/dashboard')
       } else {
         router.push('/citizen/dashboard')
@@ -118,15 +120,14 @@ export default function Page() {
                   <Label htmlFor="password" className="text-sm font-medium text-gray-700">
                     Password
                   </Label>
-                  <Input
-                    id="password"
-                    type="password"
-                    placeholder="••••••••"
-                    required
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="bg-white border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#28A745]"
-                  />
+                   <PasswordInput
+                     id="password"
+                     placeholder="••••••••"
+                     required
+                     value={password}
+                     onChange={(e) => setPassword(e.target.value)}
+                     className="bg-white border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#28A745]"
+                   />
                 </div>
 
                 {/* Error Message */}

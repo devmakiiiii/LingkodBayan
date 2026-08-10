@@ -92,15 +92,29 @@ export default function AdminOfficialsPage() {
         supabase.from('officials').select('*, designations(id, name, category, priority_order, badge_color)').order('created_at', { ascending: false }),
       ])
 
-      if (designationError) throw designationError
-      if (officialError) throw officialError
+      if (designationError) {
+        console.error('Designations query error:', designationError)
+        console.error('Designation error type:', typeof designationError)
+        console.error('Designation error keys:', Object.keys(designationError))
+        throw designationError
+      }
+
+      if (officialError) {
+        console.error('Officials query error:', officialError)
+        console.error('Official error type:', typeof officialError)
+        console.error('Official error keys:', Object.keys(officialError))
+        throw officialError
+      }
 
       if (!designationData || designationData.length === 0) {
         const { error: seedError } = await supabase
           .from('designations')
           .upsert(defaultDesignations, { onConflict: 'name,category' })
 
-        if (seedError) throw seedError
+        if (seedError) {
+          console.error('Seeding designations error:', seedError)
+          throw seedError
+        }
 
         const { data: seededDesignations, error: reFetchError } = await supabase
           .from('designations')
@@ -108,7 +122,10 @@ export default function AdminOfficialsPage() {
           .order('priority_order', { ascending: true })
           .order('name', { ascending: true })
 
-        if (reFetchError) throw reFetchError
+        if (reFetchError) {
+          console.error('Re-fetching designations error:', reFetchError)
+          throw reFetchError
+        }
 
         setDesignations((seededDesignations || []) as DesignationRecord[])
       } else {
@@ -118,7 +135,10 @@ export default function AdminOfficialsPage() {
       setOfficials((officialData || []).map(mapOfficialRow))
     } catch (error) {
       console.error('Error loading officials:', error)
-      setLoadError(error instanceof Error ? error.message : 'Failed to load officials data')
+      console.error('Caught error type:', typeof error)
+      console.error('Caught error constructor:', error?.constructor?.name)
+      console.error('Caught error JSON:', JSON.stringify(error, null, 2))
+      setLoadError(error instanceof Error ? error.message : JSON.stringify(error) || 'Failed to load officials data')
     } finally {
       setLoading(false)
     }

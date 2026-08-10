@@ -623,3 +623,271 @@ export async function getServiceCategoryRequirements(categoryId: string) {
 
   return data || []
 }
+
+// ============================================================================
+// Identity Verification functions
+// ============================================================================
+
+export interface PreRegisteredResidentData {
+  firstName: string
+  lastName: string
+  middleName?: string
+  dateOfBirth?: string
+  email: string
+  phone?: string
+  streetAddress?: string
+  barangay: string
+  cityMunicipality?: string
+  province?: string
+  postalCode?: string
+  nationalId?: string
+  idType?: string
+  source?: string
+  importBatchId?: string
+}
+
+export async function createPreRegisteredResident(data: PreRegisteredResidentData) {
+  const supabase = await createClient()
+
+  const { data: result, error } = await supabase
+    .from('pre_registered_residents')
+    .insert([
+      {
+        first_name: data.firstName,
+        last_name: data.lastName,
+        middle_name: data.middleName || null,
+        date_of_birth: data.dateOfBirth || null,
+        email: data.email,
+        phone: data.phone || null,
+        street_address: data.streetAddress || null,
+        barangay: data.barangay,
+        city_municipality: data.cityMunicipality || null,
+        province: data.province || 'Metro Manila',
+        postal_code: data.postalCode || null,
+        national_id: data.nationalId || null,
+        id_type: data.idType || null,
+        source: data.source || 'manual',
+        import_batch_id: data.importBatchId || null,
+      },
+    ])
+    .select()
+    .single()
+
+  if (error) throw new Error(`Failed to create pre-registered resident: ${error.message}`)
+  return result
+}
+
+export async function searchPreRegisteredResidents(filters: {
+  email?: string
+  phone?: string
+  nationalId?: string
+  firstName?: string
+  lastName?: string
+  barangay?: string
+}) {
+  const supabase = await createClient()
+
+  let query = supabase.from('pre_registered_residents').select('*')
+
+  if (filters.email) {
+    query = query.ilike('email', filters.email.trim().toLowerCase())
+  }
+  if (filters.phone) {
+    const cleanPhone = filters.phone.replace(/\D/g, '')
+    query = query.ilike('phone', `%${cleanPhone}%`)
+  }
+  if (filters.nationalId) {
+    const cleanId = filters.nationalId.replace(/\D/g, '')
+    if (cleanId) query = query.ilike('national_id', `%${cleanId}%`)
+  }
+  if (filters.firstName && filters.lastName) {
+    query = query
+      .ilike('first_name', `${filters.firstName.trim().toLowerCase()}%`)
+      .ilike('last_name', `${filters.lastName.trim().toLowerCase()}%`)
+  }
+  if (filters.barangay) {
+    query = query.ilike('barangay', `%${filters.barangay.trim().toLowerCase()}%`)
+  }
+
+  const { data, error } = await query.limit(50)
+
+  if (error) throw new Error(`Failed to search pre-registered residents: ${error.message}`)
+  return data || []
+}
+
+export async function getPreRegisteredResidentById(id: string) {
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from('pre_registered_residents')
+    .select('*')
+    .eq('id', id)
+    .single()
+
+  if (error?.code === 'PGRST116') return null
+  if (error) throw new Error(`Failed to get pre-registered resident: ${error.message}`)
+  return data
+}
+
+export async function getResidentVerification(userId: string) {
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from('residents')
+    .select(
+      'id, verification_status, verification_method, verification_confidence, verification_details, id_document_type, id_document_url, verified_at, verified_by',
+    )
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+    .limit(1)
+
+  if (error) throw new Error(`Failed to get resident verification: ${error.message}`)
+  return data?.[0] ?? null
+}
+
+export async function updateResidentVerification(
+  residentId: string,
+  updates: {
+    verificationStatus?: string
+    verificationMethod?: string
+    verificationConfidence?: number
+    verificationDetails?: Record<string, unknown>
+    idDocumentType?: string
+    idDocumentUrl?: string
+    verifiedAt?: string
+    verifiedBy?: string
+  },
+) {
+  const supabase = await createClient()
+
+  const updateData: Record<string, unknown> = {}
+  if (updates.verificationStatus) updateData.verification_status = updates.verificationStatus
+  if (updates.verificationMethod) updateData.verification_method = updates.verificationMethod
+  if (updates.verificationConfidence !== undefined) updateData.verification_confidence = updates.verificationConfidence
+  if (updates.verificationDetails) updateData.verification_details = updates.verificationDetails
+  if (updates.idDocumentType) updateData.id_document_type = updates.idDocumentType
+  if (updates.idDocumentUrl) updateData.id_document_url = updates.idDocumentUrl
+  if (updates.verifiedAt) updateData.verified_at = updates.verifiedAt
+  if (updates.verifiedBy) updateData.verified_by = updates.verifiedBy
+  updateData.updated_at = new Date()
+
+  const { data, error } = await supabase
+    .from('residents')
+    .update(updateData)
+    .eq('id', residentId)
+    .select()
+    .single()
+
+  if (error) throw new Error(`Failed to update resident verification: ${error.message}`)
+  return data
+}
+
+export interface VerificationAttemptData {
+  residentId: string
+  attemptType: 'form_match' | 'id_ocr' | 'manual_review'
+  inputData?: Record<string, unknown>
+  matchedPreRegisteredId?: string
+  matchScore?: number
+  confidenceBreakdown?: Record<string, number>
+  ocrExtractedData?: Record<string, unknown>
+  status: 'matched' | 'no_match' | 'needs_review' | 'rejected'
+}
+
+export async function logVerificationAttempt(data: VerificationAttemptData) {
+  const supabase = await createClient()
+
+  const { data: result, error } = await supabase
+    .from('verification_attempts')
+    .insert([
+      {
+        resident_id: data.residentId,
+        attempt_type: data.attemptType,
+        input_data: data.inputData || null,
+        matched_pre_registered_id: data.matchedPreRegisteredId || null,
+        match_score: data.matchScore || null,
+        confidence_breakdown: data.confidenceBreakdown || null,
+        ocr_extracted_data: data.ocrExtractedData || null,
+        status: data.status,
+      },
+    ])
+    .select()
+    .single()
+
+  if (error) throw new Error(`Failed to log verification attempt: ${error.message}`)
+  return result
+}
+
+export async function getVerificationAttempts(filters?: {
+  status?: string
+  residentId?: string
+  limit?: number
+}) {
+  const supabase = await createClient()
+
+  let query = supabase
+    .from('verification_attempts')
+    .select(`
+      *,
+      residents!inner(id, first_name, last_name, email, verification_status),
+      pre_registered_residents!left(id, first_name, last_name, email, national_id)
+    `)
+    .order('created_at', { ascending: false })
+
+  if (filters?.status) {
+    query = query.eq('status', filters.status)
+  }
+  if (filters?.residentId) {
+    query = query.eq('resident_id', filters.residentId)
+  }
+  if (filters?.limit) {
+    query = query.limit(filters.limit)
+  }
+
+  const { data, error } = await query
+
+  if (error) throw new Error(`Failed to get verification attempts: ${error.message}`)
+  return data || []
+}
+
+export async function getVerificationAttemptById(id: string) {
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from('verification_attempts')
+    .select(`
+      *,
+      residents!inner(id, first_name, last_name, email, verification_status),
+      pre_registered_residents!left(id, first_name, last_name, email, national_id)
+    `)
+    .eq('id', id)
+    .single()
+
+  if (error?.code === 'PGRST116') return null
+  if (error) throw new Error(`Failed to get verification attempt: ${error.message}`)
+  return data
+}
+
+export async function updateVerificationAttempt(
+  attemptId: string,
+  updates: {
+    status?: string
+    reviewedBy?: string
+  },
+) {
+  const supabase = await createClient()
+
+  const updateData: Record<string, unknown> = {}
+  if (updates.status) updateData.status = updates.status
+  if (updates.reviewedBy) updateData.reviewed_by = updates.reviewedBy
+  if (updates.reviewedBy) updateData.reviewed_at = new Date().toISOString()
+
+  const { data, error } = await supabase
+    .from('verification_attempts')
+    .update(updateData)
+    .eq('id', attemptId)
+    .select()
+    .single()
+
+  if (error) throw new Error(`Failed to update verification attempt: ${error.message}`)
+  return data
+}

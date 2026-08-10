@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
-import { LogOut, Menu, X, Home, Users, BarChart3, List, AlertCircle, Settings, ChevronDown, Loader2, Megaphone } from 'lucide-react'
+import { LogOut, Menu, X, Home, Users, BarChart3, List, AlertCircle, Settings, ChevronDown, Loader2, Megaphone, ShieldCheck } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -34,6 +34,7 @@ const navItems = [
     hasDropdown: true,
     items: [
       { label: 'All Residents', href: '/admin/residents' },
+      { label: 'Pre-Registered Data', href: '/admin/pre-registered-residents' },
       { label: 'Resident Reports', href: '/admin/resident-reports' },
     ]
   },
@@ -48,6 +49,7 @@ const navItems = [
   },
   { label: 'Request List', href: '/admin/requests', icon: List },
   { label: 'Complaints List', href: '/admin/complaints', icon: AlertCircle },
+  { label: 'Identity Verification', href: '/admin/verification', icon: ShieldCheck },
   { label: 'Announcements', href: '/admin/announcements', icon: Megaphone },
   { 
     label: 'Settings',

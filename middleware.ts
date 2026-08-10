@@ -42,20 +42,49 @@ export async function middleware(request: NextRequest) {
 
   // Redirect logic for role-based access
   if (user) {
-    const userRole = user.user_metadata?.role || 'citizen'
+    const userRole = user.user_metadata?.role || user.app_metadata?.role || 'citizen'
     
     // If admin tries to access citizen routes
-    if (pathname.startsWith('/citizen') && userRole === 'admin') {
+    if (pathname.startsWith('/citizen') && (userRole === 'admin' || userRole === 'super_admin')) {
       const url = request.nextUrl.clone()
       url.pathname = '/admin'
       return NextResponse.redirect(url)
     }
     
     // If citizen tries to access admin routes
-    if (pathname.startsWith('/admin') && userRole !== 'admin') {
+    if (pathname.startsWith('/admin') && userRole !== 'admin' && userRole !== 'super_admin') {
       const url = request.nextUrl.clone()
       url.pathname = '/citizen'
       return NextResponse.redirect(url)
+    }
+
+    // Verification gate for citizen routes
+    if (userRole === 'citizen' && pathname.startsWith('/citizen')) {
+      // Allow access to these paths without verification check
+      const allowedPaths = [
+        '/citizen/verify-id',
+        '/citizen/dashboard',
+        '/citizen/announcements',
+        '/citizen/notifications',
+      ]
+      const isAllowedPath = allowedPaths.some((p) => pathname === p || pathname.startsWith(p + '/'))
+
+      if (!isAllowedPath) {
+        const { data: resident } = await supabase
+          .from('residents')
+          .select('verification_status')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single()
+
+        const status = resident?.verification_status
+        if (status && status !== 'auto_verified' && status !== 'id_verified') {
+          const url = request.nextUrl.clone()
+          url.pathname = '/citizen/verify-id'
+          return NextResponse.redirect(url)
+        }
+      }
     }
   } else if (pathname.startsWith('/citizen') || pathname.startsWith('/admin')) {
     // Not logged in and trying to access protected routes
