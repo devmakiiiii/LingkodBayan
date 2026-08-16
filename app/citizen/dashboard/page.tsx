@@ -15,7 +15,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import Link from "next/link";
 import { AlertCircle, CheckCircle2, Clock, Bell, Shield, ShieldCheck, ShieldAlert } from "lucide-react";
 import { getOrCreateResidentProfile } from "@/lib/residents";
-import { getResidentVerification } from "@/lib/db";
+
 import { useNotifications } from "@/hooks/use-notifications";
 import {
   getRequestTypeTitle,
@@ -94,13 +94,19 @@ export default function CitizenDashboard() {
         if (resident) {
           // Check verification status
           try {
-            const verification = await getResidentVerification(user!.id);
-            if (verification) {
-              setVerificationStatus(verification.verification_status);
-              setVerificationConfidence(verification.verification_confidence);
+            const { data: verification } = await supabase
+              .from('residents')
+              .select('verification_status, verification_confidence')
+              .eq('user_id', user!.id)
+              .order('created_at', { ascending: false })
+              .limit(1)
+
+            if (verification?.[0]) {
+              setVerificationStatus(verification[0].verification_status)
+              setVerificationConfidence(verification[0].verification_confidence)
             }
           } catch (verError) {
-            console.warn("Failed to fetch verification status:", verError);
+            console.warn("Failed to fetch verification status:", verError)
           }
 
           const { data: requests, error: requestsError } = await supabase

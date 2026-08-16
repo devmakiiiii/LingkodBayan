@@ -60,20 +60,6 @@ export async function POST(request: NextRequest) {
 
     const adminClient = createAdminClient()
 
-    // Ensure bucket exists
-    const { error: getBucketError } = await adminClient.storage.getBucket(bucketName)
-    if (getBucketError) {
-      const { error: createBucketError } = await adminClient.storage.createBucket(bucketName, {
-        public: false,
-        allowedMimeTypes: ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'],
-        fileSizeLimit: 5 * 1024 * 1024,
-      })
-      if (createBucketError) {
-        throw createBucketError
-      }
-    }
-
-    // Save to user-specific folder
     const fileName = `id-documents/${user.id}/${buildSafeFileName(file.name)}`
     const arrayBuffer = await file.arrayBuffer()
     const uploadFile = Buffer.from(arrayBuffer)
@@ -84,8 +70,18 @@ export async function POST(request: NextRequest) {
     })
 
     if (uploadError) {
-      console.error('[verification/upload-id] Upload error:', uploadError)
-      return NextResponse.json({ error: uploadError.message }, { status: 500 })
+      if (uploadError.message === 'The resource already exists') {
+        const { error: updateError } = await adminClient.storage.from(bucketName).update(fileName, uploadFile, {
+          contentType: file.type || 'image/png',
+        })
+        if (updateError) {
+          console.error('[verification/upload-id] Update error:', updateError)
+          return NextResponse.json({ error: updateError.message }, { status: 500 })
+        }
+      } else {
+        console.error('[verification/upload-id] Upload error:', uploadError)
+        return NextResponse.json({ error: uploadError.message }, { status: 500 })
+      }
     }
 
     // Generate a signed URL for processing (valid for 5 minutes)

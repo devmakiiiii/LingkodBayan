@@ -187,7 +187,7 @@ async function runOcr(signedUrl: string): Promise<{ text: string; confidence: nu
   // Use Google Vision API if key is configured
   if (process.env.GOOGLE_VISION_API_KEY) {
     try {
-      const visionResponse = await fetch(
+      const visionPromise = fetch(
         `https://vision.googleapis.com/v1/images:annotate?key=${process.env.GOOGLE_VISION_API_KEY}`,
         {
           method: 'POST',
@@ -200,8 +200,14 @@ async function runOcr(signedUrl: string): Promise<{ text: string; confidence: nu
               },
             ],
           }),
-        },
+        }
       )
+
+      const visionTimeoutPromise = new Promise<Response>((_, reject) =>
+        setTimeout(() => reject(new Error('Google Vision API timed out')), 15000)
+      )
+
+      const visionResponse = await Promise.race([visionPromise, visionTimeoutPromise])
 
       if (visionResponse.ok) {
         const visionData = await visionResponse.json()
@@ -226,7 +232,12 @@ async function runOcr(signedUrl: string): Promise<{ text: string; confidence: nu
     await worker.loadLanguage('eng')
     await worker.initialize('eng')
 
-    const result: any = await worker.recognize(signedUrl)
+    const recognizePromise = worker.recognize(signedUrl)
+    const recognizeTimeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('Tesseract.js recognition timed out')), 30000)
+    )
+
+    const result: any = await Promise.race([recognizePromise, recognizeTimeoutPromise])
 
     await worker.terminate()
 

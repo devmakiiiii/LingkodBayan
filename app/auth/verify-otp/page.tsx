@@ -12,7 +12,6 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { createClient, hasSupabaseConfig } from '@/lib/supabase/client'
 import { getOrCreateResidentProfile } from '@/lib/residents'
-import { getResident, updateResidentVerification } from '@/lib/db'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -82,26 +81,6 @@ export default function Page() {
       if (data.user) {
         await getOrCreateResidentProfile(supabase, data.user)
 
-        // Apply automatic verification if the sign-up matched pre-registered data
-        const verificationAction =
-          typeof window !== 'undefined'
-            ? sessionStorage.getItem('signup_verification_action')
-            : null
-
-        if (verificationAction === 'auto_verify' && data.user) {
-          const resident = await getResident(data.user.id)
-          if (resident) {
-            await updateResidentVerification(resident.id, {
-              verificationStatus: 'auto_verified',
-              verificationMethod: 'form_match',
-              verificationConfidence: 100,
-              verificationDetails: {
-                source: 'sign_up_auto_match',
-              },
-              verifiedAt: new Date().toISOString(),
-            })
-          }
-        }
 
         // Clean up session storage
         if (typeof window !== 'undefined') {

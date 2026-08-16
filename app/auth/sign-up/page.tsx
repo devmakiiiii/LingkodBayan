@@ -156,7 +156,7 @@ export default function Page() {
       })
       if (error) throw error
 
-      router.push(`/auth/verify-otp?email=${encodeURIComponent(email)}`)
+      router.push(`/auth/sign-up-success?email=${encodeURIComponent(email)}`)
     } catch (error: unknown) {
       const err = error as any
 

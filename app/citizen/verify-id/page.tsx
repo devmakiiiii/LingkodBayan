@@ -98,10 +98,16 @@ export default function VerifyIdPage() {
       formData.append('file', selectedFile)
       formData.append('idType', idType)
 
-      const res = await fetch('/api/verification/upload-id', {
+      const uploadPromise = fetch('/api/verification/upload-id', {
         method: 'POST',
         body: formData,
       })
+
+      const timeoutPromise = new Promise<Response>((_, reject) =>
+        setTimeout(() => reject(new Error('Upload timed out. Please try again.')), 30000)
+      )
+
+      const res = await Promise.race([uploadPromise, timeoutPromise])
 
       if (!res.ok) {
         const data = await res.json()
@@ -147,7 +153,7 @@ export default function VerifyIdPage() {
         }
       }
 
-      const res = await fetch('/api/verification/process-id', {
+      const processPromise = fetch('/api/verification/process-id', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -156,6 +162,12 @@ export default function VerifyIdPage() {
           expectedValues,
         }),
       })
+
+      const processTimeoutPromise = new Promise<Response>((_, reject) =>
+        setTimeout(() => reject(new Error('ID processing timed out. Please try again.')), 60000)
+      )
+
+      const res = await Promise.race([processPromise, processTimeoutPromise])
 
       if (!res.ok) {
         const data = await res.json()

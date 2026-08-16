@@ -33,20 +33,60 @@ function getUserAddress(user: User) {
   return null
 }
 
+async function applyAutoVerification(
+  supabase: SupabaseClient,
+  residentId: string,
+) {
+  const { error: updateError } = await supabase
+    .from('residents')
+    .update({
+      verification_status: 'auto_verified',
+      verification_method: 'form_match',
+      verification_confidence: 100,
+      verification_details: { source: 'sign_up_auto_match' },
+      verified_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', residentId)
+
+  if (updateError) {
+    console.error('applyAutoVerification - update error:', updateError)
+    return
+  }
+
+  const { error: logError } = await supabase
+    .from('verification_attempts')
+    .insert([
+      {
+        resident_id: residentId,
+        attempt_type: 'form_match',
+        input_data: null,
+        matched_pre_registered_id: null,
+        match_score: 100,
+        confidence_breakdown: { source: 'sign_up_auto_match' },
+        ocr_extracted_data: null,
+        status: 'matched',
+      },
+    ])
+
+  if (logError) {
+    console.error('applyAutoVerification - log error:', logError)
+  }
+}
+
 export async function getOrCreateResidentProfile(
   supabase: SupabaseClient,
   user: User,
 ): Promise<ResidentProfile | null> {
   const { data: residents, error: residentError } = await supabase
     .from('residents')
-    .select('id, user_id, first_name, last_name, email, phone, address, barangay')
+    .select('id, user_id, first_name, last_name, email, phone, address, barangay, verification_status')
     .eq('user_id', user.id)
     .order('created_at', { ascending: false })
     .limit(1)
 
   if (residentError) {
-    // Extract error details for better debugging
-    const errorMessage = 'message' in residentError 
+    const errorMessage = 'message' in residentError
       ? String(residentError.message)
       : JSON.stringify(residentError)
     console.error('getOrCreateResidentProfile - SELECT error:', errorMessage, residentError)
@@ -55,6 +95,14 @@ export async function getOrCreateResidentProfile(
 
   const existingResident = residents?.[0] ?? null
   if (existingResident) {
+    const verificationAction = user.user_metadata?.verification_action
+    if (
+      verificationAction === 'auto_verify' &&
+      existingResident.verification_status !== 'auto_verified' &&
+      existingResident.verification_status !== 'id_verified'
+    ) {
+      await applyAutoVerification(supabase, existingResident.id)
+    }
     return existingResident as ResidentProfile
   }
 
@@ -65,7 +113,6 @@ export async function getOrCreateResidentProfile(
   const phone = getUserPhone(user)
   const address = getUserAddress(user)
 
-  // Check for missing metadata that prevents profile creation
   const missingFields: string[] = []
   if (!firstName) missingFields.push('first_name')
   if (!lastName) missingFields.push('last_name')
@@ -90,16 +137,21 @@ export async function getOrCreateResidentProfile(
         barangay,
       },
     ])
-    .select('id, user_id, first_name, last_name, email, phone, address, barangay')
+    .select('id, user_id, first_name, last_name, email, phone, address, barangay, verification_status')
     .single()
 
   if (insertError) {
-    // Extract error details for better debugging
-    const errorMessage = 'message' in insertError 
+    const errorMessage = 'message' in insertError
       ? String(insertError.message)
       : JSON.stringify(insertError)
     console.error('getOrCreateResidentProfile - INSERT error:', errorMessage, insertError)
     throw insertError
+  }
+
+  const verificationAction = user.user_metadata?.verification_action
+  if (verificationAction === 'auto_verify' && createdResident) {
+    await applyAutoVerification(supabase, createdResident.id)
+    return { ...createdResident, verification_status: 'auto_verified' } as ResidentProfile
   }
 
   return createdResident as ResidentProfile

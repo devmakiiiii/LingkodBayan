@@ -13,13 +13,6 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { AlertCircle, CheckCircle2, Clock, User, FileText, ExternalLink } from 'lucide-react'
@@ -67,7 +60,6 @@ export default function AdminVerificationPage() {
   const [attempts, setAttempts] = useState<VerificationAttempt[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedAttempt, setSelectedAttempt] = useState<VerificationAttempt | null>(null)
-  const [reviewStatus, setReviewStatus] = useState<string>('')
   const [reviewNotes, setReviewNotes] = useState('')
   const [isUpdating, setIsUpdating] = useState(false)
 
@@ -86,49 +78,6 @@ export default function AdminVerificationPage() {
       toast.error('Failed to load verification attempts')
     } finally {
       setLoading(false)
-    }
-  }
-
-  async function handleReview() {
-    if (!selectedAttempt || !reviewStatus) return
-
-    setIsUpdating(true)
-    try {
-      const verificationStatus =
-        reviewStatus === 'matched'
-          ? selectedAttempt.match_score && selectedAttempt.match_score >= 75
-            ? 'id_verified'
-            : 'auto_verified'
-          : reviewStatus === 'rejected'
-            ? 'rejected'
-            : 'needs_review'
-
-      const res = await fetch('/api/admin/verification/attempts', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          attemptId: selectedAttempt.id,
-          status: reviewStatus,
-          residentId: selectedAttempt.resident_id,
-          verificationStatus,
-          verificationMethod: 'manual',
-          verificationConfidence: selectedAttempt.match_score || 0,
-          notes: reviewNotes,
-        }),
-      })
-
-      if (!res.ok) throw new Error('Failed to update verification attempt')
-
-      toast.success('Verification status updated successfully')
-      fetchAttempts()
-      setSelectedAttempt(null)
-      setReviewStatus('')
-      setReviewNotes('')
-    } catch (err) {
-      console.error('Error updating verification:', err)
-      toast.error('Failed to update verification status')
-    } finally {
-      setIsUpdating(false)
     }
   }
 
@@ -319,10 +268,21 @@ export default function AdminVerificationPage() {
                                   </div>
                                 </div>
                               )}
+
+                              <div>
+                                <Label className="text-xs font-medium text-muted-foreground">Review Notes</Label>
+                                <Textarea
+                                  value={reviewNotes}
+                                  onChange={(e) => setReviewNotes(e.target.value)}
+                                  placeholder="Add notes about this verification decision..."
+                                  className="mt-1"
+                                  rows={3}
+                                />
+                              </div>
                             </div>
 
                             <DialogFooter>
-                              <Button variant="outline" onClick={() => setSelectedAttempt(null)}>
+                              <Button variant="outline" onClick={() => { setSelectedAttempt(null); setReviewNotes('') }}>
                                 Cancel
                               </Button>
                               <Button
@@ -330,6 +290,7 @@ export default function AdminVerificationPage() {
                                 onClick={async () => {
                                   await handleReviewSubmit('rejected')
                                   setSelectedAttempt(null)
+                                  setReviewNotes('')
                                 }}
                               >
                                 Reject
@@ -339,6 +300,7 @@ export default function AdminVerificationPage() {
                                 onClick={async () => {
                                   await handleReviewSubmit('matched')
                                   setSelectedAttempt(null)
+                                  setReviewNotes('')
                                 }}
                               >
                                 Approve
