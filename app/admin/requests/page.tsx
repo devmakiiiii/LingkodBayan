@@ -1,11 +1,12 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { createClient, hasSupabaseConfig } from '@/lib/supabase/client'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Empty } from '@/components/ui/empty'
 import { Eye, FileSpreadsheet } from 'lucide-react'
 import {
@@ -89,6 +90,51 @@ function getSectionStatuses(section: RequestSectionFilter) {
   }
 }
 
+const PAGE_SIZE = 20
+
+const RequestRow = React.memo(function RequestRow({
+  request,
+  onView,
+}: {
+  request: Request
+  onView: (request: Request) => void
+}) {
+  return (
+    <TableRow>
+      <TableCell className="font-medium">
+        {request.residents
+          ? `${request.residents.first_name} ${request.residents.last_name}`
+          : 'Resident record unavailable'}
+        <div className="text-xs text-muted-foreground">{request.residents?.email || 'No email available'}</div>
+      </TableCell>
+      <TableCell>
+        <Badge variant="outline" className="bg-background">
+          {getRequestTypeTitle(request.request_type, request.title)}
+        </Badge>
+        <div className="mt-2 text-xs text-muted-foreground">
+          {getRequestSummaryValue(request.request_type, request.payload, request.description)}
+        </div>
+      </TableCell>
+      <TableCell>{new Date(request.created_at).toLocaleDateString('en-PH')}</TableCell>
+      <TableCell>
+        <Badge className={getRequestStatusClassName(request.status)}>
+          {getRequestStatusLabel(request.status)}
+        </Badge>
+      </TableCell>
+      <TableCell className="text-right">
+        <Button
+          variant="outline"
+          className="border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+          onClick={() => onView(request)}
+        >
+          <Eye className="mr-2 h-4 w-4" />
+          View
+        </Button>
+      </TableCell>
+    </TableRow>
+  )
+})
+
 export default function AdminRequestsPage() {
   const [requests, setRequests] = useState<Request[]>([])
   const [loading, setLoading] = useState(true)
@@ -96,13 +142,59 @@ export default function AdminRequestsPage() {
   const [loadError, setLoadError] = useState<string | null>(null)
   const [selectedRequest, setSelectedRequest] = useState<Request | null>(null)
   const [isDetailOpen, setIsDetailOpen] = useState(false)
+  const [page, setPage] = useState(0)
   const searchParams = useSearchParams()
 
   const activeSection = normalizeSectionFilter(searchParams.get('status'))
 
+  const loadRequests = useCallback(async () => {
+    try {
+      setLoadError(null)
+      if (!hasSupabaseConfig()) {
+        setConfigError('Supabase environment variables are missing. Create .env.local with NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY, then restart pnpm dev.')
+        setRequests([])
+        setLoading(false)
+        return
+      }
+
+      const supabase = createClient()
+      const from = page * PAGE_SIZE
+      const to = from + PAGE_SIZE - 1
+
+      const { data, error } = await supabase
+        .from('requests')
+        .select('*, residents(first_name, last_name, email, barangay)')
+        .order('created_at', { ascending: false })
+        .range(from, to)
+
+      if (error) {
+        setLoadError(error?.message || 'Failed to load requests')
+        setRequests([])
+        setLoading(false)
+        return
+      }
+
+      const mappedRequests: Request[] = (data || []).map((row: any) => ({
+        ...row,
+        residents: row.residents || null,
+      }))
+
+      setRequests(mappedRequests)
+    } catch (error: any) {
+      setLoadError(error?.message || 'Failed to load requests')
+      setRequests([])
+    } finally {
+      setLoading(false)
+    }
+  }, [page])
+
+  useEffect(() => {
+    setPage(0)
+  }, [activeSection])
+
   useEffect(() => {
     loadRequests()
-  }, [])
+  }, [loadRequests])
 
   const visibleRequests = useMemo(() => {
     const allowedStatuses = getSectionStatuses(activeSection)
@@ -115,64 +207,6 @@ export default function AdminRequestsPage() {
     in_progress: requests.filter((request) => normalizeRequestStatus(request.status) === 'in_progress').length,
     resolved: requests.filter((request) => normalizeRequestStatus(request.status) === 'resolved').length,
   }), [requests])
-
-  async function loadRequests() {
-    try {
-      setLoadError(null)
-      if (!hasSupabaseConfig()) {
-        setConfigError('Supabase environment variables are missing. Create .env.local with NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY, then restart pnpm dev.')
-        setRequests([])
-        return
-      }
-
-      const supabase = createClient()
-
-      // Use wildcard select so page still works even when local DB is behind some migrations.
-      const { data, error } = await supabase
-        .from('requests')
-        .select('*')
-        .order('created_at', { ascending: false })
-
-      if (error) {
-        setLoadError(error?.message || 'Failed to load requests')
-        setRequests([])
-        return
-      }
-
-      const residentIds = Array.from(new Set((data || []).map((row: any) => row.resident_id).filter(Boolean)))
-      let residentsById: Record<string, { first_name: string; last_name: string; email: string; barangay: string }> = {}
-
-      if (residentIds.length > 0) {
-        const { data: residents, error: residentsError } = await supabase
-          .from('residents')
-          .select('id, first_name, last_name, email, barangay')
-          .in('id', residentIds)
-
-        if (!residentsError) {
-          residentsById = Object.fromEntries(
-            (residents || []).map((resident: any) => [resident.id, {
-              first_name: resident.first_name,
-              last_name: resident.last_name,
-              email: resident.email,
-              barangay: resident.barangay,
-            }]),
-          )
-        }
-      }
-
-      const mappedRequests: Request[] = (data || []).map((row: any) => ({
-        ...row,
-        residents: residentsById[row.resident_id] || null,
-      }))
-
-      setRequests(mappedRequests)
-    } catch (error: any) {
-      setLoadError(error?.message || 'Failed to load requests')
-      setRequests([])
-    } finally {
-      setLoading(false)
-    }
-  }
 
   async function updateRequestStatus(requestId: string, newStatus: RequestStatus) {
     try {
@@ -196,9 +230,6 @@ export default function AdminRequestsPage() {
           ? { ...currentRequest, status: newStatus }
           : currentRequest,
       )
-
-      // Refresh list
-      loadRequests()
     } catch (error) {
       console.error('Error updating request:', error)
     }
@@ -261,8 +292,9 @@ export default function AdminRequestsPage() {
 
       {/* Requests List */}
       {loading ? (
-        <div className="text-center py-12">
-          <p className="text-muted-foreground">Loading requests...</p>
+        <div className="space-y-4">
+          <Skeleton className="h-8 w-64" />
+          <Skeleton className="h-64 w-full" />
         </div>
       ) : visibleRequests.length === 0 ? (
         <Empty
@@ -283,44 +315,29 @@ export default function AdminRequestsPage() {
             </TableHeader>
             <TableBody>
               {visibleRequests.map((request) => (
-                <TableRow key={request.id}>
-                  <TableCell className="font-medium">
-                    {request.residents
-                      ? `${request.residents.first_name} ${request.residents.last_name}`
-                      : 'Resident record unavailable'}
-                    <div className="text-xs text-muted-foreground">{request.residents?.email || 'No email available'}</div>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="outline" className="bg-background">
-                      {getRequestTypeTitle(request.request_type, request.title)}
-                    </Badge>
-                    <div className="mt-2 text-xs text-muted-foreground">
-                      {getRequestSummaryValue(request.request_type, request.payload, request.description)}
-                    </div>
-                  </TableCell>
-                  <TableCell>{new Date(request.created_at).toLocaleDateString('en-PH')}</TableCell>
-                  <TableCell>
-                    <Badge className={getRequestStatusClassName(request.status)}>
-                      {getRequestStatusLabel(request.status)}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Button
-                      variant="outline"
-                      className="border-emerald-200 text-emerald-700 hover:bg-emerald-50"
-                      onClick={() => {
-                        setSelectedRequest(request)
-                        setIsDetailOpen(true)
-                      }}
-                    >
-                      <Eye className="mr-2 h-4 w-4" />
-                      View
-                    </Button>
-                  </TableCell>
-                </TableRow>
+                <RequestRow
+                  key={request.id}
+                  request={request}
+                  onView={(req) => {
+                    setSelectedRequest(req)
+                    setIsDetailOpen(true)
+                  }}
+                />
               ))}
             </TableBody>
           </Table>
+        </div>
+      )}
+
+      {!loading && requests.length > 0 && (
+        <div className="flex justify-center">
+          <Button
+            variant="outline"
+            onClick={() => setPage((p) => p + 1)}
+            className="border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+          >
+            Load More
+          </Button>
         </div>
       )}
     </div>

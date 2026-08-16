@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
+import { toast } from 'sonner'
 import { getDesignationCategoryShortLabel, getOfficialStatusLabel, isCaptainDesignation } from '@/lib/governance'
 import type { OfficialInput } from '@/lib/schemas'
 import type { DesignationRecord } from '@/components/admin/designations-actions'
@@ -150,7 +151,7 @@ export function OfficialActions({ isOpen, mode, official, designations, onClose,
 
   async function handleSave() {
     if (!canSave) {
-      alert('Complete all required fields before saving the official.')
+      toast.error('Complete all required fields before saving the official.')
       return
     }
 
@@ -179,11 +180,12 @@ export function OfficialActions({ isOpen, mode, official, designations, onClose,
 
       if (error) throw error
 
+      toast.success(mode === 'edit' ? 'Official updated successfully' : 'Official added successfully')
       onSaved()
       onClose()
     } catch (error) {
       console.error('Failed to save official:', error)
-      alert(formatSaveError(error))
+      toast.error(formatSaveError(error))
     } finally {
       setIsSaving(false)
     }

@@ -1,5 +1,6 @@
 'use client'
 
+import { completeSignUpVerification, resendSignUpOtp } from '@/app/actions/auth'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -10,8 +11,6 @@ import {
 } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { createClient, hasSupabaseConfig } from '@/lib/supabase/client'
-import { getOrCreateResidentProfile } from '@/lib/residents'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -36,135 +35,53 @@ export default function Page() {
 
   const handleVerify = async (e: React.FormEvent) => {
     e.preventDefault()
-
-    if (!hasSupabaseConfig()) {
-      setError('Supabase is not configured for local preview. Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY to .env.local to enable verification.')
-      return
-    }
-
-    if (!email.trim()) {
-      setError('Enter the email address used during sign up.')
-      return
-    }
-
-    if (code.length !== 6 && code.length !== 8) {
-      setError('Enter the 6 or 8-digit code from your email.')
-      return
-    }
-
-    const supabase = createClient()
     setIsLoading(true)
     setError(null)
     setMessage(null)
 
     try {
-      const { data, error } = await supabase.auth.verifyOtp({
-        email: email.trim(),
-        token: code,
-        type: 'email',
-      })
+      const formData = new FormData()
+      formData.append('email', email)
+      formData.append('code', code)
 
-      if (error) throw error
+      const result = await completeSignUpVerification(formData)
 
-      const savedPassword =
-        typeof window !== 'undefined'
-          ? sessionStorage.getItem('signup_password')
-          : null
-
-      if (savedPassword && data.user) {
-        await supabase.auth.updateUser({ password: savedPassword })
-        if (typeof window !== 'undefined') {
-          sessionStorage.removeItem('signup_password')
-        }
+      if (result && 'error' in result) {
+        setError(result.error ?? 'An error occurred while verifying the code.')
+        setIsLoading(false)
+        return
       }
-
-      if (data.user) {
-        await getOrCreateResidentProfile(supabase, data.user)
-
-
-        // Clean up session storage
-        if (typeof window !== 'undefined') {
-          sessionStorage.removeItem('signup_verification_action')
-          sessionStorage.removeItem('signup_national_id')
-        }
-      }
-
-      router.replace('/citizen/dashboard')
-    } catch (error: unknown) {
-      const err = error as any
-      
-      // Check for rate limit error (429) - check multiple possible properties
-      const isRateLimited = err?.status === 429 || 
-                            err?.code === '429' ||
-                            err?.code === 'rate_limit_exceeded' ||
-                            (typeof err?.message === 'string' && err.message.includes('Too Many Requests')) ||
-                            (typeof err?.message === 'string' && err.message.includes('rate_limit')) ||
-                            err?.name === 'RateLimitError'
-      
-      if (isRateLimited) {
-        const retryAfterHeader = err?.headers?.['retry-after'] || err?.headers?.['Retry-After']
-        const retrySeconds = retryAfterHeader ? parseInt(retryAfterHeader, 10) : 30
-        setError(`Rate limit exceeded. Please wait ${retrySeconds} seconds before trying again.`)
-      } else {
-        setError(err?.message || 'An error occurred while verifying the code.')
-      }
-    } finally {
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'An error occurred while verifying the code.'
+      setError(message)
       setIsLoading(false)
     }
   }
 
   const handleResend = async () => {
-    if (!hasSupabaseConfig()) {
-      setError('Supabase is not configured for local preview. Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY to .env.local to enable resending codes.')
-      return
-    }
-
-    if (!email.trim()) {
-      setError('Enter the email address used during sign up before resending the code.')
-      return
-    }
-
-    const supabase = createClient()
     setIsResending(true)
     setResendDisabled(true)
     setError(null)
     setMessage(null)
 
     try {
-      const { error } = await supabase.auth.signInWithOtp({
-        email: email.trim(),
-        options: {
-          shouldCreateUser: true,
-        },
-      })
+      const formData = new FormData()
+      formData.append('email', email)
 
-      if (error) throw error
+      const result = await resendSignUpOtp(formData)
+
+      if (result && 'error' in result) {
+        setError(result.error ?? 'An error occurred while resending the code.')
+        setResendDisabled(false)
+        return
+      }
 
       setMessage('A new verification code has been sent to your email.')
-      // Re-enable resend button after 30 seconds
       setTimeout(() => setResendDisabled(false), 30000)
-    } catch (error: unknown) {
-      const err = error as any
-      
-      // Check for rate limit error (429) - check multiple possible properties
-      const isRateLimited = err?.status === 429 || 
-                            err?.code === '429' ||
-                            err?.code === 'rate_limit_exceeded' ||
-                            (typeof err?.message === 'string' && err.message.includes('Too Many Requests')) ||
-                            (typeof err?.message === 'string' && err.message.includes('rate_limit')) ||
-                            err?.name === 'RateLimitError'
-      
-      if (isRateLimited) {
-        const retryAfterHeader = err?.headers?.['retry-after'] || err?.headers?.['Retry-After']
-        const retrySeconds = retryAfterHeader ? parseInt(retryAfterHeader, 10) : 30
-        
-        setError(`Rate limit exceeded. Please wait ${retrySeconds} seconds before trying again.`)
-        setResendDisabled(true)
-        setTimeout(() => setResendDisabled(false), retrySeconds * 1000)
-      } else {
-        setError(err?.message || 'An error occurred while resending the code.')
-        setResendDisabled(false)
-      }
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'An error occurred while resending the code.'
+      setError(message)
+      setResendDisabled(false)
     } finally {
       setIsResending(false)
     }

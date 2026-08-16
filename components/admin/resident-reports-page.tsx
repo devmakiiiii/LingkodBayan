@@ -5,8 +5,10 @@ import { createClient, hasSupabaseConfig } from '@/lib/supabase/client'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { toast } from 'sonner'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Empty } from '@/components/ui/empty'
@@ -44,6 +46,7 @@ import {
   TriangleAlert,
   UserPlus,
 } from 'lucide-react'
+import { formatDate } from '@/lib/format-date'
 import {
   buildCsv,
   downloadCsvFile,
@@ -290,11 +293,7 @@ function extractEvidenceUrls(row: any) {
 }
 
 function formatShortDate(value: string) {
-  return new Date(value).toLocaleDateString('en-PH', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  })
+  return formatDate(value, { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
 function formatDateTime(value: string) {
@@ -369,6 +368,7 @@ export function ResidentReportsPage() {
   const [assignedOfficialDraft, setAssignedOfficialDraft] = useState('')
   const [adminNotesDraft, setAdminNotesDraft] = useState('')
   const [replyDraft, setReplyDraft] = useState('')
+  const [archiveTarget, setArchiveTarget] = useState<ResidentReportRow | null>(null)
   const [savingAction, setSavingAction] = useState(false)
   const [dynamicCategories, setDynamicCategories] = useState<ServiceCategory[]>([])
 
@@ -659,7 +659,7 @@ if (systemMessage && profileUser) {
       toast.success('Changes saved successfully')
     } catch (error) {
       console.error('Failed to update report:', error)
-      alert(error instanceof Error ? error.message : 'Failed to update report')
+      toast.error(error instanceof Error ? error.message : 'Failed to update report')
     } finally {
       setSavingAction(false)
     }
@@ -669,14 +669,14 @@ if (systemMessage && profileUser) {
     if (!selectedReport || !replyDraft.trim()) return
 
     if (!profileUser?.id) {
-      alert('Unable to identify your admin account. Please refresh the page and try again.')
+      toast.error('Unable to identify your admin account. Please refresh the page and try again.')
       return
     }
 
     const recipientId = selectedReport.residentUserId || null
 
     if (!recipientId) {
-      alert('Unable to find the resident account linked to this report. The resident may not have a verified account yet.')
+      toast.error('Unable to find the resident account linked to this report. The resident may not have a verified account yet.')
       return
     }
 
@@ -710,18 +710,31 @@ if (systemMessage && profileUser) {
       await loadReports(false)
     } catch (error) {
       console.error('Failed to reply to report:', error)
-      alert(error instanceof Error ? error.message : 'Failed to send reply')
+      toast.error(error instanceof Error ? error.message : 'Failed to send reply')
     } finally {
       setSavingAction(false)
     }
   }
 
   async function archiveReport(report: ResidentReportRow) {
-    const confirmed = window.confirm(`Archive ${report.trackingNumber}? This will mark the report as rejected and store it in the archive log.`)
-    if (!confirmed) return
+    setArchiveTarget(report)
+  }
 
-    setSelectedReport(report)
-    await updateReport({ status: 'rejected', archivedAt: new Date().toISOString() }, `Report archived: ${report.trackingNumber}`)
+  async function confirmArchive() {
+    if (!archiveTarget) return
+
+    try {
+      await updateReport(
+        { status: 'rejected', archivedAt: new Date().toISOString() },
+        `Report archived: ${archiveTarget.trackingNumber}`
+      )
+      toast.success('Report archived successfully')
+    } catch (error) {
+      console.error('Failed to archive report:', error)
+      toast.error(error instanceof Error ? error.message : 'Failed to archive report')
+    } finally {
+      setArchiveTarget(null)
+    }
   }
 
   function exportCsv() {
@@ -782,7 +795,10 @@ if (systemMessage && profileUser) {
           </DialogHeader>
           <div className="space-y-3">
             {notificationAlerts.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No new alerts yet.</p>
+              <div className="flex flex-col items-center justify-center py-8 text-center">
+                <Bell className="h-8 w-8 text-muted-foreground mb-2" />
+                <p className="text-sm text-muted-foreground">No new alerts yet.</p>
+              </div>
             ) : (
               notificationAlerts.map((alert) => (
                 <div key={alert.id} className="rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-sm">
@@ -1049,7 +1065,11 @@ if (systemMessage && profileUser) {
                   </CardHeader>
                   <CardContent className="space-y-3 pt-4">
                     {selectedReportTimeline.length === 0 ? (
-                      <Empty title="No history yet" description="System updates and admin replies will appear here." />
+                      <Empty title="No history yet" description="System updates and admin replies will appear here.">
+                        <EmptyMedia variant="icon">
+                          <Clock3 className="h-6 w-6" />
+                        </EmptyMedia>
+                      </Empty>
                     ) : (
                       selectedReportTimeline.map((message) => (
                         <div key={message.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
@@ -1297,9 +1317,16 @@ if (systemMessage && profileUser) {
         </CardHeader>
         <CardContent>
           {loading ? (
-            <div className="py-16 text-center text-muted-foreground">Loading resident reports...</div>
+            <div className="space-y-4">
+              <Skeleton className="h-8 w-64" />
+              <Skeleton className="h-64 w-full" />
+            </div>
           ) : filteredReports.length === 0 ? (
-            <Empty title="No matching reports" description="Try changing the search text, date range, or filter dropdowns." />
+            <Empty title="No matching reports" description="Try changing the search text, date range, or filter dropdowns.">
+              <EmptyMedia variant="icon">
+                <Search className="h-6 w-6" />
+              </EmptyMedia>
+            </Empty>
           ) : (
             <div className="overflow-hidden rounded-2xl border border-emerald-100">
               <Table>
@@ -1384,7 +1411,7 @@ if (systemMessage && profileUser) {
                                 Reply to Resident
                               </DropdownMenuItem>
                               <DropdownMenuSeparator />
-                              <DropdownMenuItem onClick={() => archiveReport(report)} className="text-rose-600 focus:text-rose-600">
+                              <DropdownMenuItem onClick={() => setArchiveTarget(report)} className="text-rose-600 focus:text-rose-600">
                                 <Archive className="mr-2 h-4 w-4" />
                                 Archive Report
                               </DropdownMenuItem>
@@ -1422,6 +1449,23 @@ if (systemMessage && profileUser) {
           Last refreshed {lastSyncedAt ? formatDateTime(lastSyncedAt.toISOString()) : 'just now'}
         </div>
       </div>
+
+      <AlertDialog open={Boolean(archiveTarget)} onOpenChange={(open) => !open && setArchiveTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Archive Report</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will mark {archiveTarget?.trackingNumber} as rejected and store it in the archive log. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmArchive} className="bg-rose-600 text-white hover:bg-rose-700">
+              Archive
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

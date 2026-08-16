@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { createClient, hasSupabaseConfig } from '@/lib/supabase/client'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Empty } from '@/components/ui/empty'
 import { Input } from '@/components/ui/input'
@@ -519,7 +520,10 @@ export default function AdminGeneratedReportsPage() {
             </CardHeader>
             <CardContent>
               {loading ? (
-                <div className="py-16 text-center text-slate-600">Loading reports...</div>
+                <div className="space-y-4">
+                  <Skeleton className="h-8 w-64" />
+                  <Skeleton className="h-64 w-full" />
+                </div>
               ) : preview.total === 0 ? (
                 <Empty title="No matching records" description="Try adjusting the date range or filter selections." />
               ) : (

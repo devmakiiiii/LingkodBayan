@@ -4,13 +4,17 @@ import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Empty } from '@/components/ui/empty'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Plus, Pencil, Search, Trash2 } from 'lucide-react'
+import { toast } from 'sonner'
 import { DesignationActions, type DesignationRecord } from '@/components/admin/designations-actions'
 import { getDesignationCategoryShortLabel, normalizeBadgeColor } from '@/lib/governance'
+import { formatDate } from '@/lib/format-date'
 
 const defaultDesignations = [
   { name: 'Barangay Captain', category: 'barangay', priority_order: 1, badge_color: '#166534' },
@@ -102,24 +106,23 @@ export default function AdminDesignationsPage() {
 
   async function deleteDesignationById(designation: DesignationRecord) {
     try {
-      const confirmed = window.confirm(`Delete ${designation.name}? This action cannot be undone and will fail if there are officials assigned to this designation.`)
-      if (!confirmed) return
-
       const supabase = createClient()
       const { error } = await supabase.from('designations').delete().eq('id', designation.id)
       
       if (error) {
-        if (error.code === '23503') { // Foreign key constraint violation
-          throw new Error('Cannot delete this designation because it is currently assigned to one or more officials. Please reassign or delete the officials first.')
+        if (error.code === '23503') {
+          toast.error('Cannot delete this designation because it is currently assigned to one or more officials.')
+          return
         }
         throw error
       }
 
+      toast.success(`${designation.name} has been deleted.`)
       setDeleteTarget(null)
       loadData()
     } catch (error) {
       console.error('Error deleting designation:', error)
-      alert(error instanceof Error ? error.message : 'Failed to delete designation')
+      toast.error(error instanceof Error ? error.message : 'Failed to delete designation')
     }
   }
 
@@ -136,27 +139,25 @@ export default function AdminDesignationsPage() {
         onSaved={loadData}
       />
 
-      <Dialog open={Boolean(deleteTarget)} onOpenChange={() => setDeleteTarget(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Delete Designation</DialogTitle>
-            <DialogDescription>
+      <AlertDialog open={Boolean(deleteTarget)} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Designation</AlertDialogTitle>
+            <AlertDialogDescription>
               This will permanently remove the designation. It will fail if officials are still assigned to it.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setDeleteTarget(null)}>
-              Cancel
-            </Button>
-            <Button
-              className="bg-rose-600 text-white hover:bg-rose-700"
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
               onClick={() => deleteTarget && deleteDesignationById(deleteTarget)}
+              className="bg-rose-600 text-white hover:bg-rose-700"
             >
               Delete
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <div className="flex items-center justify-between gap-4">
         <div>
@@ -195,8 +196,9 @@ export default function AdminDesignationsPage() {
       </div>
 
       {loading ? (
-        <div className="py-12 text-center">
-          <p className="text-muted-foreground">Loading designations...</p>
+        <div className="space-y-4">
+          <Skeleton className="h-8 w-64" />
+          <Skeleton className="h-64 w-full" />
         </div>
       ) : filteredDesignations.length === 0 ? (
         <Empty title="No designations found" description="Add designations to populate this list." />

@@ -20,6 +20,9 @@ export function NavigationLoader() {
 
       if (!link) return
 
+      if (link.hasAttribute('data-no-navigation')) return
+      if (link.querySelector('button')) return
+
       const href = link.getAttribute('href')
       if (!href || href.startsWith('#') || href.startsWith('mailto:') || href.startsWith('tel:')) return
       if (link.target === '_blank') return

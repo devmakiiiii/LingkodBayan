@@ -1,3 +1,5 @@
+export const revalidate = 60
+
 import { notFound } from 'next/navigation'
 import { getPublishedAnnouncementById } from '@/lib/db'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'

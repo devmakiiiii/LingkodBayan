@@ -4,15 +4,18 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { Switch } from '@/components/ui/switch'
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { AlertCircle, CheckCircle, Edit2, Plus, Trash2, ChevronDown, ChevronUp } from 'lucide-react'
 import { toast } from 'sonner'
 import { serviceCategorySchema } from '@/lib/schemas'
 import * as z from 'zod'
+import { formatDate } from '@/lib/format-date'
 
 interface ServiceCategory {
   id: string
@@ -58,6 +61,7 @@ export default function AdminServiceCategoriesPage() {
     is_active: true,
     sort_order: 999,
   })
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null)
 
   useEffect(() => {
     loadCategories()
@@ -179,8 +183,6 @@ export default function AdminServiceCategoriesPage() {
   }
 
   async function handleDelete(id: string) {
-    if (!confirm('Are you sure you want to delete this category?')) return
-
     try {
       const { error } = await supabase.from('service_categories').delete().eq('id', id)
 
@@ -193,6 +195,8 @@ export default function AdminServiceCategoriesPage() {
       toast.success('Category deleted')
     } catch (err) {
       toast.error('Failed to delete category')
+    } finally {
+      setDeleteTargetId(null)
     }
   }
 
@@ -235,10 +239,10 @@ export default function AdminServiceCategoriesPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-96">
-        <div className="text-center">
-          <div className="text-gray-500">Loading service categories...</div>
-        </div>
+      <div className="space-y-6 p-6">
+        <Skeleton className="h-8 w-64" />
+        <Skeleton className="h-64 w-full" />
+        <Skeleton className="h-64 w-full" />
       </div>
     )
   }
@@ -328,9 +332,9 @@ if (loadError) {
                       <Edit2 className="w-4 h-4" />
                     </Button>
 
-                    <Button onClick={() => handleDelete(category.id)} variant="ghost" size="sm" className="text-red-600 hover:text-red-700">
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
+                     <Button onClick={() => setDeleteTargetId(category.id)} variant="ghost" size="sm" className="text-red-600 hover:text-red-700">
+                       <Trash2 className="w-4 h-4" />
+                     </Button>
                   </div>
                 </div>
               ))}
@@ -394,9 +398,9 @@ if (loadError) {
                       <Edit2 className="w-4 h-4" />
                     </Button>
 
-                    <Button onClick={() => handleDelete(category.id)} variant="ghost" size="sm" className="text-red-600 hover:text-red-700">
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
+                     <Button onClick={() => setDeleteTargetId(category.id)} variant="ghost" size="sm" className="text-red-600 hover:text-red-700">
+                       <Trash2 className="w-4 h-4" />
+                     </Button>
                   </div>
                 </div>
               ))}
@@ -495,6 +499,26 @@ if (loadError) {
           </Card>
         </div>
       )}
+      
+      <AlertDialog open={Boolean(deleteTargetId)} onOpenChange={(open) => !open && setDeleteTargetId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Category</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently remove this service category. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deleteTargetId && handleDelete(deleteTargetId)}
+              className="bg-rose-600 text-white hover:bg-rose-700"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

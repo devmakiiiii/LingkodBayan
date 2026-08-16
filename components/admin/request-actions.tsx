@@ -32,6 +32,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { RequestDetails } from '@/components/request/request-details'
 import { toast } from 'sonner'
+import { formatDate } from '@/lib/format-date'
 import {
   getRequestTypeTitle,
   type RequestPayload,
@@ -108,7 +109,7 @@ function getPrintableStatement(request: RequestRecord) {
   const businessName = getRequestFieldValue(request, 'businessName') || '[Business Name]'
   const ownerName = getRequestFieldValue(request, 'ownerName') || fullName
   const businessAddress = getRequestFieldValue(request, 'businessAddress') || '[Business Address]'
-  const submittedDate = request.created_at ? new Date(request.created_at).toLocaleDateString('en-PH') : '[Date]'
+  const submittedDate = request.created_at ? formatDate(request.created_at) : '[Date]'
 
   switch (request.request_type) {
     case 'barangay-clearance':
@@ -149,7 +150,7 @@ function buildPrintMarkup(request: RequestRecord) {
   const requesterName = `${request.residents?.first_name ?? ''} ${request.residents?.last_name ?? ''}`.trim() || 'N/A'
   const requesterBarangay = request.residents?.barangay ?? 'N/A'
   const submittedDate = request.created_at ? new Date(request.created_at).toLocaleString('en-PH') : 'N/A'
-  const footerDate = request.created_at ? new Date(request.created_at).toLocaleDateString('en-PH') : 'Date'
+  const footerDate = request.created_at ? formatDate(request.created_at) : 'Date'
 
   const requestStatement = getPrintableStatement(request)
 

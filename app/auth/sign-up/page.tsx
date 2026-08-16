@@ -1,6 +1,6 @@
 'use client'
 
-import { createClient, hasSupabaseConfig } from '@/lib/supabase/client'
+import { requestSignUpOtp, resendSignUpOtp } from '@/app/actions/auth'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -16,7 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { CheckCircle2, AlertCircle, Loader2 } from 'lucide-react'
 
 export default function Page() {
@@ -43,6 +43,7 @@ export default function Page() {
     matchedResident?: { firstName: string; lastName: string; email: string; barangay: string } | null
   } | null>(null)
   const router = useRouter()
+  const matchRequestIdRef = useRef(0)
 
   useEffect(() => {
     if (rateLimitCountdown === null) return
@@ -59,7 +60,7 @@ export default function Page() {
     return () => clearTimeout(timer)
   }, [rateLimitCountdown])
 
-  const checkVerificationMatch = async () => {
+  const checkVerificationMatch = useCallback(async () => {
     if (!email || !firstName || !lastName) {
       return
     }
@@ -69,6 +70,8 @@ export default function Page() {
     setMatchResult(null)
 
     try {
+      const requestId = ++matchRequestIdRef.current
+
       const response = await fetch('/api/verification/match', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -87,6 +90,10 @@ export default function Page() {
 
       const result = await response.json()
 
+      if (requestId !== matchRequestIdRef.current) {
+        return
+      }
+
       if (!response.ok) {
         throw new Error(result.error || 'Failed to check verification match')
       }
@@ -98,7 +105,7 @@ export default function Page() {
     } finally {
       setIsCheckingMatch(false)
     }
-  }
+  }, [email, firstName, lastName, middleName, phone, address, barangay, dateOfBirth, nationalId])
 
   useEffect(() => {
     if (firstName && lastName && email) {
@@ -108,17 +115,10 @@ export default function Page() {
 
       return () => clearTimeout(timer)
     }
-  }, [firstName, lastName, email])
+  }, [firstName, lastName, email, checkVerificationMatch])
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault()
-
-    if (!hasSupabaseConfig()) {
-      setError('Supabase is not configured for local preview. Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY to .env.local to enable sign-up.')
-      return
-    }
-
-    const supabase = createClient()
     setIsLoading(true)
     setError(null)
 
@@ -129,53 +129,30 @@ export default function Page() {
     }
 
     try {
-      if (typeof window !== 'undefined') {
-        sessionStorage.setItem('signup_password', password)
-        sessionStorage.setItem('signup_verification_action', matchResult?.action || 'no_match')
-        sessionStorage.setItem('signup_national_id', nationalId || '')
+      const formData = new FormData()
+      formData.append('email', email)
+      formData.append('password', password)
+      formData.append('firstName', firstName)
+      formData.append('lastName', lastName)
+      formData.append('middleName', middleName)
+      formData.append('dateOfBirth', dateOfBirth)
+      formData.append('barangay', barangay)
+      formData.append('phone', phone)
+      formData.append('address', address)
+      formData.append('nationalId', nationalId)
+      formData.append('idType', idType)
+      formData.append('verificationAction', matchResult?.action || 'no_match')
+
+      const result = await requestSignUpOtp(formData)
+
+      if (result && 'error' in result) {
+        setError(result.error)
+        setIsLoading(false)
+        return
       }
-
-      const { data, error } = await supabase.auth.signInWithOtp({
-        email,
-        options: {
-          shouldCreateUser: true,
-          data: {
-            first_name: firstName,
-            last_name: lastName,
-            middle_name: middleName || undefined,
-            barangay,
-            phone: phone || undefined,
-            address: address || undefined,
-            date_of_birth: dateOfBirth || undefined,
-            national_id: nationalId || undefined,
-            id_type: idType,
-            role: 'citizen',
-            verification_action: matchResult?.action || 'no_match',
-          },
-        },
-      })
-      if (error) throw error
-
-      router.push(`/auth/sign-up-success?email=${encodeURIComponent(email)}`)
-    } catch (error: unknown) {
-      const err = error as any
-
-      const isRateLimited = err?.status === 429 ||
-                            err?.code === '429' ||
-                            err?.code === 'rate_limit_exceeded' ||
-                            (typeof err?.message === 'string' && err.message.includes('Too Many Requests')) ||
-                            (typeof err?.message === 'string' && err.message.includes('rate_limit')) ||
-                            err?.name === 'RateLimitError'
-
-      if (isRateLimited) {
-        const retryAfterHeader = err?.headers?.['retry-after'] || err?.headers?.['Retry-After']
-        const retrySeconds = retryAfterHeader ? parseInt(retryAfterHeader, 10) : 30
-        setRateLimitCountdown(retrySeconds)
-        setError(`Rate limit exceeded. Please wait ${retrySeconds} seconds before trying again.`)
-      } else {
-        setError(err?.message || 'An error occurred during sign-up')
-      }
-    } finally {
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'An error occurred during sign-up'
+      setError(message)
       setIsLoading(false)
     }
   }

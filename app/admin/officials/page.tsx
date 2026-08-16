@@ -5,11 +5,14 @@ import { createClient } from '@/lib/supabase/client'
 import Image from 'next/image'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Empty } from '@/components/ui/empty'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { Plus, Pencil, Trash2, Eye, Search } from 'lucide-react'
+import { toast } from 'sonner'
 import { OfficialActions, type OfficialRecord } from '@/components/admin/officials-actions'
 import { DesignationActions, type DesignationRecord } from '@/components/admin/designations-actions'
 import {
@@ -19,6 +22,7 @@ import {
   isCaptainDesignation,
   normalizeBadgeColor,
 } from '@/lib/governance'
+import { formatDate } from '@/lib/format-date'
 
 type OfficialRow = OfficialRecord & {
   designation?: DesignationRecord | null
@@ -78,6 +82,8 @@ export default function AdminOfficialsPage() {
   const [modalMode, setModalMode] = useState<'create' | 'edit' | 'view'>('create')
   const [selectedOfficial, setSelectedOfficial] = useState<OfficialRow | null>(null)
   const [designationModalOpen, setDesignationModalOpen] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<OfficialRow | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   useEffect(() => {
     loadData()
@@ -186,17 +192,16 @@ export default function AdminOfficialsPage() {
   }, [filteredOfficials])
 
   async function deleteOfficialById(official: OfficialRow) {
-    const confirmed = window.confirm(`Delete ${official.fullName}? This action cannot be undone.`)
-    if (!confirmed) return
-
     try {
       const supabase = createClient()
       const { error } = await supabase.from('officials').delete().eq('id', official.id)
       if (error) throw error
+      toast.success(`${official.fullName} has been removed.`)
+      setDeleteTarget(null)
       loadData()
     } catch (error) {
       console.error('Error deleting official:', error)
-      alert(error instanceof Error ? error.message : 'Failed to delete official')
+      toast.error(error instanceof Error ? error.message : 'Failed to delete official')
     }
   }
 
@@ -290,7 +295,10 @@ export default function AdminOfficialsPage() {
       </div>
 
       {loading ? (
-        <div className="py-12 text-center"><p className="text-muted-foreground">Loading officials...</p></div>
+        <div className="space-y-4">
+          <Skeleton className="h-8 w-64" />
+          <Skeleton className="h-64 w-full" />
+        </div>
       ) : filteredOfficials.length === 0 ? (
         <Empty title="No officials" description="Add officials to start managing barangay governance records." />
       ) : (
@@ -371,10 +379,10 @@ export default function AdminOfficialsPage() {
                                   <Pencil className="mr-1 h-4 w-4" />
                                   Edit
                                 </Button>
-                                <Button variant="outline" size="sm" className="border-rose-200 text-rose-700 hover:bg-rose-50" onClick={() => deleteOfficialById(official)}>
-                                  <Trash2 className="mr-1 h-4 w-4" />
-                                  Delete
-                                </Button>
+                                 <Button variant="outline" size="sm" className="border-rose-200 text-rose-700 hover:bg-rose-50" onClick={() => setDeleteTarget(official)}>
+                                   <Trash2 className="mr-1 h-4 w-4" />
+                                   Delete
+                                 </Button>
                               </div>
                             </TableCell>
                           </TableRow>
@@ -388,6 +396,26 @@ export default function AdminOfficialsPage() {
           })}
         </div>
       )}
+
+      <AlertDialog open={Boolean(deleteTarget)} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Official</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently remove {deleteTarget?.fullName} from the officials list. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deleteTarget && deleteOfficialById(deleteTarget)}
+              className="bg-rose-600 text-white hover:bg-rose-700"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

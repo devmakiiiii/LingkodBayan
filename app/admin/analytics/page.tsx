@@ -1,40 +1,13 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { createClient, hasSupabaseConfig } from '@/lib/supabase/client'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import {
-  BarChart,
-  Bar,
-  CartesianGrid,
-  Cell,
-  Line,
-  LineChart,
-  Pie,
-  PieChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts'
-import {
-  analyticsTrendLabels,
-  analyticsTrendViews,
-  complaintCategoryColors,
-  complaintCategoryLabels,
-  complaintCategories,
-  statusPalette,
-  normalizeComplaintCategory,
-  normalizeRequestStatus,
-  getRequestTypeLabel,
-  type AnalyticsTrendView,
-  type RequestReportRow,
-} from '@/lib/admin-reporting'
-import { complaintCategoryBadgeClasses } from '@/lib/complaint-categories'
-import { requestTypes } from '@/lib/request-types'
+import { Skeleton } from '@/components/ui/skeleton'
 import { AlertTriangle, BarChart3, CalendarRange, FileText, Users } from 'lucide-react'
+import { AnalyticsCharts } from '@/components/admin/analytics-charts'
 
 type ComplaintRecord = {
   id: string
@@ -48,7 +21,7 @@ type OfficialRecord = {
   status: string
 }
 
-function mapRequestRow(row: any): RequestReportRow {
+function mapRequestRow(row: any) {
   return {
     id: row.id,
     request_type: row.request_type,
@@ -77,101 +50,12 @@ function mapOfficialRow(row: any): OfficialRecord {
   }
 }
 
-function formatBucket(date: Date, view: AnalyticsTrendView) {
-  if (view === 'daily') {
-    return date.toLocaleDateString('en-PH', { month: 'short', day: 'numeric' })
-  }
-
-  if (view === 'weekly') {
-    const start = new Date(date)
-    const day = start.getDay()
-    const diff = (day + 6) % 7
-    start.setDate(start.getDate() - diff)
-    return `Week of ${start.toLocaleDateString('en-PH', { month: 'short', day: 'numeric' })}`
-  }
-
-  return date.toLocaleDateString('en-PH', { month: 'short', year: 'numeric' })
-}
-
-function bucketDate(date: Date, view: AnalyticsTrendView) {
-  const copy = new Date(date)
-  if (view === 'daily') {
-    copy.setHours(0, 0, 0, 0)
-    return copy
-  }
-
-  if (view === 'weekly') {
-    const day = copy.getDay()
-    const diff = (day + 6) % 7
-    copy.setDate(copy.getDate() - diff)
-    copy.setHours(0, 0, 0, 0)
-    return copy
-  }
-
-  copy.setDate(1)
-  copy.setHours(0, 0, 0, 0)
-  return copy
-}
-
-function buildTrendData(rows: RequestReportRow[], view: AnalyticsTrendView) {
-  const groups = new Map<string, { label: string; bucket: number; value: number }>()
-
-  rows.forEach((row) => {
-    const date = new Date(row.created_at)
-    const bucket = bucketDate(date, view)
-    const key = bucket.toISOString()
-
-    if (!groups.has(key)) {
-      groups.set(key, {
-        label: formatBucket(bucket, view),
-        bucket: bucket.getTime(),
-        value: 0,
-      })
-    }
-
-    const entry = groups.get(key)
-    if (entry) {
-      entry.value += 1
-    }
-  })
-
-  return Array.from(groups.values()).sort((a, b) => a.bucket - b.bucket)
-}
-
-function countStatusDistribution(requests: RequestReportRow[], complaints: ComplaintRecord[]) {
-  const counts: Record<'pending' | 'processing' | 'approved' | 'rejected' | 'resolved', number> = {
-    pending: 0,
-    processing: 0,
-    approved: 0,
-    rejected: 0,
-    resolved: 0,
-  }
-
-  requests.forEach((request) => {
-    const status = normalizeRequestStatus(request.status)
-    counts[status] += 1
-  })
-
-  complaints.forEach((complaint) => {
-    const normalized = complaint.status?.toLowerCase() ?? 'open'
-    if (normalized === 'open') {
-      counts.pending += 1
-    } else if (normalized === 'in-progress') {
-      counts.processing += 1
-    } else if (normalized === 'resolved') {
-      counts.resolved += 1
-    }
-  })
-
-  return counts
-}
-
 export default function AdminAnalyticsPage() {
-  const [requests, setRequests] = useState<RequestReportRow[]>([])
+  const [requests, setRequests] = useState<any[]>([])
   const [complaints, setComplaints] = useState<ComplaintRecord[]>([])
   const [officials, setOfficials] = useState<OfficialRecord[]>([])
   const [loading, setLoading] = useState(true)
-  const [trendView, setTrendView] = useState<AnalyticsTrendView>('weekly')
+  const [trendView, setTrendView] = useState<'daily' | 'weekly' | 'monthly'>('weekly')
   const [configError, setConfigError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -223,43 +107,6 @@ export default function AdminAnalyticsPage() {
     loadAnalytics()
   }, [])
 
-  const requestsByType = useMemo(
-    () =>
-      requestTypes.map((requestType, index) => ({
-        requestType,
-        label: getRequestTypeLabel(requestType),
-        value: requests.filter((request) => request.request_type === requestType).length,
-        fill: ['#14532d', '#166534', '#15803d', '#16a34a', '#22c55e'][index],
-      })),
-    [requests],
-  )
-
-  const requestsOverTime = useMemo(() => buildTrendData(requests, trendView), [requests, trendView])
-
-  const complaintCategoryData = useMemo(
-    () =>
-      complaintCategories.map((category) => ({
-        category,
-        label: complaintCategoryLabels[category],
-        value: complaints.filter((complaint) => normalizeComplaintCategory(complaint.category) === category).length,
-        fill: complaintCategoryColors[category],
-      })),
-    [complaints],
-  )
-
-  const statusCounts = useMemo(() => countStatusDistribution(requests, complaints), [requests, complaints])
-
-  const statusData = useMemo(
-    () => [
-      { status: 'Pending', value: statusCounts.pending, fill: statusPalette.pending },
-      { status: 'Processing', value: statusCounts.processing, fill: statusPalette.processing },
-      { status: 'Approved', value: statusCounts.approved, fill: statusPalette.approved },
-      { status: 'Rejected', value: statusCounts.rejected, fill: statusPalette.rejected },
-      { status: 'Resolved', value: statusCounts.resolved, fill: statusPalette.resolved },
-    ],
-    [statusCounts],
-  )
-
   const summaryCards = [
     {
       label: 'Total Requests',
@@ -281,7 +128,7 @@ export default function AdminAnalyticsPage() {
     },
     {
       label: 'Trend View',
-      value: analyticsTrendLabels[trendView],
+      value: trendView.charAt(0).toUpperCase() + trendView.slice(1),
       icon: CalendarRange,
       hint: 'Switch daily, weekly, or monthly',
     },
@@ -332,128 +179,23 @@ export default function AdminAnalyticsPage() {
       </div>
 
       {loading ? (
-        <Card className="border-emerald-100 bg-white shadow-[0_12px_32px_rgba(16,185,129,0.08)]">
-          <CardContent className="py-16 text-center text-slate-600">Loading analytics...</CardContent>
-        </Card>
-      ) : (
-        <div className="grid gap-6 xl:grid-cols-2">
-          <Card className="border-emerald-100 bg-white shadow-[0_12px_32px_rgba(16,185,129,0.08)]">
-            <CardHeader>
-              <CardTitle>Requests by Type</CardTitle>
-              <CardDescription>Bar chart showing the current request volume for each service type.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="w-full" style={{ height: 320 }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={requestsByType} margin={{ top: 10, right: 16, left: 0, bottom: 30 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#d1fae5" />
-                    <XAxis dataKey="label" angle={-15} textAnchor="end" interval={0} height={60} tick={{ fill: '#475569', fontSize: 12 }} />
-                    <YAxis tick={{ fill: '#475569', fontSize: 12 }} />
-                    <Tooltip formatter={(value) => [value, 'Requests']} cursor={{ fill: 'rgba(16,185,129,0.08)' }} />
-                    <Bar dataKey="value" radius={[8, 8, 0, 0]}>
-                      {requestsByType.map((entry) => (
-                        <Cell key={entry.requestType} fill={entry.fill} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-emerald-100 bg-white shadow-[0_12px_32px_rgba(16,185,129,0.08)]">
-            <CardHeader className="flex flex-row items-start justify-between gap-4">
-              <div>
-                <CardTitle>Requests Over Time</CardTitle>
-                <CardDescription>Daily, weekly, or monthly request trends.</CardDescription>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {analyticsTrendViews.map((view) => (
-                  <Button
-                    key={view}
-                    size="sm"
-                    variant={trendView === view ? 'default' : 'outline'}
-                    className={trendView === view ? 'bg-emerald-600 text-white hover:bg-emerald-700' : 'border-emerald-200 text-emerald-700 hover:bg-emerald-50'}
-                    onClick={() => setTrendView(view)}
-                  >
-                    {analyticsTrendLabels[view]}
-                  </Button>
-                ))}
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="w-full" style={{ height: 320 }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={requestsOverTime} margin={{ top: 10, right: 16, left: 0, bottom: 10 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#d1fae5" />
-                    <XAxis dataKey="label" tick={{ fill: '#475569', fontSize: 12 }} />
-                    <YAxis tick={{ fill: '#475569', fontSize: 12 }} allowDecimals={false} />
-                    <Tooltip formatter={(value) => [value, 'Requests']} />
-                    <Line type="monotone" dataKey="value" stroke="#16a34a" strokeWidth={3} dot={{ r: 4, fill: '#16a34a' }} activeDot={{ r: 6 }} />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-emerald-100 bg-white shadow-[0_12px_32px_rgba(16,185,129,0.08)]">
-            <CardHeader>
-              <CardTitle>Reports by Category</CardTitle>
-              <CardDescription>Pie chart for complaint categories submitted by residents.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="w-full" style={{ height: 320 }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie data={complaintCategoryData} dataKey="value" nameKey="label" cx="50%" cy="50%" outerRadius={110} innerRadius={65} paddingAngle={4}>
-                      {complaintCategoryData.map((entry) => (
-                        <Cell key={entry.category} fill={entry.fill} />
-                      ))}
-                    </Pie>
-                    <Tooltip formatter={(value, name) => [value, name]} />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-              <div className="mt-4 flex flex-wrap gap-2">
-                {complaintCategoryData.map((entry) => (
-                  <Badge key={entry.category} className="rounded-full border border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-50">
-                    <span className="mr-2 inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: entry.fill }} />
-                    {entry.label}: {entry.value}
-                  </Badge>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-emerald-100 bg-white shadow-[0_12px_32px_rgba(16,185,129,0.08)]">
-            <CardHeader>
-              <CardTitle>Status Distribution</CardTitle>
-              <CardDescription>Donut chart across pending, processing, approved, rejected, and resolved items.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="w-full" style={{ height: 320 }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie data={statusData} dataKey="value" nameKey="status" cx="50%" cy="50%" outerRadius={110} innerRadius={72} paddingAngle={3}>
-                      {statusData.map((entry) => (
-                        <Cell key={entry.status} fill={entry.fill} />
-                      ))}
-                    </Pie>
-                    <Tooltip formatter={(value, name) => [value, name]} />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-              <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
-                {statusData.map((entry) => (
-                  <div key={entry.status} className="rounded-2xl border border-emerald-100 bg-emerald-50/70 p-3 shadow-sm">
-                    <div className="text-xs uppercase tracking-wide text-slate-500">{entry.status}</div>
-                    <div className="mt-1 text-lg font-semibold text-slate-900">{entry.value}</div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+        <div className="space-y-4">
+          <Skeleton className="h-8 w-64" />
+          <div className="grid gap-6 xl:grid-cols-2">
+            <Skeleton className="h-[340px] w-full" />
+            <Skeleton className="h-[340px] w-full" />
+            <Skeleton className="h-[340px] w-full" />
+            <Skeleton className="h-[340px] w-full" />
+          </div>
         </div>
+      ) : (
+        <AnalyticsCharts
+          requests={requests}
+          complaints={complaints}
+          officials={officials}
+          trendView={trendView}
+          onTrendViewChange={setTrendView}
+        />
       )}
     </div>
   )

@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
-import { LogOut, Menu, X, Home, Users, BarChart3, List, AlertCircle, Settings, ChevronDown, Loader2, Megaphone, ShieldCheck } from 'lucide-react'
+import { LogOut, Menu, X, Home, Users, BarChart3, List, AlertCircle, Settings, ChevronDown, Loader2, Megaphone, ShieldCheck, Sun, Moon } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -16,6 +16,7 @@ import {
   DialogTrigger,
   DialogClose,
 } from '@/components/ui/dialog'
+import { ThemeToggle } from '@/components/theme-toggle'
 
 const navItems = [
   { label: 'Dashboard', href: '/admin/dashboard', icon: Home },
@@ -225,7 +226,8 @@ export function AdminSidebar() {
         </nav>
 
         {/* Logout Button */}
-        <div className="p-4 border-t border-[#0d2d66]">
+        <div className="p-4 border-t border-[#0d2d66] space-y-2">
+          <ThemeToggle />
           <Dialog open={showLogoutDialog} onOpenChange={setShowLogoutDialog}>
             <DialogTrigger asChild>
               <button
@@ -248,25 +250,21 @@ export function AdminSidebar() {
                 </DialogHeader>
                 <DialogFooter className="sm:justify-center w-full gap-3 mt-4">
                   <DialogClose asChild>
-                    <button
-                      type="button"
-                      disabled={isLoggingOut}
-                      className="flex-1 rounded-lg bg-gray-100 px-4 py-2.5 text-sm font-semibold text-gray-900 shadow-sm hover:bg-gray-200 transition-colors disabled:opacity-50"
-                    >
+                    <Button variant="outline" disabled={isLoggingOut} className="flex-1">
                       Cancel
-                    </button>
+                    </Button>
                   </DialogClose>
-                  <button
+                  <Button
                     type="button"
                     disabled={isLoggingOut}
                     onClick={handleLogout}
-                    className="flex-1 inline-flex items-center justify-center gap-2 rounded-lg bg-red-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-red-700 transition-colors disabled:opacity-50"
+                    className="flex-1 bg-red-600 text-white hover:bg-red-700"
                   >
                     {isLoggingOut ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
                     ) : null}
                     Logout
-                  </button>
+                  </Button>
                 </DialogFooter>
               </div>
             </DialogContent>

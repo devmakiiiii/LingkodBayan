@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -61,17 +61,19 @@ export default function MyComplaintsPage() {
     loadComplaints()
   }, [])
 
-  const filteredComplaints = complaints.filter((complaint) => {
-    const matchesSearch = searchQuery === '' || 
-      complaint.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      complaint.description.toLowerCase().includes(searchQuery.toLowerCase())
-    
-    const matchesStatus = statusFilter === 'all' || complaint.status === statusFilter
-    
-    const matchesCategory = categoryFilter === 'all' || complaint.category === categoryFilter
+  const filteredComplaints = useMemo(() => {
+    return complaints.filter((complaint) => {
+      const matchesSearch = searchQuery === '' || 
+        complaint.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        complaint.description.toLowerCase().includes(searchQuery.toLowerCase())
+      
+      const matchesStatus = statusFilter === 'all' || complaint.status === statusFilter
+      
+      const matchesCategory = categoryFilter === 'all' || complaint.category === categoryFilter
 
-    return matchesSearch && matchesStatus && matchesCategory
-  })
+      return matchesSearch && matchesStatus && matchesCategory
+    })
+  }, [complaints, searchQuery, statusFilter, categoryFilter])
 
   const uniqueCategories = Array.from(new Set(complaints.map(c => c.category)))
 

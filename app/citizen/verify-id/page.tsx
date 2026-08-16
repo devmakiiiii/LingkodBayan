@@ -128,7 +128,6 @@ export default function VerifyIdPage() {
     setIsProcessing(true)
 
     try {
-      // Get expected values from the resident profile
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
 
@@ -164,7 +163,7 @@ export default function VerifyIdPage() {
       })
 
       const processTimeoutPromise = new Promise<Response>((_, reject) =>
-        setTimeout(() => reject(new Error('ID processing timed out. Please try again.')), 60000)
+        setTimeout(() => reject(new Error('ID processing timed out. Please try again.')), 30000)
       )
 
       const res = await Promise.race([processPromise, processTimeoutPromise])
@@ -174,19 +173,25 @@ export default function VerifyIdPage() {
         throw new Error(data.error || 'OCR processing failed')
       }
 
-      const result = await res.json()
-      setOcrResult({
-        extractedFields: result.extractedFields,
-        matchScore: result.matchScore,
-        action: result.action,
-        verificationStatus: result.verificationStatus,
-      })
-      setVerificationStatus(result.verificationStatus)
+      const data = await res.json()
 
-      if (result.action === 'auto_verify') {
+      if (data.jobId) {
+        await pollForOcrResult(data.jobId)
+        return
+      }
+
+      setOcrResult({
+        extractedFields: data.extractedFields,
+        matchScore: data.matchScore,
+        action: data.action,
+        verificationStatus: data.verificationStatus,
+      })
+      setVerificationStatus(data.verificationStatus)
+
+      if (data.action === 'auto_verify') {
         toast.success('Your ID has been verified automatically!')
         setTimeout(() => router.push('/citizen/dashboard'), 1500)
-      } else if (result.action === 'id_verify') {
+      } else if (data.action === 'id_verify') {
         toast.success('Your ID has been verified! You now have full access.')
       } else {
         toast('Your ID requires manual review. An admin will review it shortly.')
@@ -197,6 +202,51 @@ export default function VerifyIdPage() {
     } finally {
       setIsProcessing(false)
     }
+  }
+
+  async function pollForOcrResult(jobId: string) {
+    const maxAttempts = 20
+    const interval = 3000
+
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      await new Promise((resolve) => setTimeout(resolve, interval))
+
+      const statusRes = await fetch(`/api/verification/process-id/status?jobId=${jobId}`)
+
+      if (!statusRes.ok) {
+        const data = await statusRes.json()
+        throw new Error(data.error || 'Failed to check processing status')
+      }
+
+      const statusData = await statusRes.json()
+
+      if (statusData.status === 'completed') {
+        const result = statusData.result
+        setOcrResult({
+          extractedFields: result.extractedFields,
+          matchScore: result.matchScore,
+          action: result.action,
+          verificationStatus: result.verificationStatus,
+        })
+        setVerificationStatus(result.verificationStatus)
+
+        if (result.action === 'auto_verify') {
+          toast.success('Your ID has been verified automatically!')
+          setTimeout(() => router.push('/citizen/dashboard'), 1500)
+        } else if (result.action === 'id_verify') {
+          toast.success('Your ID has been verified! You now have full access.')
+        } else {
+          toast('Your ID requires manual review. An admin will review it shortly.')
+        }
+        return
+      }
+
+      if (statusData.status === 'failed') {
+        throw new Error(statusData.error || 'OCR processing failed')
+      }
+    }
+
+    throw new Error('ID processing timed out. Please try again.')
   }
 
   const handleRemoveFile = () => {

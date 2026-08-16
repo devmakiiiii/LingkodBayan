@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Copy } from 'lucide-react'
+import { formatDate } from '@/lib/format-date'
 import {
   formatRequestFieldValue,
   getRequestFieldEntries,
@@ -268,7 +269,7 @@ export function RequestPrintDocument({
         </div>
         <div>
           <p className="text-xs uppercase tracking-wide text-slate-500">Date</p>
-          <p className="mt-1 text-lg font-semibold">{request.created_at ? new Date(request.created_at).toLocaleDateString('en-PH') : 'N/A'}</p>
+          <p className="mt-1 text-lg font-semibold">{formatDate(request.created_at)}</p>
         </div>
         <div>
           <p className="text-xs uppercase tracking-wide text-slate-500">Requester</p>

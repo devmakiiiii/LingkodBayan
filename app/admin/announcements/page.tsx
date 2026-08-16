@@ -5,6 +5,7 @@ import { useEffect, useState, useMemo } from 'react'
 import { hasSupabaseConfig } from '@/lib/supabase/client'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
@@ -593,9 +594,9 @@ export default function AdminAnnouncementsPage() {
 
               {/* Table */}
               {loadingAnnouncements ? (
-                <div className="text-center py-12">
-                  <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
-                  <p className="text-muted-foreground">Loading announcements...</p>
+                <div className="space-y-4">
+                  <Skeleton className="h-8 w-64" />
+                  <Skeleton className="h-64 w-full" />
                 </div>
               ) : filteredAnnouncements.length === 0 ? (
                 <div className="text-center py-12">

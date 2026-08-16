@@ -6,9 +6,11 @@ import {
   determineAction,
   type SignUpVerificationInput,
   type PreRegisteredResident,
-  type MatchResult,
 } from '@/lib/verification'
 import { getResidentVerification, updateResidentVerification, logVerificationAttempt, searchPreRegisteredResidents } from '@/lib/db'
+import { getOcrJob, setOcrJob } from '@/lib/verification-jobs'
+
+const ocrJobs = { getOcrJob, setOcrJob }
 
 export async function POST(request: NextRequest) {
   const supabase = createServerClient(
@@ -52,146 +54,176 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Missing signedUrl parameter.' }, { status: 400 })
     }
 
-    // Run OCR
-    const ocrResult = await runOcr(signedUrl)
+    const jobId = crypto.randomUUID()
+    ocrJobs.setOcrJob(jobId, { status: 'processing' })
 
-    if (!ocrResult) {
-      return NextResponse.json({ error: 'OCR processing failed.' }, { status: 500 })
-    }
-
-    const { text: ocrText, confidence } = ocrResult
-
-    // Parse extracted fields from OCR
-    const extractedFields = parseOcrExtractedFields(ocrText, idType)
-
-    // Get the resident's current verification record
-    const resident = await getResidentVerification(user.id)
-
-    if (!resident) {
-      return NextResponse.json({ error: 'Resident profile not found.' }, { status: 404 })
-    }
-
-    // Get the pre-registered resident to match against
-    let matchedCandidate: PreRegisteredResident | null = null
-
-    if (expectedValues.nationalId) {
-      const candidates = await searchPreRegisteredResidents({
-        nationalId: expectedValues.nationalId,
-      })
-      if (candidates.length > 0) {
-        matchedCandidate = candidates[0] as unknown as PreRegisteredResident
+    setImmediate(async () => {
+      try {
+        const result = await processOcrJob(user.id, signedUrl, idType, expectedValues)
+        if (result) {
+          ocrJobs.setOcrJob(jobId, { status: 'completed', result })
+        } else {
+          ocrJobs.setOcrJob(jobId, { status: 'failed', error: 'OCR processing failed.' })
+        }
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Failed to process ID verification.'
+        ocrJobs.setOcrJob(jobId, { status: 'failed', error: message })
       }
-    } else if (expectedValues.email) {
-      const candidates = await searchPreRegisteredResidents({
-        email: expectedValues.email,
-      })
-      if (candidates.length > 0) {
-        matchedCandidate = candidates[0] as unknown as PreRegisteredResident
-      }
-    }
-
-    // Calculate match score
-    let matchScore = 0
-    let breakdown: Record<string, number> = {}
-    let action: MatchResult['action'] = 'no_match'
-
-    if (matchedCandidate) {
-      const input: SignUpVerificationInput = {
-        firstName: extractedFields.firstName || expectedValues.firstName,
-        lastName: extractedFields.lastName || expectedValues.lastName,
-        middleName: extractedFields.middleName || expectedValues.middleName,
-        email: extractedFields.email || expectedValues.email,
-        phone: extractedFields.phone || expectedValues.phone,
-        address: extractedFields.address || expectedValues.address,
-        barangay: expectedValues.barangay,
-        dateOfBirth: extractedFields.dateOfBirth || expectedValues.dateOfBirth,
-        nationalId: extractedFields.nationalId || expectedValues.nationalId,
-      }
-
-      const result = calculateMatchScore(input, matchedCandidate)
-      matchScore = result.score
-      breakdown = result.breakdown
-      action = determineAction(matchScore)
-    } else {
-      matchScore = 0
-      breakdown = {}
-      action = 'no_match'
-    }
-
-    // Log the verification attempt
-    try {
-      await logVerificationAttempt({
-        residentId: resident.id,
-        attemptType: 'id_ocr',
-        inputData: expectedValues,
-        matchedPreRegisteredId: matchedCandidate?.id,
-        matchScore,
-        confidenceBreakdown: breakdown,
-        ocrExtractedData: {
-          ...extractedFields,
-          ocrConfidence: confidence,
-          ocrText: ocrText.substring(0, 2000),
-        },
-        status: action === 'auto_verify' || action === 'id_verify' ? 'matched' : 'needs_review',
-      })
-    } catch (logError) {
-      console.error('[verification/process-id] Failed to log attempt:', logError)
-    }
-
-    // Update resident verification
-    let verificationStatus: string
-    let verificationMethod = 'id_ocr'
-
-    if (action === 'auto_verify') {
-      verificationStatus = 'auto_verified'
-    } else if (action === 'id_verify') {
-      verificationStatus = 'id_verified'
-    } else {
-      verificationStatus = 'needs_review'
-    }
-
-    try {
-      await updateResidentVerification(resident.id, {
-        verificationStatus,
-        verificationMethod,
-        verificationConfidence: matchScore,
-        verificationDetails: {
-          matchScore,
-          confidenceBreakdown: breakdown,
-          ocrExtractedFields: extractedFields,
-          ocrConfidence: confidence,
-          idType,
-        },
-        idDocumentType: idType,
-        verifiedAt: action === 'auto_verify' || action === 'id_verify' ? new Date().toISOString() : undefined,
-      })
-    } catch (updateError) {
-      console.error('[verification/process-id] Failed to update resident verification:', updateError)
-    }
-
-    return NextResponse.json({
-      extractedFields,
-      ocrConfidence: confidence,
-      matchScore,
-      action,
-      verificationStatus,
     })
+
+    return NextResponse.json({ jobId, status: 'processing' }, { status: 202 })
   } catch (error: unknown) {
-    console.error('[verification/process-id] Error:', error)
     const message = error instanceof Error ? error.message : 'Failed to process ID verification.'
     return NextResponse.json({ error: message }, { status: 500 })
   }
 }
 
+async function processOcrJob(
+  userId: string,
+  signedUrl: string,
+  idType: string,
+  expectedValues: {
+    firstName: string
+    lastName: string
+    middleName?: string
+    email: string
+    phone?: string
+    dateOfBirth?: string
+    nationalId?: string
+    barangay?: string
+    address?: string
+  },
+) {
+  const ocrResult = await runOcr(signedUrl)
+
+  if (!ocrResult) {
+    return null
+  }
+
+  const { text: ocrText, confidence } = ocrResult
+
+  const extractedFields = parseOcrExtractedFields(ocrText, idType)
+
+  const resident = await getResidentVerification(userId)
+
+  if (!resident) {
+    return null
+  }
+
+  let matchedCandidate: PreRegisteredResident | null = null
+
+  if (expectedValues.nationalId) {
+    const candidates = await searchPreRegisteredResidents({
+      nationalId: expectedValues.nationalId,
+    })
+    if (candidates.length > 0) {
+      matchedCandidate = candidates[0] as unknown as PreRegisteredResident
+    }
+  } else if (expectedValues.email) {
+    const candidates = await searchPreRegisteredResidents({
+      email: expectedValues.email,
+    })
+    if (candidates.length > 0) {
+      matchedCandidate = candidates[0] as unknown as PreRegisteredResident
+    }
+  }
+
+  let matchScore = 0
+  let breakdown: Record<string, number> = {}
+  let action: 'auto_verify' | 'id_verify' | 'needs_review' | 'no_match' = 'no_match'
+
+  if (matchedCandidate) {
+    const input: SignUpVerificationInput = {
+      firstName: extractedFields.firstName || expectedValues.firstName,
+      lastName: extractedFields.lastName || expectedValues.lastName,
+      middleName: extractedFields.middleName || expectedValues.middleName,
+      email: extractedFields.email || expectedValues.email,
+      phone: extractedFields.phone || expectedValues.phone,
+      address: extractedFields.address || expectedValues.address,
+      barangay: expectedValues.barangay,
+      dateOfBirth: extractedFields.dateOfBirth || expectedValues.dateOfBirth,
+      nationalId: extractedFields.nationalId || expectedValues.nationalId,
+    }
+
+    const result = calculateMatchScore(input, matchedCandidate)
+    matchScore = result.score
+    breakdown = result.breakdown
+    action = determineAction(matchScore)
+  } else {
+    matchScore = 0
+    breakdown = {}
+    action = 'no_match'
+  }
+
+  try {
+    await logVerificationAttempt({
+      residentId: resident.id,
+      attemptType: 'id_ocr',
+      inputData: expectedValues,
+      matchedPreRegisteredId: matchedCandidate?.id,
+      matchScore,
+      confidenceBreakdown: breakdown,
+      ocrExtractedData: {
+        ...extractedFields,
+        ocrConfidence: confidence,
+        ocrText: ocrText.substring(0, 2000),
+      },
+      status: action === 'auto_verify' || action === 'id_verify' ? 'matched' : 'needs_review',
+    })
+  } catch (logError) {
+    console.error('[verification/process-id] Failed to log attempt:', logError)
+  }
+
+  let verificationStatus: string
+  let verificationMethod = 'id_ocr'
+
+  if (action === 'auto_verify') {
+    verificationStatus = 'auto_verified'
+  } else if (action === 'id_verify') {
+    verificationStatus = 'id_verified'
+  } else {
+    verificationStatus = 'needs_review'
+  }
+
+  try {
+    await updateResidentVerification(resident.id, {
+      verificationStatus,
+      verificationMethod,
+      verificationConfidence: matchScore,
+      verificationDetails: {
+        matchScore,
+        confidenceBreakdown: breakdown,
+        ocrExtractedFields: extractedFields,
+        ocrConfidence: confidence,
+        idType,
+      },
+      idDocumentType: idType,
+      verifiedAt: action === 'auto_verify' || action === 'id_verify' ? new Date().toISOString() : undefined,
+    })
+  } catch (updateError) {
+    console.error('[verification/process-id] Failed to update resident verification:', updateError)
+  }
+
+  return {
+    extractedFields,
+    ocrConfidence: confidence,
+    matchScore,
+    action,
+    verificationStatus,
+  }
+}
+
 async function runOcr(signedUrl: string): Promise<{ text: string; confidence: number } | null> {
-  // Use Google Vision API if key is configured
   if (process.env.GOOGLE_VISION_API_KEY) {
     try {
       const visionPromise = fetch(
-        `https://vision.googleapis.com/v1/images:annotate?key=${process.env.GOOGLE_VISION_API_KEY}`,
+        'https://vision.googleapis.com/v1/images:annotate',
         {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            'x-goog-api-key': process.env.GOOGLE_VISION_API_KEY,
+          },
           body: JSON.stringify({
             requests: [
               {
@@ -224,7 +256,6 @@ async function runOcr(signedUrl: string): Promise<{ text: string; confidence: nu
     }
   }
 
-  // Fall back to Tesseract.js
   try {
     const { createWorker } = await import('tesseract.js')
     const worker: any = await createWorker()

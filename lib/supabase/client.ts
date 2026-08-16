@@ -20,11 +20,13 @@ function getSupabaseConfig() {
   return { url, anonKey }
 }
 
-export function createClient() {
-  const { url, anonKey } = getSupabaseConfig()
+let browserClient: ReturnType<typeof createBrowserClient> | null = null
 
-  return createBrowserClient(
-    url,
-    anonKey,
-  )
+export function createClient() {
+  if (!browserClient) {
+    const { url, anonKey } = getSupabaseConfig()
+    browserClient = createBrowserClient(url, anonKey)
+  }
+
+  return browserClient
 }

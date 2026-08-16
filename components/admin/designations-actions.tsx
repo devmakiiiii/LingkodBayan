@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { toast } from 'sonner'
 import { designationCategories, type DesignationCategory } from '@/lib/governance'
 import type { DesignationInput } from '@/lib/schemas'
 
@@ -68,11 +69,12 @@ export function DesignationActions({ isOpen, mode, designation, onClose, onSaved
 
       if (error) throw error
 
+      toast.success(isEdit ? 'Designation updated successfully' : 'Designation created successfully')
       onSaved()
       onClose()
     } catch (error) {
       console.error('Failed to save designation:', error)
-      alert(error instanceof Error ? error.message : 'Failed to save designation')
+      toast.error(error instanceof Error ? error.message : 'Failed to save designation')
     } finally {
       setIsSaving(false)
     }
