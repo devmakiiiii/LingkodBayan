@@ -1,6 +1,9 @@
 import { updateSession } from '@/lib/supabase/proxy'
 import { type NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
+import { createCsrfToken, setCsrfCookie, csrfMiddleware } from '@/lib/csrf'
+import { verifyRequest } from '@/lib/request-security'
+import { logger } from '@/lib/logger'
 
 function hasSupabaseConfig() {
   return Boolean(
@@ -17,6 +20,24 @@ export async function middleware(request: NextRequest) {
   }
 
   const pathname = request.nextUrl.pathname
+
+  // Set CSRF cookie for mutation API routes
+  if (pathname.startsWith('/api/') && ['POST', 'PATCH', 'DELETE'].includes(request.method)) {
+    const csrfToken = createCsrfToken()
+    const csrfResponse = setCsrfCookie(response, csrfToken)
+
+    const securityCheck = verifyRequest(request)
+    if (!securityCheck.valid) {
+      logger.warn('Security check failed', {
+        context: 'middleware',
+        path: pathname,
+        error: securityCheck.error,
+      })
+      return NextResponse.json({ error: securityCheck.error || 'Security check failed' }, { status: 403 })
+    }
+
+    return csrfResponse
+  }
 
   if (user) {
     const userRole = user.user_metadata?.role || user.app_metadata?.role || 'citizen'

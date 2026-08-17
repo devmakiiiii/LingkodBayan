@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createServerClient } from '@supabase/ssr'
+import { verifyRequest } from '@/lib/request-security'
+import { logger } from '@/lib/logger'
 
 const bucketName = 'evidence'
 
@@ -23,11 +25,11 @@ async function ensureBucketExists() {
 
   const { error: getBucketError } = await supabase.storage.getBucket(bucketName)
   if (!getBucketError) {
-    console.log('[DEBUG] Evidence bucket already exists')
+    logger.debug('Evidence bucket already exists', { context: 'api/evidence' })
     return supabase
   }
 
-  console.log('[DEBUG] Creating evidence bucket...')
+  logger.info('Creating evidence bucket', { context: 'api/evidence' })
   const { error: createBucketError } = await supabase.storage.createBucket(bucketName, {
     public: true,
     allowedMimeTypes: ['image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'image/gif'],
@@ -35,16 +37,20 @@ async function ensureBucketExists() {
   })
 
   if (createBucketError) {
-    console.error('[DEBUG] Failed to create bucket:', createBucketError)
+    logger.error('Failed to create bucket', createBucketError, { context: 'api/evidence' })
     throw createBucketError
   }
 
-  console.log('[DEBUG] Evidence bucket created successfully')
+  logger.info('Evidence bucket created successfully', { context: 'api/evidence' })
   return supabase
 }
 
 export async function POST(request: NextRequest) {
-  // Verify user is authenticated
+  const securityCheck = verifyRequest(request)
+  if (!securityCheck.valid) {
+    return NextResponse.json({ error: 'Invalid request origin' }, { status: 403 })
+  }
+
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -76,12 +82,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No image file was provided.' }, { status: 400 })
     }
 
-    // Validate file type
     if (!file.type.startsWith('image/')) {
       return NextResponse.json({ error: 'Invalid file type. Only image files are allowed.' }, { status: 400 })
     }
 
-    // Validate file size (strict 5MB limit)
     if (file.size > 5 * 1024 * 1024) {
       return NextResponse.json({ error: 'File size must be less than 5MB.' }, { status: 400 })
     }
@@ -97,7 +101,7 @@ export async function POST(request: NextRequest) {
     })
 
     if (uploadError) {
-      console.error('[DEBUG] Evidence upload error:', uploadError)
+      logger.error('Evidence upload error', uploadError, { context: 'api/evidence' })
       return NextResponse.json({ error: uploadError.message }, { status: 500 })
     }
 
@@ -106,6 +110,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ url: data.publicUrl, path: fileName })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to upload evidence.'
+    logger.error('Evidence upload error', error, { context: 'api/evidence' })
     return NextResponse.json({ error: message }, { status: 500 })
   }
 }

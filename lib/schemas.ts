@@ -147,3 +147,49 @@ export const verificationReviewSchema = z.object({
 export type VerificationMatchInput = z.infer<typeof verificationMatchSchema>
 export type PreRegisteredResidentInput = z.infer<typeof preRegisteredResidentSchema>
 export type VerificationReviewInput = z.infer<typeof verificationReviewSchema>
+
+// API payload schemas for route validation
+export const createAnnouncementSchema = z.object({
+  title: z.string().min(1, 'Title is required').max(200, 'Title must be 200 characters or less'),
+  content: z.string().min(1, 'Content is required'),
+  category: z.string().min(1, 'Category is required'),
+  is_published: z.boolean().default(false),
+  image_url: z.string().url('Invalid image URL').optional().or(z.literal('')),
+  excerpt: z.string().max(500, 'Excerpt must be 500 characters or less').optional().or(z.literal('')),
+})
+
+export const updateAnnouncementSchema = z.object({
+  id: z.string().uuid('Invalid announcement ID'),
+  title: z.string().min(1, 'Title is required').max(200, 'Title must be 200 characters or less'),
+  content: z.string().min(1, 'Content is required'),
+  category: z.string().min(1, 'Category is required'),
+  is_published: z.boolean().default(false),
+  image_url: z.string().url('Invalid image URL').optional().or(z.literal('')),
+  excerpt: z.string().max(500, 'Excerpt must be 500 characters or less').optional().or(z.literal('')),
+})
+
+export const deleteAnnouncementSchema = z.object({
+  id: z.string().uuid('Invalid announcement ID'),
+})
+
+export const complaintReplySchema = z.object({
+  complaintId: z.string().uuid('Invalid complaint ID'),
+  message: z.string().min(1, 'Message is required').max(2000, 'Message must be 2000 characters or less'),
+})
+
+export const processIdVerificationSchema = z.object({
+  signedUrl: z.string().url('Invalid signed URL'),
+  idType: z.string().default('philsys'),
+  expectedValues: z.object({
+    firstName: z.string().min(1, 'First name is required'),
+    lastName: z.string().min(1, 'Last name is required'),
+    middleName: z.string().optional(),
+    email: z.string().email('Invalid email address'),
+    phone: z.string().optional(),
+    dateOfBirth: z.string().optional(),
+    nationalId: z.string().optional(),
+    barangay: z.string().optional(),
+    address: z.string().optional(),
+  }),
+})
+

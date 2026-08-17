@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { RequestInput, ComplaintInput, DesignationInput, OfficialInput, BarangayInfoInput, MissionVisionInput, SignatureUploadInput, ServiceCategoryInput } from './schemas'
+import { logger } from './logger'
 
 export async function createResident(userData: {
   userId: string
@@ -394,7 +395,7 @@ export async function getSystemSettings() {
     .select('*')
 
   if (error) {
-    console.warn('Failed to get system settings:', error.message)
+    logger.warn('Failed to get system settings', { context: 'lib/db', error: error.message })
     return {}
   }
   
@@ -419,7 +420,7 @@ export async function getSystemSetting(key: string) {
     return null // Not found
   }
   if (error) {
-    console.warn(`Failed to get system setting ${key}:`, error.message)
+    logger.warn(`Failed to get system setting ${key}`, { context: 'lib/db', error: error.message })
     return null
   }
 
@@ -513,7 +514,7 @@ export async function getServiceCategories(categoryType?: string, includeInactiv
   const { data, error } = await query.order('sort_order', { ascending: true }).order('title', { ascending: true })
 
   if (error) {
-    console.warn('Failed to get service categories:', error.message)
+    logger.warn('Failed to get service categories', { context: 'lib/db', error: error.message })
     return []
   }
 
@@ -533,7 +534,7 @@ export async function getServiceCategoryById(id: string) {
     return null
   }
   if (error) {
-    console.warn(`Failed to get service category ${id}:`, error.message)
+    logger.warn(`Failed to get service category ${id}`, { context: 'lib/db', error: error.message })
     return null
   }
 
@@ -617,7 +618,7 @@ export async function getServiceCategoryRequirements(categoryId: string) {
     .order('sort_order', { ascending: true })
 
   if (error) {
-    console.warn(`Failed to get requirements for category ${categoryId}:`, error.message)
+    logger.warn(`Failed to get requirements for category ${categoryId}`, { context: 'lib/db', error: error.message })
     return []
   }
 

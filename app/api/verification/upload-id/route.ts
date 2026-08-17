@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createServerClient } from '@supabase/ssr'
+import { verifyRequest } from '@/lib/request-security'
+import { logger } from '@/lib/logger'
 
 const bucketName = 'id-documents'
 
@@ -19,6 +21,11 @@ function buildSafeFileName(originalName: string): string {
 }
 
 export async function POST(request: NextRequest) {
+  const securityCheck = verifyRequest(request)
+  if (!securityCheck.valid) {
+    return NextResponse.json({ error: 'Invalid request origin' }, { status: 403 })
+  }
+
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -75,11 +82,11 @@ export async function POST(request: NextRequest) {
           contentType: file.type || 'image/png',
         })
         if (updateError) {
-          console.error('[verification/upload-id] Update error:', updateError)
+          logger.error('[verification/upload-id] Update error', updateError, { context: 'api/verification/upload-id' })
           return NextResponse.json({ error: updateError.message }, { status: 500 })
         }
       } else {
-        console.error('[verification/upload-id] Upload error:', uploadError)
+        logger.error('[verification/upload-id] Upload error', uploadError, { context: 'api/verification/upload-id' })
         return NextResponse.json({ error: uploadError.message }, { status: 500 })
       }
     }
@@ -90,7 +97,7 @@ export async function POST(request: NextRequest) {
       .createSignedUrl(fileName, 300)
 
     if (signedUrlError) {
-      console.error('[verification/upload-id] Signed URL error:', signedUrlError)
+      logger.error('[verification/upload-id] Signed URL error', signedUrlError, { context: 'api/verification/upload-id' })
       return NextResponse.json({ error: signedUrlError.message }, { status: 500 })
     }
 
@@ -100,7 +107,7 @@ export async function POST(request: NextRequest) {
       idType,
     })
   } catch (error: unknown) {
-    console.error('[verification/upload-id] Error:', error)
+    logger.error('[verification/upload-id] Error', error, { context: 'api/verification/upload-id' })
     const message = error instanceof Error ? error.message : 'Failed to upload ID document.'
     return NextResponse.json({ error: message }, { status: 500 })
   }

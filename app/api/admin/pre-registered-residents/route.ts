@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { z } from 'zod'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { verifyRequest } from '@/lib/request-security'
+import { logger } from '@/lib/logger'
 
 function stripBom(text: string): string {
   if (text.charCodeAt(0) === 0xfeff) {
@@ -175,7 +177,7 @@ export async function GET(request: NextRequest) {
     .order('created_at', { ascending: false })
 
   if (error) {
-    console.error('[admin/pre-registered-residents] Error:', error)
+    logger.error('[admin/pre-registered-residents] Error', error, { context: 'api/admin/pre-registered-residents' })
     return NextResponse.json({ error: error.message || 'Failed to fetch pre-registered residents.' }, { status: 500 })
   }
 
@@ -183,6 +185,10 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const securityCheck = verifyRequest(request)
+  if (!securityCheck.valid) {
+    return NextResponse.json({ error: 'Invalid request origin' }, { status: 403 })
+  }
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,

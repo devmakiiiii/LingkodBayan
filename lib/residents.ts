@@ -1,4 +1,5 @@
 import type { SupabaseClient, User } from '@supabase/supabase-js'
+import { logger } from './logger'
 
 type ResidentProfile = {
   id: string
@@ -50,7 +51,7 @@ async function applyAutoVerification(
     .eq('id', residentId)
 
   if (updateError) {
-    console.error('applyAutoVerification - update error:', updateError)
+    logger.error('applyAutoVerification - update error', updateError, { context: 'lib/residents' })
     return
   }
 
@@ -70,7 +71,7 @@ async function applyAutoVerification(
     ])
 
   if (logError) {
-    console.error('applyAutoVerification - log error:', logError)
+    logger.error('applyAutoVerification - log error', logError, { context: 'lib/residents' })
   }
 }
 
@@ -89,7 +90,7 @@ export async function getOrCreateResidentProfile(
     const errorMessage = 'message' in residentError
       ? String(residentError.message)
       : JSON.stringify(residentError)
-    console.error('getOrCreateResidentProfile - SELECT error:', errorMessage, residentError)
+    logger.error('getOrCreateResidentProfile - SELECT error', new Error(errorMessage), { context: 'lib/residents', residentError })
     throw residentError
   }
 
@@ -120,7 +121,7 @@ export async function getOrCreateResidentProfile(
   if (!email) missingFields.push('email')
 
   if (missingFields.length > 0) {
-    console.warn('getOrCreateResidentProfile - Missing user metadata:', missingFields.join(', '))
+    logger.warn('getOrCreateResidentProfile - Missing user metadata', { context: 'lib/residents', missingFields: missingFields.join(', ') })
     return null
   }
 
@@ -144,7 +145,7 @@ export async function getOrCreateResidentProfile(
     const errorMessage = 'message' in insertError
       ? String(insertError.message)
       : JSON.stringify(insertError)
-    console.error('getOrCreateResidentProfile - INSERT error:', errorMessage, insertError)
+    logger.error('getOrCreateResidentProfile - INSERT error', new Error(errorMessage), { context: 'lib/residents', insertError })
     throw insertError
   }
 

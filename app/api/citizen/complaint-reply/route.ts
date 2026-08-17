@@ -1,29 +1,33 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { complaintReplySchema } from '@/lib/schemas'
+import { verifyRequest } from '@/lib/request-security'
+import { logger } from '@/lib/logger'
 
 export async function POST(request: NextRequest) {
+  const securityCheck = verifyRequest(request)
+  if (!securityCheck.valid) {
+    return NextResponse.json({ error: 'Invalid request origin' }, { status: 403 })
+  }
+
   try {
     const supabase = await createClient()
-    
+
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }
 
     const body = await request.json()
-    const { complaintId, message } = body
-
-    if (!complaintId || !message?.trim()) {
-      return NextResponse.json({ error: 'Complaint ID and message are required' }, { status: 400 })
-    }
+    const validated = complaintReplySchema.parse(body)
 
     const adminSupabase = createAdminClient()
 
     const { data: complaint, error: complaintError } = await adminSupabase
       .from('complaints')
       .select('id, resident_id')
-      .eq('id', complaintId)
+      .eq('id', validated.complaintId)
       .single()
 
     if (complaintError || !complaint) {
@@ -43,22 +47,25 @@ export async function POST(request: NextRequest) {
     const { data, error } = await supabase
       .from('complaint_messages')
       .insert({
-        complaint_id: complaintId,
+        complaint_id: validated.complaintId,
         sender_id: user.id,
         recipient_user_id: null,
-        message: message.trim(),
+        message: validated.message.trim(),
       })
       .select()
       .single()
 
     if (error) {
-      console.error('Failed to send reply:', error)
+      logger.error('Failed to send reply', error, { context: 'api/complaint-reply' })
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
     return NextResponse.json({ success: true, message: data })
-  } catch (error) {
-    console.error('Complaint reply error:', error)
+  } catch (error: any) {
+    logger.error('Complaint reply error', error, { context: 'api/complaint-reply' })
+    if (error.name === 'ZodError') {
+      return NextResponse.json({ error: error.errors[0]?.message || 'Validation failed' }, { status: 400 })
+    }
     return NextResponse.json({ error: 'Failed to send reply' }, { status: 500 })
   }
 }

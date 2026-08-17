@@ -9,8 +9,15 @@ import {
   type PreRegisteredResident,
   type MatchResult,
 } from '@/lib/verification'
+import { verifyRequest } from '@/lib/request-security'
+import { logger } from '@/lib/logger'
 
 export async function POST(request: NextRequest) {
+  const securityCheck = verifyRequest(request)
+  if (!securityCheck.valid) {
+    return NextResponse.json({ error: 'Invalid request origin' }, { status: 403 })
+  }
+
   const supabase = createAdminClient()
 
   try {
@@ -26,7 +33,6 @@ export async function POST(request: NextRequest) {
 
     const input: SignUpVerificationInput = parseResult.data as VerificationMatchInput
 
-    // Query pre-registered residents using indexed lookups first for performance
     const candidates = await findCandidateResidents(supabase, input)
 
     if (candidates.length === 0) {
@@ -39,13 +45,11 @@ export async function POST(request: NextRequest) {
       } satisfies MatchResult)
     }
 
-    // Calculate match scores for all candidates
     const scoredCandidates = candidates.map((candidate) => {
       const { score, breakdown } = calculateMatchScore(input, candidate as PreRegisteredResident)
       return { candidate: candidate as PreRegisteredResident, score, breakdown }
     })
 
-    // Sort by score descending
     scoredCandidates.sort((a, b) => b.score - a.score)
 
     const bestMatch = scoredCandidates[0]
@@ -68,7 +72,7 @@ export async function POST(request: NextRequest) {
       confidenceBreakdown: bestMatch.breakdown,
     } satisfies MatchResult)
   } catch (error: unknown) {
-    console.error('[verification/match] Error:', error)
+    logger.error('[verification/match] Error', error, { context: 'api/verification/match' })
     const message =
       error instanceof Error ? error.message : 'Failed to process verification match'
     return NextResponse.json({ error: message }, { status: 500 })
@@ -97,7 +101,6 @@ async function findCandidateResidents(
     }
   }
 
-  // Try exact-field matches first (fast indexed lookups)
   if (orFilters.length > 0) {
     const orClause = `(${orFilters.join(',')})`
     const { data, error } = await supabase
@@ -107,13 +110,12 @@ async function findCandidateResidents(
       .limit(50)
 
     if (error) {
-      console.error('[verification/match] Supabase error:', error)
+      logger.error('[verification/match] Supabase error', error, { context: 'api/verification/match' })
       return []
     }
     return data || []
   }
 
-  // Fall back to name + barangay fuzzy search
   const firstNameNorm = normalizeString(input.firstName)
   const lastNameNorm = normalizeString(input.lastName)
 
@@ -126,7 +128,7 @@ async function findCandidateResidents(
       .limit(50)
 
     if (error) {
-      console.error('[verification/match] Supabase error:', error)
+      logger.error('[verification/match] Supabase error', error, { context: 'api/verification/match' })
       return []
     }
     return data || []

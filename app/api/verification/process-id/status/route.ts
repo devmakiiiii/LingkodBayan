@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getOcrJob } from '@/lib/verification-jobs'
+import { verifyRequest } from '@/lib/request-security'
+import { logger } from '@/lib/logger'
 
 export async function GET(request: NextRequest) {
   const jobId = request.nextUrl.searchParams.get('jobId')
@@ -15,6 +17,7 @@ export async function GET(request: NextRequest) {
   }
 
   if (job.status === 'failed') {
+    logger.warn('OCR job failed', { context: 'api/verification/process-id/status', jobId, error: job.error })
     return NextResponse.json({ error: job.error || 'Processing failed.' }, { status: 500 })
   }
 

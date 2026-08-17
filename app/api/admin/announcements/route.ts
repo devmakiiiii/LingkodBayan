@@ -1,11 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { createAnnouncementSchema, updateAnnouncementSchema, deleteAnnouncementSchema } from '@/lib/schemas'
+import { verifyRequest } from '@/lib/request-security'
+import { logger } from '@/lib/logger'
 
 function generateExcerpt(content: string, maxLength = 200): string {
   const stripped = content.replace(/<[^>]*>/g, ' ').replace(/&nbsp;/gi, ' ').trim()
   if (stripped.length <= maxLength) return stripped
   return stripped.slice(0, maxLength) + '...'
+}
+
+function sanitizeAnnouncementInput(body: Record<string, unknown>) {
+  return {
+    title: String(body.title || '').trim(),
+    content: String(body.content || '').trim(),
+    category: String(body.category || '').trim(),
+    is_published: Boolean(body.is_published),
+    image_url: body.image_url ? String(body.image_url).trim() : null,
+    excerpt: body.excerpt ? String(body.excerpt).trim() : null,
+  }
 }
 
 export async function GET(request: NextRequest) {
@@ -30,42 +44,43 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Authentication required.' }, { status: 401 })
   }
 
-  // Use admin client to bypass RLS and fetch all announcements
   const adminClient = createAdminClient()
 
-// Try to select with image_url and excerpt first, fall back to without if column doesn't exist
-   let { data, error }: { data: any[] | null; error: any } = await adminClient
-     .from('announcements')
-     .select('id, title, content, category, created_at, is_published, image_url, excerpt')
-     .order('created_at', { ascending: false })
+  let { data, error }: { data: any[] | null; error: any } = await adminClient
+    .from('announcements')
+    .select('id, title, content, category, created_at, is_published, image_url, excerpt')
+    .order('created_at', { ascending: false })
 
-   // If image_url or excerpt column doesn't exist, retry without them
-   if (error && (error.message?.includes('image_url') || error.message?.includes('excerpt'))) {
-     console.warn('Optional columns not found, falling back to query without them')
-     const result = await adminClient
-       .from('announcements')
-       .select('id, title, content, category, created_at, is_published')
-       .order('created_at', { ascending: false })
-     data = result.data as any[]
-     error = result.error
-   }
+  if (error && (error.message?.includes('image_url') || error.message?.includes('excerpt'))) {
+    logger.warn('Optional columns not found, falling back to query without them', { context: 'api/announcements' })
+    const result = await adminClient
+      .from('announcements')
+      .select('id, title, content, category, created_at, is_published')
+      .order('created_at', { ascending: false })
+    data = result.data as any[]
+    error = result.error
+  }
 
-   if (error) {
-     console.error('Error fetching announcements:', error)
-     return NextResponse.json({ error: error.message || 'Failed to fetch announcements' }, { status: 500 })
-   }
+  if (error) {
+    logger.error('Error fetching announcements', error, { context: 'api/announcements' })
+    return NextResponse.json({ error: error.message || 'Failed to fetch announcements' }, { status: 500 })
+  }
 
-   // Add image_url and excerpt fields to each announcement if missing (for schema compatibility)
-   const announcements = (data || []).map((announcement: any) => ({
-     ...announcement,
-     image_url: announcement.image_url || null,
-     excerpt: announcement.excerpt || null,
-   }))
+  const announcements = (data || []).map((announcement: any) => ({
+    ...announcement,
+    image_url: announcement.image_url || null,
+    excerpt: announcement.excerpt || null,
+  }))
 
   return NextResponse.json({ announcements })
 }
 
 export async function POST(request: NextRequest) {
+  const securityCheck = verifyRequest(request)
+  if (!securityCheck.valid) {
+    return NextResponse.json({ error: 'Invalid request origin' }, { status: 403 })
+  }
+
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -89,64 +104,60 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json()
-    const { title, content, category, is_published, image_url, excerpt } = body
+    const validated = createAnnouncementSchema.parse(body)
 
-    if (!title || !content || !category) {
-      return NextResponse.json({ error: 'Title, content, and category are required.' }, { status: 400 })
-    }
-
-    // Use admin client to bypass RLS
     const adminClient = createAdminClient()
 
-    // Build insert data with optional fields
-    const insertData: any = {
-      title,
-      content,
-      category,
-      is_published: is_published ?? false,
-    }
+    const finalExcerpt = validated.excerpt || generateExcerpt(validated.content)
 
-    // Auto-generate excerpt if not provided
-    const finalExcerpt = excerpt || generateExcerpt(content)
-
-    // Try with all optional fields, fall back if any column doesn't exist
     let { data, error }: { data: any[] | null; error: any } = await adminClient
       .from('announcements')
-      .insert({ ...insertData, image_url: image_url || null, excerpt: finalExcerpt })
+      .insert({
+        title: validated.title,
+        content: validated.content,
+        category: validated.category,
+        is_published: validated.is_published,
+        image_url: validated.image_url || null,
+        excerpt: finalExcerpt,
+      })
       .select()
 
     if (error && (error.message?.includes('image_url') || error.message?.includes('excerpt'))) {
-      console.warn('Optional columns not found, inserting without them')
+      logger.warn('Optional columns not found, inserting without them', { context: 'api/announcements' })
       const result = await adminClient
         .from('announcements')
-        .insert(insertData)
+        .insert({
+          title: validated.title,
+          content: validated.content,
+          category: validated.category,
+          is_published: validated.is_published,
+        })
         .select()
-
-      // Add image_url and excerpt from request if missing (for schema compatibility)
-      if (result.data) {
-        result.data = result.data.map((a: any) => ({
-          ...a,
-          image_url: image_url || null,
-          excerpt: finalExcerpt,
-        }))
-      }
-      data = result.data as any[]
+      data = result.data
       error = result.error
     }
 
     if (error) {
-      console.error('Error creating announcement:', error)
+      logger.error('Error creating announcement', error, { context: 'api/announcements' })
       return NextResponse.json({ error: error.message || 'Failed to create announcement' }, { status: 500 })
     }
 
     return NextResponse.json({ announcement: data?.[0] || null })
   } catch (error: any) {
-    console.error('Error in POST /api/admin/announcements:', error)
+    logger.error('Error in POST /api/admin/announcements', error, { context: 'api/announcements' })
+    if (error.name === 'ZodError') {
+      return NextResponse.json({ error: error.errors[0]?.message || 'Validation failed' }, { status: 400 })
+    }
     return NextResponse.json({ error: error.message || 'Failed to create announcement' }, { status: 500 })
   }
 }
 
 export async function PUT(request: NextRequest) {
+  const securityCheck = verifyRequest(request)
+  if (!securityCheck.valid) {
+    return NextResponse.json({ error: 'Invalid request origin' }, { status: 403 })
+  }
+
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -170,64 +181,62 @@ export async function PUT(request: NextRequest) {
 
   try {
     const body = await request.json()
-    const { id, title, content, category, is_published, image_url, excerpt } = body
-
-    if (!id) {
-      return NextResponse.json({ error: 'Announcement ID is required.' }, { status: 400 })
-    }
+    const validated = updateAnnouncementSchema.parse(body)
 
     const adminClient = createAdminClient()
 
-    const updateFields: any = {
-      title,
-      content,
-      category,
-      is_published,
-    }
-    
-    // Auto-generate excerpt if not provided
-    const finalExcerpt = excerpt || (content ? generateExcerpt(content) : null)
-    
-    // Try with optional fields, fall back if columns don't exist
+    const finalExcerpt = validated.excerpt || (validated.content ? generateExcerpt(validated.content) : null)
+
     let { data, error }: { data: any[] | null; error: any } = await adminClient
       .from('announcements')
-      .update({ ...updateFields, image_url, excerpt: finalExcerpt })
-      .eq('id', id)
+      .update({
+        title: validated.title,
+        content: validated.content,
+        category: validated.category,
+        is_published: validated.is_published,
+        image_url: validated.image_url || null,
+        excerpt: finalExcerpt,
+      })
+      .eq('id', validated.id)
       .select()
 
     if (error && (error.message?.includes('image_url') || error.message?.includes('excerpt'))) {
-      console.warn('Optional columns not found, updating without them')
+      logger.warn('Optional columns not found, updating without them', { context: 'api/announcements' })
       const result = await adminClient
         .from('announcements')
-        .update(updateFields)
-        .eq('id', id)
+        .update({
+          title: validated.title,
+          content: validated.content,
+          category: validated.category,
+          is_published: validated.is_published,
+        })
+        .eq('id', validated.id)
         .select()
-
-      // Add image_url and excerpt from request if missing (for schema compatibility)
-      if (result.data) {
-        result.data = result.data.map((a: any) => ({
-          ...a,
-          image_url: image_url || null,
-          excerpt: finalExcerpt,
-        }))
-      }
-      data = result.data as any[]
+      data = result.data
       error = result.error
     }
 
     if (error) {
-      console.error('Error updating announcement:', error)
+      logger.error('Error updating announcement', error, { context: 'api/announcements' })
       return NextResponse.json({ error: error.message || 'Failed to update announcement' }, { status: 500 })
     }
 
     return NextResponse.json({ announcement: data?.[0] || null })
   } catch (error: any) {
-    console.error('Error in PUT /api/admin/announcements:', error)
+    logger.error('Error in PUT /api/admin/announcements', error, { context: 'api/announcements' })
+    if (error.name === 'ZodError') {
+      return NextResponse.json({ error: error.errors[0]?.message || 'Validation failed' }, { status: 400 })
+    }
     return NextResponse.json({ error: error.message || 'Failed to update announcement' }, { status: 500 })
   }
 }
 
 export async function DELETE(request: NextRequest) {
+  const securityCheck = verifyRequest(request)
+  if (!securityCheck.valid) {
+    return NextResponse.json({ error: 'Invalid request origin' }, { status: 403 })
+  }
+
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -251,27 +260,26 @@ export async function DELETE(request: NextRequest) {
 
   try {
     const body = await request.json()
-    const { id } = body
-
-    if (!id) {
-      return NextResponse.json({ error: 'Announcement ID is required.' }, { status: 400 })
-    }
+    const validated = deleteAnnouncementSchema.parse(body)
 
     const adminClient = createAdminClient()
 
     const { error } = await adminClient
       .from('announcements')
       .delete()
-      .eq('id', id)
+      .eq('id', validated.id)
 
     if (error) {
-      console.error('Error deleting announcement:', error)
+      logger.error('Error deleting announcement', error, { context: 'api/announcements' })
       return NextResponse.json({ error: error.message || 'Failed to delete announcement' }, { status: 500 })
     }
 
     return NextResponse.json({ success: true })
   } catch (error: any) {
-    console.error('Error in DELETE /api/admin/announcements:', error)
+    logger.error('Error in DELETE /api/admin/announcements', error, { context: 'api/announcements' })
+    if (error.name === 'ZodError') {
+      return NextResponse.json({ error: error.errors[0]?.message || 'Validation failed' }, { status: 400 })
+    }
     return NextResponse.json({ error: error.message || 'Failed to delete announcement' }, { status: 500 })
   }
 }

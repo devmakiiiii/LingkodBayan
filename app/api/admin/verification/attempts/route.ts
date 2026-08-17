@@ -7,6 +7,8 @@ import {
   updateVerificationAttempt,
   updateResidentVerification,
 } from '@/lib/db'
+import { verifyRequest } from '@/lib/request-security'
+import { logger } from '@/lib/logger'
 
 export async function GET(request: NextRequest) {
   const supabase = createServerClient(
@@ -49,13 +51,18 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ attempts })
   } catch (error: unknown) {
-    console.error('[admin/verification/attempts] Error:', error)
+    logger.error('[admin/verification/attempts] Error', error, { context: 'api/admin/verification/attempts' })
     const message = error instanceof Error ? error.message : 'Failed to fetch verification attempts.'
     return NextResponse.json({ error: message }, { status: 500 })
   }
 }
 
 export async function PATCH(request: NextRequest) {
+  const securityCheck = verifyRequest(request)
+  if (!securityCheck.valid) {
+    return NextResponse.json({ error: 'Invalid request origin' }, { status: 403 })
+  }
+
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,

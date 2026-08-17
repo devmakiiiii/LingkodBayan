@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { getResidentVerification } from '@/lib/db'
+import { logger } from '@/lib/logger'
 
 export async function GET(request: NextRequest) {
   const supabase = createServerClient(
@@ -40,7 +41,7 @@ export async function GET(request: NextRequest) {
       verifiedAt: verification.verified_at,
     })
   } catch (error: unknown) {
-    console.error('[verification/status] Error:', error)
+    logger.error('[verification/status] Error', error, { context: 'api/verification/status' })
     const message = error instanceof Error ? error.message : 'Failed to fetch verification status.'
     return NextResponse.json({ error: message }, { status: 500 })
   }

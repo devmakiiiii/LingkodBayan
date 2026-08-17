@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createServerClient } from '@supabase/ssr'
+import { verifyRequest } from '@/lib/request-security'
+import { logger } from '@/lib/logger'
 
 const bucketName = 'announcement-images'
 
@@ -23,23 +25,22 @@ async function ensureBucketExists() {
 
   const { data: bucketData, error: getBucketError } = await supabase.storage.getBucket(bucketName)
   if (!getBucketError && bucketData) {
-    // Check if bucket is public, if not update it
     if (!bucketData.public) {
-      console.log('[DEBUG] Bucket exists but not public, updating...')
+      logger.info('Bucket exists but not public, updating...', { context: 'api/announcement-images' })
       const { error: updateError } = await supabase.storage.updateBucket(bucketName, {
         public: true,
         allowedMimeTypes: ['image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'image/gif'],
         fileSizeLimit: 5242880,
       })
       if (updateError) {
-        console.error('[DEBUG] Failed to update bucket to public:', updateError)
+        logger.error('Failed to update bucket to public', updateError, { context: 'api/announcement-images' })
         throw updateError
       }
     }
     return supabase
   }
 
-  console.log('[DEBUG] Creating announcement-images bucket...')
+  logger.info('Creating announcement-images bucket', { context: 'api/announcement-images' })
   const { error: createBucketError } = await supabase.storage.createBucket(bucketName, {
     public: true,
     allowedMimeTypes: ['image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'image/gif'],
@@ -47,15 +48,20 @@ async function ensureBucketExists() {
   })
 
   if (createBucketError) {
-    console.error('[DEBUG] Failed to create bucket:', createBucketError)
+    logger.error('Failed to create bucket', createBucketError, { context: 'api/announcement-images' })
     throw createBucketError
   }
 
-  console.log('[DEBUG] Bucket created successfully')
+  logger.info('Bucket created successfully', { context: 'api/announcement-images' })
   return supabase
 }
 
 export async function POST(request: NextRequest) {
+  const securityCheck = verifyRequest(request)
+  if (!securityCheck.valid) {
+    return NextResponse.json({ error: 'Invalid request origin' }, { status: 403 })
+  }
+
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -99,7 +105,7 @@ export async function POST(request: NextRequest) {
     const arrayBuffer = await file.arrayBuffer()
     const uploadFile = Buffer.from(arrayBuffer)
 
-    console.log('[DEBUG] Uploading file to announcement-images bucket:', { fileName, fileType: file.type, fileSize: file.size })
+    logger.info('Uploading file to announcement-images bucket', { context: 'api/announcement-images', fileName, fileType: file.type, fileSize: file.size })
 
     const { error: uploadError } = await adminClient.storage.from(bucketName).upload(fileName, uploadFile, {
       contentType: file.type || 'image/png',
@@ -107,16 +113,16 @@ export async function POST(request: NextRequest) {
     })
 
     if (uploadError) {
-      console.error('[DEBUG] Upload error:', uploadError)
+      logger.error('Upload error', uploadError, { context: 'api/announcement-images' })
       return NextResponse.json({ error: uploadError.message }, { status: 500 })
     }
 
     const { data } = adminClient.storage.from(bucketName).getPublicUrl(fileName)
-    console.log('[DEBUG] Generated public URL:', data.publicUrl)
+    logger.info('Generated public URL', { context: 'api/announcement-images', url: data.publicUrl })
 
     return NextResponse.json({ url: data.publicUrl, path: fileName })
   } catch (error: any) {
-    console.error('[DEBUG] Error in announcement-images upload:', error)
+    logger.error('Error in announcement-images upload', error, { context: 'api/announcement-images' })
     const message = error instanceof Error ? error.message : 'Failed to upload image.'
     return NextResponse.json({ error: message }, { status: 500 })
   }

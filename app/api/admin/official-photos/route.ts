@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { createServerClient } from '@supabase/ssr'
+import { verifyRequest } from '@/lib/request-security'
+import { logger } from '@/lib/logger'
 
 const bucketName = 'official-photos'
 
@@ -30,13 +33,41 @@ async function ensureBucketExists() {
   })
 
   if (createBucketError) {
+    logger.error('Failed to create bucket', createBucketError, { context: 'api/official-photos' })
     throw createBucketError
   }
 
+  logger.info('Bucket created successfully', { context: 'api/official-photos' })
   return supabase
 }
 
 export async function POST(request: NextRequest) {
+  const securityCheck = verifyRequest(request)
+  if (!securityCheck.valid) {
+    return NextResponse.json({ error: 'Invalid request origin' }, { status: 403 })
+  }
+
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll()
+        },
+        setAll() {},
+      },
+    },
+  )
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) {
+    return NextResponse.json({ error: 'Authentication required.' }, { status: 401 })
+  }
+
   try {
     const formData = await request.formData()
     const file = formData.get('file')
@@ -45,25 +76,35 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No image file was provided.' }, { status: 400 })
     }
 
-    const supabase = await ensureBucketExists()
+    if (!file.type.startsWith('image/')) {
+      return NextResponse.json({ error: 'Invalid file type. Only image files are allowed.' }, { status: 400 })
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      return NextResponse.json({ error: 'File size must be less than 5MB.' }, { status: 400 })
+    }
+
+    const adminClient = await ensureBucketExists()
     const fileName = buildSafeFileName(file.name)
     const arrayBuffer = await file.arrayBuffer()
     const uploadFile = Buffer.from(arrayBuffer)
 
-    const { error: uploadError } = await supabase.storage.from(bucketName).upload(fileName, uploadFile, {
+    const { error: uploadError } = await adminClient.storage.from(bucketName).upload(fileName, uploadFile, {
       contentType: file.type || 'image/png',
       upsert: true,
     })
 
     if (uploadError) {
+      logger.error('Upload error', uploadError, { context: 'api/official-photos' })
       return NextResponse.json({ error: uploadError.message }, { status: 500 })
     }
 
-    const { data } = supabase.storage.from(bucketName).getPublicUrl(fileName)
+    const { data } = adminClient.storage.from(bucketName).getPublicUrl(fileName)
 
     return NextResponse.json({ url: data.publicUrl })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to upload official photo.'
+    logger.error('Upload error', error, { context: 'api/official-photos' })
     return NextResponse.json({ error: message }, { status: 500 })
   }
 }

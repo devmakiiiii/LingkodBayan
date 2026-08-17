@@ -1,0 +1,37 @@
+import { createAdminClient } from '@/lib/supabase/admin'
+import { logger } from '@/lib/logger'
+
+export interface AuditLogEntry {
+  adminId: string
+  action: string
+  resourceType: string
+  resourceId?: string
+  oldValues?: Record<string, unknown>
+  newValues?: Record<string, unknown>
+  ipAddress?: string
+  userAgent?: string
+}
+
+export async function logAuditAction(entry: AuditLogEntry): Promise<void> {
+  try {
+    const adminClient = createAdminClient()
+
+    await adminClient.from('audit_logs').insert({
+      admin_id: entry.adminId,
+      action: entry.action,
+      resource_type: entry.resourceType,
+      resource_id: entry.resourceId,
+      old_values: entry.oldValues,
+      new_values: entry.newValues,
+      ip_address: entry.ipAddress,
+      user_agent: entry.userAgent,
+    })
+  } catch (error) {
+    logger.error('Failed to write audit log', error, {
+      context: 'audit',
+      action: entry.action,
+      resourceType: entry.resourceType,
+      resourceId: entry.resourceId,
+    })
+  }
+}

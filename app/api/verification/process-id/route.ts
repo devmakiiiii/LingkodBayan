@@ -9,10 +9,18 @@ import {
 } from '@/lib/verification'
 import { getResidentVerification, updateResidentVerification, logVerificationAttempt, searchPreRegisteredResidents } from '@/lib/db'
 import { getOcrJob, setOcrJob } from '@/lib/verification-jobs'
+import { processIdVerificationSchema } from '@/lib/schemas'
+import { verifyRequest } from '@/lib/request-security'
+import { logger } from '@/lib/logger'
 
 const ocrJobs = { getOcrJob, setOcrJob }
 
 export async function POST(request: NextRequest) {
+  const securityCheck = verifyRequest(request)
+  if (!securityCheck.valid) {
+    return NextResponse.json({ error: 'Invalid request origin' }, { status: 403 })
+  }
+
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -36,30 +44,14 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json()
-    const signedUrl: string = body.signedUrl
-    const idType: string = body.idType || 'philsys'
-    const expectedValues: {
-      firstName: string
-      lastName: string
-      middleName?: string
-      email: string
-      phone?: string
-      dateOfBirth?: string
-      nationalId?: string
-      barangay?: string
-      address?: string
-    } = body.expectedValues
-
-    if (!signedUrl) {
-      return NextResponse.json({ error: 'Missing signedUrl parameter.' }, { status: 400 })
-    }
+    const validated = processIdVerificationSchema.parse(body)
 
     const jobId = crypto.randomUUID()
     ocrJobs.setOcrJob(jobId, { status: 'processing' })
 
     setImmediate(async () => {
       try {
-        const result = await processOcrJob(user.id, signedUrl, idType, expectedValues)
+        const result = await processOcrJob(user.id, validated.signedUrl, validated.idType, validated.expectedValues)
         if (result) {
           ocrJobs.setOcrJob(jobId, { status: 'completed', result })
         } else {
@@ -74,6 +66,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ jobId, status: 'processing' }, { status: 202 })
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Failed to process ID verification.'
+    logger.error('Error in POST /api/verification/process-id', error, { context: 'api/verification' })
+    if (error instanceof Error && error.name === 'ZodError') {
+      return NextResponse.json({ error: message }, { status: 400 })
+    }
     return NextResponse.json({ error: message }, { status: 500 })
   }
 }
