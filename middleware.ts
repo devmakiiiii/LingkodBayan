@@ -1,7 +1,7 @@
 import { updateSession } from '@/lib/supabase/proxy'
 import { type NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
-import { createCsrfToken, setCsrfCookie, csrfMiddleware } from '@/lib/csrf'
+import { createCsrfToken, setCsrfCookie } from '@/lib/csrf'
 import { verifyRequest } from '@/lib/request-security'
 import { logger } from '@/lib/logger'
 
@@ -108,6 +108,6 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico).*)',
   ],
 }

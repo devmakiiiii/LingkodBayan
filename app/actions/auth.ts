@@ -4,6 +4,10 @@ import { cookies } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
 import { getOrCreateResidentProfile } from '@/lib/residents'
 import { redirect } from 'next/navigation'
+import { forgotPasswordSchema, resetPasswordSchema } from '@/lib/schemas'
+import { rateLimit } from '@/lib/rate-limit'
+import { headers } from 'next/headers'
+import { logger } from '@/lib/logger'
 
 const SIGNUP_COOKIE = 'signup_temp_data'
 const COOKIE_MAX_AGE = 300
@@ -168,4 +172,79 @@ export async function resendSignUpOtp(formData: FormData) {
   }
 
   return { success: true, message: 'A new verification code has been sent to your email.' }
+}
+
+export async function requestPasswordReset(formData: FormData) {
+  const email = formData.get('email') as string
+
+  try {
+    const validated = forgotPasswordSchema.parse({ email })
+
+    const headersList = await headers()
+    const rateLimitResult = rateLimit({ interval: 60 * 1000, limit: 3 })({
+      ip: headersList.get('x-forwarded-for') || undefined,
+      headers: headersList as unknown as Headers,
+    })
+
+    if (!rateLimitResult.allowed) {
+      return {
+        error: `Too many password reset requests. Please try again in ${Math.ceil((rateLimitResult.resetTime - Date.now()) / 1000)} seconds.`,
+      }
+    }
+
+    const supabase = await createClient()
+
+    const { error } = await supabase.auth.resetPasswordForEmail(validated.email, {
+      redirectTo: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/auth/reset-password`,
+    })
+
+    if (error) {
+      logger.error('Password reset request failed', error, { context: 'auth', email: validated.email })
+      return { error: error.message }
+    }
+
+    logger.info('Password reset email sent', { context: 'auth', email: validated.email })
+    return { success: true, message: 'If an account exists with this email, a password reset link has been sent.' }
+  } catch (error: unknown) {
+    if (error && typeof error === 'object' && 'name' in error && (error as any).name === 'ZodError') {
+      return { error: (error as any).errors[0]?.message || 'Invalid email address' }
+    }
+    logger.error('Password reset request error', error, { context: 'auth' })
+    return { error: 'Failed to process password reset request.' }
+  }
+}
+
+export async function resetPassword(formData: FormData) {
+  const password = formData.get('password') as string
+  const confirmPassword = formData.get('confirmPassword') as string
+
+  try {
+    const validated = resetPasswordSchema.parse({ password, confirmPassword })
+
+    const supabase = await createClient()
+
+    const { data: { user } } = await supabase.auth.getUser()
+
+    if (!user) {
+      return { error: 'Session expired. Please request a new password reset link.' }
+    }
+
+    const { error } = await supabase.auth.updateUser({
+      password: validated.password,
+    })
+
+    if (error) {
+      logger.error('Password reset failed', error, { context: 'auth', userId: user.id })
+      return { error: error.message }
+    }
+
+    logger.info('Password reset successful', { context: 'auth', userId: user.id })
+    return { success: true, message: 'Your password has been reset successfully.' }
+  } catch (error: unknown) {
+    if (error && typeof error === 'object' && 'name' in error && (error as any).name === 'ZodError') {
+      return { error: (error as any).errors[0]?.message || 'Invalid password' }
+    }
+    logger.error('Password reset error', error, { context: 'auth' })
+    return { error: 'Failed to reset password.' }
+  }
 }

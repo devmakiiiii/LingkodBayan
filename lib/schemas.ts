@@ -96,6 +96,18 @@ export const serviceCategoryRequirementSchema = z.object({
   sort_order: z.coerce.number().int().min(0, 'Sort order must be 0 or greater').default(999),
 })
 
+export const forgotPasswordSchema = z.object({
+  email: z.string().email('Invalid email address'),
+})
+
+export const resetPasswordSchema = z.object({
+  password: z.string().min(6, 'Password must be at least 6 characters'),
+  confirmPassword: z.string().min(6, 'Password must be at least 6 characters'),
+}).refine((data) => data.password === data.confirmPassword, {
+  message: "Passwords don't match",
+  path: ['confirmPassword'],
+})
+
 export type LoginInput = z.infer<typeof loginSchema>
 export type SignUpInput = z.infer<typeof signUpSchema>
 export type RequestInput = z.infer<typeof requestSchema>
@@ -107,6 +119,8 @@ export type MissionVisionInput = z.infer<typeof missionVisionSchema>
 export type SignatureUploadInput = z.infer<typeof signatureUploadSchema>
 export type ServiceCategoryInput = z.infer<typeof serviceCategorySchema>
 export type ServiceCategoryRequirementInput = z.infer<typeof serviceCategoryRequirementSchema>
+export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>
+export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>
 
 // Identity Verification schemas
 export const verificationMatchSchema = z.object({
