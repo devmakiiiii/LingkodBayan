@@ -94,7 +94,7 @@ export function OfficialActions({ isOpen, mode, official, designations, onClose,
   const [email, setEmail] = useState('')
   const [termStart, setTermStart] = useState('')
   const [termEnd, setTermEnd] = useState('')
-  const [status, setStatus] = useState<'active' | 'inactive'>('active')
+  const [status, setStatus] = useState<'active' | 'inactive' | 'archived'>('active')
   const [photo, setPhoto] = useState('')
   const [photoFile, setPhotoFile] = useState<File | null>(null)
   const [isSaving, setIsSaving] = useState(false)

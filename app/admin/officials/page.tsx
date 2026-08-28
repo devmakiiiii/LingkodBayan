@@ -11,7 +11,7 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
-import { Plus, Pencil, Trash2, Eye, Search } from 'lucide-react'
+import { Plus, Pencil, Archive, Eye, Search } from 'lucide-react'
 import { toast } from 'sonner'
 import { OfficialActions, type OfficialRecord } from '@/components/admin/officials-actions'
 import { DesignationActions, type DesignationRecord } from '@/components/admin/designations-actions'
@@ -58,7 +58,7 @@ function mapOfficialRow(row: any): OfficialRow {
 }
 
 const categoryFilters = ['all', 'barangay', 'sk', 'staff'] as const
-const statusFilters = ['all', 'active', 'inactive'] as const
+const statusFilters = ['all', 'active', 'inactive', 'archived'] as const
 
 const defaultDesignations = [
   { name: 'Barangay Captain', category: 'barangay', priority_order: 1, badge_color: '#166534' },
@@ -69,6 +69,38 @@ const defaultDesignations = [
   { name: 'SK Kagawad', category: 'sk', priority_order: 2, badge_color: '#8b5cf6' },
   { name: 'Staff Member', category: 'staff', priority_order: 1, badge_color: '#6b7280' },
 ] as const
+
+function formatSupabaseError(error: unknown): string {
+  if (!error) return 'Unknown error'
+
+  if (typeof error === 'string') return error
+
+  if (error instanceof Error) return error.message
+
+  if (typeof error === 'object') {
+    const obj = error as Record<string, unknown>
+    const parts: string[] = []
+    const keys = ['message', 'code', 'details', 'hint', 'error_description', 'error_code', 'msg'] as const
+
+    for (const key of keys) {
+      const value = obj[key]
+      if (typeof value === 'string' && value.trim()) {
+        parts.push(`${key}: ${value}`)
+      }
+    }
+
+    if (parts.length > 0) return parts.join(' | ')
+
+    try {
+      const serialized = JSON.stringify(error)
+      if (serialized && serialized !== '{}' && serialized !== 'null') return serialized
+    } catch {
+      // Ignore serialization errors
+    }
+  }
+
+  return 'Request failed'
+}
 
 export default function AdminOfficialsPage() {
   const [officials, setOfficials] = useState<OfficialRow[]>([])
@@ -82,8 +114,8 @@ export default function AdminOfficialsPage() {
   const [modalMode, setModalMode] = useState<'create' | 'edit' | 'view'>('create')
   const [selectedOfficial, setSelectedOfficial] = useState<OfficialRow | null>(null)
   const [designationModalOpen, setDesignationModalOpen] = useState(false)
-  const [deleteTarget, setDeleteTarget] = useState<OfficialRow | null>(null)
-  const [isDeleting, setIsDeleting] = useState(false)
+  const [archiveTarget, setArchiveTarget] = useState<OfficialRow | null>(null)
+  const [isArchiving, setIsArchiving] = useState(false)
 
   useEffect(() => {
     loadData()
@@ -99,16 +131,12 @@ export default function AdminOfficialsPage() {
       ])
 
       if (designationError) {
-        console.error('Designations query error:', designationError)
-        console.error('Designation error type:', typeof designationError)
-        console.error('Designation error keys:', Object.keys(designationError))
+        console.error('Designations query error:', formatSupabaseError(designationError))
         throw designationError
       }
 
       if (officialError) {
-        console.error('Officials query error:', officialError)
-        console.error('Official error type:', typeof officialError)
-        console.error('Official error keys:', Object.keys(officialError))
+        console.error('Officials query error:', formatSupabaseError(officialError))
         throw officialError
       }
 
@@ -118,33 +146,31 @@ export default function AdminOfficialsPage() {
           .upsert(defaultDesignations, { onConflict: 'name,category' })
 
         if (seedError) {
-          console.error('Seeding designations error:', seedError)
-          throw seedError
+          // Seeding is best-effort: surface why it failed without breaking the page.
+          console.error('Seeding designations error:', formatSupabaseError(seedError))
+          setLoadError(`Could not add default designations: ${formatSupabaseError(seedError)}`)
+        } else {
+          const { data: seededDesignations, error: reFetchError } = await supabase
+            .from('designations')
+            .select('*')
+            .order('priority_order', { ascending: true })
+            .order('name', { ascending: true })
+
+          if (reFetchError) {
+            console.error('Re-fetching designations error:', formatSupabaseError(reFetchError))
+            setLoadError(`Could not load designations: ${formatSupabaseError(reFetchError)}`)
+          } else {
+            setDesignations((seededDesignations || []) as DesignationRecord[])
+          }
         }
-
-        const { data: seededDesignations, error: reFetchError } = await supabase
-          .from('designations')
-          .select('*')
-          .order('priority_order', { ascending: true })
-          .order('name', { ascending: true })
-
-        if (reFetchError) {
-          console.error('Re-fetching designations error:', reFetchError)
-          throw reFetchError
-        }
-
-        setDesignations((seededDesignations || []) as DesignationRecord[])
       } else {
         setDesignations((designationData || []) as DesignationRecord[])
       }
 
       setOfficials((officialData || []).map(mapOfficialRow))
     } catch (error) {
-      console.error('Error loading officials:', error)
-      console.error('Caught error type:', typeof error)
-      console.error('Caught error constructor:', error?.constructor?.name)
-      console.error('Caught error JSON:', JSON.stringify(error, null, 2))
-      setLoadError(error instanceof Error ? error.message : JSON.stringify(error) || 'Failed to load officials data')
+      console.error('Error loading officials:', formatSupabaseError(error))
+      setLoadError(formatSupabaseError(error))
     } finally {
       setLoading(false)
     }
@@ -162,7 +188,9 @@ export default function AdminOfficialsPage() {
           officialName.toLowerCase().includes(query) ||
           (designation?.name || '').toLowerCase().includes(query)
         const matchesCategory = categoryFilter === 'all' || designation?.category === categoryFilter
-        const matchesStatus = statusFilter === 'all' || official.status === statusFilter
+        const matchesStatus = statusFilter === 'all'
+          ? official.status !== 'archived'
+          : official.status === statusFilter
 
         return matchesSearch && matchesCategory && matchesStatus
       })
@@ -191,17 +219,23 @@ export default function AdminOfficialsPage() {
     return groups
   }, [filteredOfficials])
 
-  async function deleteOfficialById(official: OfficialRow) {
+  async function archiveOfficialById(official: OfficialRow) {
     try {
+      setIsArchiving(true)
       const supabase = createClient()
-      const { error } = await supabase.from('officials').delete().eq('id', official.id)
+      const { error } = await supabase
+        .from('officials')
+        .update({ status: 'archived', updated_at: new Date() })
+        .eq('id', official.id)
       if (error) throw error
-      toast.success(`${official.fullName} has been removed.`)
-      setDeleteTarget(null)
+      toast.success(`${official.fullName} has been archived.`)
+      setArchiveTarget(null)
       loadData()
     } catch (error) {
-      console.error('Error deleting official:', error)
-      toast.error(error instanceof Error ? error.message : 'Failed to delete official')
+      console.error('Error archiving official:', formatSupabaseError(error))
+      toast.error(formatSupabaseError(error))
+    } finally {
+      setIsArchiving(false)
     }
   }
 
@@ -286,7 +320,7 @@ export default function AdminOfficialsPage() {
             <SelectContent>
               {statusFilters.map((filter) => (
                 <SelectItem key={filter} value={filter}>
-                  {filter === 'all' ? 'All Statuses' : filter === 'active' ? 'Active' : 'Inactive'}
+                  {filter === 'all' ? 'Active & Inactive' : filter === 'active' ? 'Active' : filter === 'inactive' ? 'Inactive' : 'Archived'}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -365,7 +399,13 @@ export default function AdminOfficialsPage() {
                             <TableCell>{official.email || 'N/A'}</TableCell>
                             <TableCell>{getOfficialTermDuration(official.termStart, official.termEnd)}</TableCell>
                             <TableCell>
-                              <Badge className={official.status === 'active' ? 'bg-emerald-500/10 text-emerald-700 border-emerald-500/20' : 'bg-slate-500/10 text-slate-700 border-slate-500/20'}>
+                              <Badge className={
+                                official.status === 'active'
+                                  ? 'bg-emerald-500/10 text-emerald-700 border-emerald-500/20'
+                                  : official.status === 'archived'
+                                    ? 'bg-amber-500/10 text-amber-700 border-amber-500/20'
+                                    : 'bg-slate-500/10 text-slate-700 border-slate-500/20'
+                              }>
                                 {getOfficialStatusLabel(official.status)}
                               </Badge>
                             </TableCell>
@@ -379,9 +419,9 @@ export default function AdminOfficialsPage() {
                                   <Pencil className="mr-1 h-4 w-4" />
                                   Edit
                                 </Button>
-                                 <Button variant="outline" size="sm" className="border-rose-200 text-rose-700 hover:bg-rose-50" onClick={() => setDeleteTarget(official)}>
-                                   <Trash2 className="mr-1 h-4 w-4" />
-                                   Delete
+                                 <Button variant="outline" size="sm" className="border-amber-200 text-amber-700 hover:bg-amber-50" onClick={() => setArchiveTarget(official)}>
+                                   <Archive className="mr-1 h-4 w-4" />
+                                   Archive
                                  </Button>
                               </div>
                             </TableCell>
@@ -397,21 +437,22 @@ export default function AdminOfficialsPage() {
         </div>
       )}
 
-      <AlertDialog open={Boolean(deleteTarget)} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+      <AlertDialog open={Boolean(archiveTarget)} onOpenChange={(open) => !open && setArchiveTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Official</AlertDialogTitle>
+            <AlertDialogTitle>Archive Official</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently remove {deleteTarget?.fullName} from the officials list. This action cannot be undone.
+              This will archive {archiveTarget?.fullName}. The official will no longer appear in the active list, but their record will be preserved for future reference.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => deleteTarget && deleteOfficialById(deleteTarget)}
-              className="bg-rose-600 text-white hover:bg-rose-700"
+              onClick={() => archiveTarget && archiveOfficialById(archiveTarget)}
+              className="bg-amber-600 text-white hover:bg-amber-700"
+              disabled={isArchiving}
             >
-              Delete
+              {isArchiving ? 'Archiving...' : 'Archive'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

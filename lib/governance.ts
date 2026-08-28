@@ -2,7 +2,7 @@ export const designationCategories = ['barangay', 'sk', 'staff'] as const
 
 export type DesignationCategory = (typeof designationCategories)[number]
 
-export const officialStatuses = ['active', 'inactive'] as const
+export const officialStatuses = ['active', 'inactive', 'archived'] as const
 
 export type OfficialStatus = (typeof officialStatuses)[number]
 
@@ -35,7 +35,9 @@ export function getDesignationCategoryShortLabel(category: string | null | undef
 }
 
 export function getOfficialStatusLabel(status: string | null | undefined) {
-  return status === 'inactive' ? 'Inactive' : 'Active'
+  if (status === 'inactive') return 'Inactive'
+  if (status === 'archived') return 'Archived'
+  return 'Active'
 }
 
 export function getOfficialTermDuration(termStart?: string | null, termEnd?: string | null) {

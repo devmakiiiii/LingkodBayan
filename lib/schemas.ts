@@ -2,6 +2,28 @@ import { z } from 'zod'
 import { requestTypes } from './request-types'
 import { designationCategories, officialStatuses } from './governance'
 
+export const OLONGAPO_BARANGAYS = [
+  'Barretto',
+  'East Bajac-bajac',
+  'East Tapinac',
+  'Gordon Heights',
+  'Kalaklan',
+  'Mabayuan',
+  'New Asinan',
+  'New Banicain',
+  'New Cabalan',
+  'New Ilalim',
+  'New Kababae',
+  'New Kalalake',
+  'Old Cabalan',
+  'Pag-asa',
+  'Santa Rita',
+  'West Bajac-bajac',
+  'West Tapinac',
+] as const
+
+export type OlongapoBarangay = (typeof OLONGAPO_BARANGAYS)[number]
+
 export const loginSchema = z.object({
   email: z.string().email('Invalid email address'),
   password: z.string().min(6, 'Password must be at least 6 characters'),
@@ -13,7 +35,9 @@ export const signUpSchema = z.object({
   confirmPassword: z.string().min(6, 'Password must be at least 6 characters'),
   firstName: z.string().min(2, 'First name is required'),
   lastName: z.string().min(2, 'Last name is required'),
-  barangay: z.string().min(1, 'Barangay is required'),
+  barangay: z.enum(OLONGAPO_BARANGAYS, {
+    errorMap: () => ({ message: 'Please select a barangay' }),
+  }),
   phone: z.string().optional(),
   address: z.string().optional(),
 }).refine((data) => data.password === data.confirmPassword, {

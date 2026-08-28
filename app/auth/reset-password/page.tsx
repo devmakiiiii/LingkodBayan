@@ -24,14 +24,21 @@ export default function ResetPasswordPage() {
   const [success, setSuccess] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [hasSession, setHasSession] = useState(false)
+  const [isCheckingSession, setIsCheckingSession] = useState(true)
   const router = useRouter()
   const searchParams = useSearchParams()
 
   useEffect(() => {
     const checkSession = async () => {
-      const supabase = createClient()
-      const { data: { session } } = await supabase.auth.getSession()
-      setHasSession(!!session)
+      try {
+        const supabase = createClient()
+        const { data: { session } } = await supabase.auth.getSession()
+        setHasSession(!!session)
+      } catch {
+        setHasSession(false)
+      } finally {
+        setIsCheckingSession(false)
+      }
     }
     checkSession()
   }, [])
@@ -57,6 +64,37 @@ export default function ResetPasswordPage() {
       }, 1500)
     }
     setIsLoading(false)
+  }
+
+  if (isCheckingSession) {
+    return (
+      <div className="flex min-h-screen w-full items-center justify-center p-4 bg-[#0D1B5E]">
+        <div className="w-full max-w-95">
+          <div className="bg-white rounded-[12px] shadow-2xl overflow-hidden">
+            <div className="p-8 text-center">
+              <div className="text-center mb-8">
+                <div className="mx-auto mb-4 flex h-24 w-24 items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-gray-200">
+                  <Image
+                    src="/lingkod-logo.png"
+                    alt="LingkodBayan logo"
+                    width={88}
+                    height={88}
+                    className="h-20 w-20 object-contain"
+                    priority
+                  />
+                </div>
+                <h1 className="text-2xl font-bold text-gray-900 tracking-wide">LINGKOD BAYAN</h1>
+                <p className="text-xs text-gray-500 mt-1">Civic Services Portal</p>
+              </div>
+              <h2 className="text-lg font-semibold text-gray-800 mb-2">Verifying Link...</h2>
+              <p className="text-sm text-gray-600 mb-6">
+                Please wait while we verify your password reset link.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   if (!hasSession && !success) {

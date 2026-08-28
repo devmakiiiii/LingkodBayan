@@ -18,6 +18,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { CheckCircle2, AlertCircle, Loader2 } from 'lucide-react'
+import { OLONGAPO_BARANGAYS, signUpSchema } from '@/lib/schemas'
 
 export default function Page() {
   const [email, setEmail] = useState('')
@@ -124,6 +125,13 @@ export default function Page() {
 
     if (password !== repeatPassword) {
       setError('Passwords do not match')
+      setIsLoading(false)
+      return
+    }
+
+    const barangayResult = signUpSchema.shape.barangay.safeParse(barangay)
+    if (!barangayResult.success) {
+      setError(barangayResult.error.issues[0]?.message ?? 'Please select a barangay')
       setIsLoading(false)
       return
     }
@@ -313,15 +321,21 @@ export default function Page() {
                   <Label htmlFor="barangay" className="text-sm font-medium text-gray-700">
                     Barangay
                   </Label>
-                  <Input
-                    id="barangay"
-                    type="text"
-                    placeholder="e.g., Barangay San Antonio"
-                    required
-                    value={barangay}
-                    onChange={(e) => setBarangay(e.target.value)}
-                    className="w-full bg-[#E8F4FD] border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#28A745]"
-                  />
+                  <Select value={barangay || undefined} onValueChange={setBarangay} required>
+                    <SelectTrigger
+                      id="barangay"
+                      className="w-full bg-[#E8F4FD] border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#28A745]"
+                    >
+                      <SelectValue placeholder="Select your barangay" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {OLONGAPO_BARANGAYS.map((name) => (
+                        <SelectItem key={name} value={name}>
+                          {name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 {/* Phone Number */}

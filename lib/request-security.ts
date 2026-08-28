@@ -37,7 +37,13 @@ export function verifyOrigin(request: NextRequest): { valid: boolean; origin: st
   return { valid: allowed, origin }
 }
 
-export function verifyContentType(request: NextRequest, allowedTypes: string[] = ['application/json']): boolean {
+export function verifyContentType(
+  request: NextRequest,
+  // Allow multipart/form-data so file uploads (e.g. official photos, announcement
+  // images) can pass the security gate. Origin verification and the authenticated
+  // session cookie still protect these routes from cross-origin/unauthorized use.
+  allowedTypes: string[] = ['application/json', 'multipart/form-data'],
+): boolean {
   const contentType = request.headers.get('content-type') || ''
   return allowedTypes.some((type) => contentType.includes(type))
 }
