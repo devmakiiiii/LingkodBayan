@@ -38,7 +38,10 @@ const sql = readMigrationScript()
   + readMigrationFile('16_add_verification_schema.sql')
   + '\n'
   + '--- Migration 17: ID Documents Storage Bucket ---\n'
-  + readMigrationFile('17_create_verification_buckets.sql');
+  + readMigrationFile('17_create_verification_buckets.sql')
+  + '\n'
+  + '--- Migration 18: Add Archived Status to Officials ---\n'
+  + readMigrationFile('18_add_archived_status_to_officials.sql');
 console.log(sql);
 
 console.log('\n---END SQL---\n');
