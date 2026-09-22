@@ -44,7 +44,7 @@ CREATE TABLE IF NOT EXISTS public.complaints (
   longitude DECIMAL(11, 8),
   location_address TEXT,
   priority_level TEXT DEFAULT 'medium' CHECK (priority_level IN ('low', 'medium', 'high', 'critical')),
-  assigned_official_id UUID REFERENCES public.officials(id) ON DELETE SET NULL,
+  assigned_official_id UUID,
   admin_notes TEXT,
   archived_at TIMESTAMP WITH TIME ZONE,
   tracking_number TEXT,

@@ -1,4 +1,5 @@
-import { requestTypes, getRequestTypeTitle, type RequestType } from './request-types'
+import { getRequestTypeTitle } from './request-types'
+import { complaintCategories as canonicalComplaintCategories, type ComplaintCategory as CanonicalComplaintCategory } from './complaint-categories'
 import { getDesignationCategoryShortLabel, getDesignationCategoryLabel, getOfficialTermDuration, normalizeBadgeColor } from './governance'
 
 export const adminReportTypes = ['requests', 'residents', 'officials'] as const
@@ -7,8 +8,8 @@ export type AdminReportType = (typeof adminReportTypes)[number]
 export const analyticsTrendViews = ['daily', 'weekly', 'monthly'] as const
 export type AnalyticsTrendView = (typeof analyticsTrendViews)[number]
 
-export const complaintCategories = ['noise', 'dispute', 'theft', 'others'] as const
-export type ComplaintCategory = (typeof complaintCategories)[number]
+export const complaintCategories = canonicalComplaintCategories
+export type ComplaintCategory = CanonicalComplaintCategory
 
 export const adminReportTypeLabels: Record<AdminReportType, string> = {
   requests: 'Requests Report',
@@ -23,18 +24,29 @@ export const analyticsTrendLabels: Record<AnalyticsTrendView, string> = {
 }
 
 export const complaintCategoryLabels: Record<ComplaintCategory, string> = {
-  noise: 'Noise',
-  dispute: 'Dispute',
-  theft: 'Theft',
-  others: 'Others',
+  'Noise Complaint': 'Noise Complaint',
+  'Public Disturbance': 'Public Disturbance',
+  'Sanitation': 'Sanitation',
+  'Infrastructure Issue': 'Infrastructure Issue',
+  'Barangay Incident': 'Barangay Incident',
+  'Illegal Parking': 'Illegal Parking',
+  'Street Light Problem': 'Street Light Problem',
+  'Other Concerns': 'Other Concerns',
 }
 
 export const complaintCategoryColors: Record<ComplaintCategory, string> = {
-  noise: '#16a34a',
-  dispute: '#22c55e',
-  theft: '#65a30d',
-  others: '#84cc16',
+  'Noise Complaint': '#16a34a',
+  'Public Disturbance': '#f59e0b',
+  'Sanitation': '#0ea5e9',
+  'Infrastructure Issue': '#8b5cf6',
+  'Barangay Incident': '#f43f5e',
+  'Illegal Parking': '#f97316',
+  'Street Light Problem': '#eab308',
+  'Other Concerns': '#64748b',
 }
+
+export const complaintStatuses = ['open', 'under_investigation', 'resolved', 'dismissed'] as const
+export type ComplaintStatus = (typeof complaintStatuses)[number]
 
 export const statusPalette = {
   pending: '#f59e0b',
@@ -105,33 +117,61 @@ export function getRequestTypeLabel(requestType?: string | null) {
   return getRequestTypeTitle(requestType, requestType)
 }
 
+export function normalizeComplaintStatus(status?: string | null): ComplaintStatus {
+  const normalized = (status || 'open').toLowerCase().replace(/[\s-]+/g, '_')
+  if (normalized === 'open' || normalized === 'pending') return 'open'
+  if (normalized === 'under_investigation' || normalized === 'under_review' || normalized === 'processing' || normalized === 'in_progress' || normalized === 'in-progress') return 'under_investigation'
+  if (normalized === 'resolved' || normalized === 'approved') return 'resolved'
+  if (normalized === 'dismissed' || normalized === 'rejected') return 'dismissed'
+  return 'open'
+}
+
 export function getComplaintStatusLabel(status?: string | null) {
   if (!status) {
     return 'Pending'
   }
 
-  const normalized = status.toLowerCase()
-  if (normalized === 'open') return 'Pending'
-  if (normalized === 'in-progress') return 'Processing'
-  if (normalized === 'resolved') return 'Resolved'
-  return normalized.charAt(0).toUpperCase() + normalized.slice(1)
+  const normalized = status.toLowerCase().replace(/[\s-]+/g, '_')
+  if (normalized === 'open' || normalized === 'pending') return 'Pending'
+  if (normalized === 'under_investigation' || normalized === 'under_review' || normalized === 'processing' || normalized === 'in_progress' || normalized === 'in-progress') return 'Under Review'
+  if (normalized === 'resolved' || normalized === 'approved') return 'Resolved'
+  if (normalized === 'dismissed' || normalized === 'rejected') return 'Rejected'
+  if (normalized === 'archived') return 'Archived'
+  return normalized.replace(/_/g, ' ').replace(/\b\w/g, (character) => character.toUpperCase())
 }
 
 export function normalizeComplaintCategory(category?: string | null): ComplaintCategory {
-  const normalized = (category || 'others').toLowerCase()
-  if ((complaintCategories as readonly string[]).includes(normalized)) {
-    return normalized as ComplaintCategory
+  const normalized = (category || '').trim().toLowerCase().replace(/[\s_]+/g, '-')
+  const aliases: Record<string, ComplaintCategory> = {
+    noise: 'Noise Complaint',
+    'noise-complaint': 'Noise Complaint',
+    dispute: 'Public Disturbance',
+    'public-disturbance': 'Public Disturbance',
+    sanitation: 'Sanitation',
+    infrastructure: 'Infrastructure Issue',
+    'infrastructure-issue': 'Infrastructure Issue',
+    incident: 'Barangay Incident',
+    theft: 'Barangay Incident',
+    crime: 'Barangay Incident',
+    'barangay-incident': 'Barangay Incident',
+    parking: 'Illegal Parking',
+    'illegal-parking': 'Illegal Parking',
+    light: 'Street Light Problem',
+    'street-light-problem': 'Street Light Problem',
+    other: 'Other Concerns',
+    others: 'Other Concerns',
+    'other-concerns': 'Other Concerns',
   }
 
-  return 'others'
+  return aliases[normalized] ?? 'Other Concerns'
 }
 
 export function normalizeRequestStatus(status?: string | null): ReportStatusKey {
-  const normalized = (status || 'pending').toLowerCase()
-  if (normalized === 'in-progress') return 'processing'
+  const normalized = (status || 'pending').toLowerCase().replace(/[\s-]+/g, '_')
+  if (normalized === 'in_progress' || normalized === 'in-progress' || normalized === 'processing') return 'processing'
   if (normalized === 'resolved') return 'resolved'
   if (normalized === 'approved') return 'approved'
-  if (normalized === 'rejected') return 'rejected'
+  if (normalized === 'rejected' || normalized === 'dismissed') return 'rejected'
   return 'pending'
 }
 
@@ -201,7 +241,7 @@ export function downloadCsvFile(fileName: string, csvContent: string) {
   document.body.appendChild(link)
   link.click()
   document.body.removeChild(link)
-  URL.revokeObjectURL(url)
+  setTimeout(() => URL.revokeObjectURL(url), 0)
 }
 
 function escapeHtml(value: string) {

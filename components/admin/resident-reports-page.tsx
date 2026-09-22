@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { toast } from 'sonner'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
-import { Empty } from '@/components/ui/empty'
+import { Empty, EmptyMedia } from '@/components/ui/empty'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -77,6 +77,22 @@ type OfficialOption = {
   id: string
   label: string
   designationLabel: string
+}
+
+type OfficialRow = {
+  id: string
+  full_name?: string | null
+  designation_id?: string | null
+  designations?: {
+    name?: string | null
+  } | null
+}
+
+type RealtimeReportPayload = {
+  eventType: string
+  new?: {
+    id?: unknown
+  } | null
 }
 
 type ComplaintMessageRow = {
@@ -405,7 +421,7 @@ export function ResidentReportsPage() {
       }
 
       const supabase = createClient()
-      const [{ data: userData }, { data: categoriesData }, { data: complaintRows, error: complaintError }, { data: residentsData, error: residentsError }, { data: officialsData, error: officialsError }, { data: messagesData, error: messagesError }] = await Promise.all([
+      const [{ data: userData, error: userError }, { data: categoriesData, error: categoriesError }, { data: complaintRows, error: complaintError }, { data: residentsData, error: residentsError }, { data: officialsData, error: officialsError }, { data: messagesData, error: messagesError }] = await Promise.all([
         supabase.auth.getUser(),
         supabase.from('service_categories').select('id, slug, title, description, is_active').eq('category_type', 'incident').eq('is_active', true).order('sort_order', { ascending: true }),
         supabase.from('complaints').select('*').order('created_at', { ascending: false }),
@@ -419,6 +435,8 @@ export function ResidentReportsPage() {
         setProfileUser({ name, email: userData.user.email || 'admin@lingkodbayan.local', id: userData.user.id })
       }
 
+      if (userError) throw userError
+      if (categoriesError) throw categoriesError
       if (complaintError) throw complaintError
       if (residentsError) throw residentsError
       if (officialsError) throw officialsError
@@ -426,7 +444,7 @@ export function ResidentReportsPage() {
 
       const residentsById = new Map<string, ResidentRow>((residentsData || []).map((resident: any) => [resident.id, resident]))
 
-      const officialOptions = (officialsData || []).map((official: any) => ({
+      const officialOptions = (officialsData || []).map((official: OfficialRow) => ({
         id: official.id,
         label: `${official.full_name || 'Unassigned'}${official.designations?.name ? ` • ${official.designations.name}` : ''}`,
         designationLabel: official.designations?.name || 'Official',
@@ -438,10 +456,11 @@ export function ResidentReportsPage() {
       setDynamicCategories(currentCategories)
 
       const messagesByComplaintId = new Map<string, ComplaintMessageRow[]>()
-       ;(messagesData || []).forEach((message: any) => {
-        const entry = messagesByComplaintId.get(message.complaint_id) || []
+      ;(messagesData || []).forEach((message: ComplaintMessageRow) => {
+        const complaintId = String(message.complaint_id)
+        const entry = messagesByComplaintId.get(complaintId) || []
         entry.push(message)
-        messagesByComplaintId.set(message.complaint_id, entry)
+        messagesByComplaintId.set(complaintId, entry)
       })
 
       const mappedReports = (complaintRows || []).map((row: any) => {
@@ -455,7 +474,7 @@ export function ResidentReportsPage() {
         const priority = analysis?.priority || (explicitPriority as CanonicalPriority) || categoryDefinition.fallbackPriority
         const priorityConfidence = analysis?.confidence ?? 1.0
         const priorityReasons = analysis?.reasons ?? ['Explicit priority set']
-        const assignedOfficial = row.assigned_official_id ? officialOptions.find((official) => official.id === row.assigned_official_id) || null : null
+        const assignedOfficial = row.assigned_official_id ? officialOptions.find((official: OfficialOption) => official.id === row.assigned_official_id) || null : null
 
         return {
           id: row.id,
@@ -510,16 +529,17 @@ evidenceUrls: extractEvidenceUrls(row),
     const supabase = createClient()
     const channel = supabase
       .channel('resident-reports-live')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'complaints' }, (payload) => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'complaints' }, (payload: RealtimeReportPayload) => {
         if (payload.eventType === 'INSERT') {
-          const trackingNumber = normalizeTrackingNumber(String(payload.new?.id || ''))
-          setNotificationAlerts((current) => [{ id: String(payload.new?.id || crypto.randomUUID()), message: `New resident report received: ${trackingNumber}`, createdAt: new Date().toISOString() }, ...current].slice(0, 5))
+          const reportId = String(payload.new?.id || '')
+          const trackingNumber = normalizeTrackingNumber(reportId)
+          setNotificationAlerts((current) => [{ id: reportId || crypto.randomUUID(), message: `New resident report received: ${trackingNumber}`, createdAt: new Date().toISOString() }, ...current].slice(0, 5))
           setUnreadAlerts((current) => current + 1)
         }
 
         loadReports(false)
       })
-      .subscribe((status) => {
+      .subscribe((status: string) => {
         setIsLive(status === 'SUBSCRIBED')
       })
 
@@ -591,18 +611,21 @@ evidenceUrls: extractEvidenceUrls(row),
     setModalOpen(true)
   }
 
-  async function updateReport(updates: Partial<ResidentReportRow>, systemMessage?: string) {
-    if (!selectedReport) return
-
+  async function updateReport(report: ResidentReportRow, updates: Partial<ResidentReportRow>, systemMessage?: string): Promise<boolean> {
     setSavingAction(true)
     try {
+      if (!hasSupabaseConfig()) {
+        toast.error('Supabase environment variables are missing. Create .env.local with NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY, then restart pnpm dev.')
+        return false
+      }
+
       const supabase = createClient()
       const payload: Record<string, unknown> = {
         updated_at: new Date().toISOString(),
       }
 
       if ('status' in updates) {
-        const canonicalStatus = (updates.status as CanonicalStatus) || selectedReport.status
+        const canonicalStatus = updates.status || report.status
         const dbStatus = statusToDatabaseValue[canonicalStatus]
         if (dbStatus) {
           payload.status = dbStatus
@@ -621,45 +644,44 @@ evidenceUrls: extractEvidenceUrls(row),
         payload.archived_at = updates.archivedAt || null
       }
 
-      console.log('Updating complaint', selectedReport.id, 'with payload:', payload)
-
-      const { error, data, count } = await supabase
+      const { error, data } = await supabase
         .from('complaints')
         .update(payload)
-        .eq('id', selectedReport.id)
+        .eq('id', report.id)
         .select()
 
       if (error) {
-        console.error('Supabase update error:', error)
-        throw new Error(error.message || 'Database update failed')
+        toast.error(error.message || 'Database update failed')
+        return false
       }
 
       if (!data || data.length === 0) {
-        console.warn('Update returned no rows – possible RLS policy blocking the update')
-        throw new Error('Update was blocked. You may not have permission to update this report. Please check that your admin account has the correct role in the database.')
+        toast.error('Update was blocked. You may not have permission to update this report. Please check that your admin account has the correct role in the database.')
+        return false
       }
 
-if (systemMessage && profileUser) {
-         const { error: msgError } = await supabase.from('complaint_messages').insert([
-           {
-             complaint_id: selectedReport.id,
-             recipient_user_id: selectedReport.residentUserId || profileUser.id,
-             sender_id: profileUser.id,
-             message: systemMessage,
-             message_type: 'system',
-             is_read: false,
-           },
-         ])
-         if (msgError) {
-           console.warn('System message insert failed (non-blocking):', msgError.message)
-         }
-       }
+      if (systemMessage && profileUser?.id && report.residentUserId) {
+        const { error: msgError } = await supabase.from('complaint_messages').insert([
+          {
+            complaint_id: report.id,
+            recipient_user_id: report.residentUserId,
+            sender_id: profileUser.id,
+            message: systemMessage,
+            message_type: 'system',
+            is_read: false,
+          },
+        ])
+        if (msgError) {
+          toast.error(`Changes saved, but the activity message could not be recorded: ${msgError.message}`)
+        }
+      }
 
       await loadReports(false)
       toast.success('Changes saved successfully')
+      return true
     } catch (error) {
-      console.error('Failed to update report:', error)
       toast.error(error instanceof Error ? error.message : 'Failed to update report')
+      return false
     } finally {
       setSavingAction(false)
     }
@@ -683,11 +705,6 @@ if (systemMessage && profileUser) {
     setSavingAction(true)
     try {
       const supabase = createClient()
-
-      console.log('Sending reply to complaint', selectedReport.id, {
-        recipient_user_id: recipientId,
-        sender_id: profileUser.id,
-      })
 
       const { error } = await supabase.from('complaint_messages').insert([
         {
@@ -723,18 +740,12 @@ if (systemMessage && profileUser) {
   async function confirmArchive() {
     if (!archiveTarget) return
 
-    try {
-      await updateReport(
-        { status: 'rejected', archivedAt: new Date().toISOString() },
-        `Report archived: ${archiveTarget.trackingNumber}`
-      )
-      toast.success('Report archived successfully')
-    } catch (error) {
-      console.error('Failed to archive report:', error)
-      toast.error(error instanceof Error ? error.message : 'Failed to archive report')
-    } finally {
-      setArchiveTarget(null)
-    }
+    await updateReport(
+      archiveTarget,
+      { status: 'rejected', archivedAt: new Date().toISOString() },
+      `Report archived: ${archiveTarget.trackingNumber}`
+    )
+    setArchiveTarget(null)
   }
 
   function exportCsv() {
@@ -968,12 +979,12 @@ if (systemMessage && profileUser) {
                         </Select>
                         <div className="flex flex-wrap gap-1 pt-1">
                           {selectedReport.status !== 'resolved' && (
-                            <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => { setStatusDraft('resolved'); updateReport({ status: 'resolved', assignedOfficialId: assignedOfficialDraft || null, adminNotes: adminNotesDraft }, 'Marked as resolved.') }} disabled={savingAction}>
+                            <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => { setStatusDraft('resolved'); updateReport(selectedReport, { status: 'resolved', assignedOfficialId: assignedOfficialDraft || null, adminNotes: adminNotesDraft }, 'Marked as resolved.') }} disabled={savingAction}>
                               Mark Resolved
                             </Button>
                           )}
                           {selectedReport.status === 'resolved' && (
-                            <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => { setStatusDraft('under_review'); updateReport({ status: 'under_review', assignedOfficialId: assignedOfficialDraft || null, adminNotes: adminNotesDraft }, 'Report reopened.') }} disabled={savingAction}>
+                            <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => { setStatusDraft('under_review'); updateReport(selectedReport, { status: 'under_review', assignedOfficialId: assignedOfficialDraft || null, adminNotes: adminNotesDraft }, 'Report reopened.') }} disabled={savingAction}>
                               Unresolve
                             </Button>
                           )}
@@ -1013,11 +1024,11 @@ if (systemMessage && profileUser) {
                     </div>
 
                     <div className="flex flex-wrap gap-2">
-                      <Button className="bg-emerald-600 text-white hover:bg-emerald-700" onClick={() => updateReport({ status: statusDraft, assignedOfficialId: assignedOfficialDraft || null, adminNotes: adminNotesDraft }, `Admin updated the report status to ${statusDefinitions[statusDraft].label}.`)} disabled={savingAction}>
+                      <Button className="bg-emerald-600 text-white hover:bg-emerald-700" onClick={() => updateReport(selectedReport, { status: statusDraft, assignedOfficialId: assignedOfficialDraft || null, adminNotes: adminNotesDraft }, `Admin updated the report status to ${statusDefinitions[statusDraft].label}.`)} disabled={savingAction}>
                         {savingAction ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
                         Save Changes
                       </Button>
-                      <Button variant="outline" onClick={() => updateReport({ archivedAt: new Date().toISOString(), status: 'rejected' }, `Report archived: ${selectedReport.trackingNumber}`)} disabled={savingAction}>
+                      <Button variant="outline" onClick={() => updateReport(selectedReport, { archivedAt: new Date().toISOString(), status: 'rejected' }, `Report archived: ${selectedReport.trackingNumber}`)} disabled={savingAction}>
                         <Archive className="mr-2 h-4 w-4" />
                         Archive Report
                       </Button>

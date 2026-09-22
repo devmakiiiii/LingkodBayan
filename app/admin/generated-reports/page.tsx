@@ -16,6 +16,7 @@ import {
   adminReportTypeLabels,
   buildCsv,
   complaintCategoryLabels,
+  complaintStatuses,
   downloadCsvFile,
   getComplaintStatusLabel,
   getOfficialCategoryShortLabel,
@@ -25,6 +26,7 @@ import {
   getReportDateLabel,
   getRequestTypeLabel,
   normalizeComplaintCategory,
+  normalizeComplaintStatus,
   normalizeRequestStatus,
   openPrintableReport,
   type AdminReportType,
@@ -34,7 +36,8 @@ import {
   type RequestReportRow,
 } from '@/lib/admin-reporting'
 import { complaintCategories } from '@/lib/complaint-categories'
-import { requestTypes } from '@/lib/request-types'
+import { designationCategories, officialStatuses } from '@/lib/governance'
+import { requestStatuses, requestTypes } from '@/lib/request-types'
 
 type ReportStatusOption = 'all' | string
 
@@ -42,6 +45,23 @@ function getResidentFullName(record: RequestReportRow | ComplaintReportRow) {
   const firstName = record.residents?.first_name || ''
   const lastName = record.residents?.last_name || ''
   return `${firstName} ${lastName}`.trim() || 'N/A'
+}
+
+type RawReportRow = {
+  id?: unknown
+  resident_id?: unknown
+  request_type?: unknown
+  title?: unknown
+  description?: unknown
+  category?: unknown
+  status?: unknown
+  created_at?: unknown
+  residents?: unknown
+  designation_id?: unknown
+  full_name?: unknown
+  term_start?: unknown
+  term_end?: unknown
+  designations?: unknown
 }
 
 type ResidentRecord = {
@@ -58,6 +78,10 @@ type DesignationRecord = {
   category: string
   priority_order: number
   badge_color: string | null
+}
+
+function stringValue(value: unknown, fallback = '') {
+  return typeof value === 'string' ? value : fallback
 }
 
 function parseDateValue(value: string) {
@@ -110,62 +134,65 @@ function formatLabel(value: string) {
     .replace(/\b\w/g, (character) => character.toUpperCase())
 }
 
-function mapRequestRow(row: any): RequestReportRow {
+function mapRequestRow(row: RawReportRow): RequestReportRow {
+  const residents = row.residents
   return {
-    id: row.id,
-    request_type: row.request_type,
-    title: row.title ?? null,
-    description: row.description ?? null,
-    category: row.category ?? null,
-    status: row.status ?? null,
-    created_at: row.created_at,
-    residents: Array.isArray(row.residents) ? row.residents[0] ?? null : row.residents ?? null,
+    id: stringValue(row.id),
+    request_type: stringValue(row.request_type),
+    title: typeof row.title === 'string' ? row.title : null,
+    description: typeof row.description === 'string' ? row.description : null,
+    category: typeof row.category === 'string' ? row.category : null,
+    status: typeof row.status === 'string' ? row.status : null,
+    created_at: stringValue(row.created_at),
+    residents: Array.isArray(residents) ? (residents[0] as ResidentRecord | undefined) ?? null : (residents as ResidentRecord | null),
   }
 }
 
-function mapRequestWithResident(row: any, residentsById: Map<string, ResidentRecord>): RequestReportRow {
+function mapRequestWithResident(row: RawReportRow, residentsById: Map<string, ResidentRecord>): RequestReportRow {
   return {
     ...mapRequestRow(row),
-    residents: row.resident_id ? residentsById.get(row.resident_id) ?? null : null,
+    residents: row.resident_id ? residentsById.get(stringValue(row.resident_id)) ?? null : null,
   }
 }
 
-function mapComplaintRow(row: any): ComplaintReportRow {
+function mapComplaintRow(row: RawReportRow): ComplaintReportRow {
+  const residents = row.residents
   return {
-    id: row.id,
-    title: row.title ?? null,
-    description: row.description ?? null,
-    category: row.category ?? null,
-    status: row.status ?? null,
-    created_at: row.created_at,
-    residents: Array.isArray(row.residents) ? row.residents[0] ?? null : row.residents ?? null,
+    id: stringValue(row.id),
+    title: typeof row.title === 'string' ? row.title : null,
+    description: typeof row.description === 'string' ? row.description : null,
+    category: typeof row.category === 'string' ? row.category : null,
+    status: typeof row.status === 'string' ? row.status : null,
+    created_at: stringValue(row.created_at),
+    residents: Array.isArray(residents) ? (residents[0] as ResidentRecord | undefined) ?? null : (residents as ResidentRecord | null),
   }
 }
 
-function mapComplaintWithResident(row: any, residentsById: Map<string, ResidentRecord>): ComplaintReportRow {
+function mapComplaintWithResident(row: RawReportRow, residentsById: Map<string, ResidentRecord>): ComplaintReportRow {
   return {
     ...mapComplaintRow(row),
-    residents: row.resident_id ? residentsById.get(row.resident_id) ?? null : null,
+    residents: row.resident_id ? residentsById.get(stringValue(row.resident_id)) ?? null : null,
   }
 }
 
-function mapOfficialRow(row: any): OfficialReportRow {
+function mapOfficialRow(row: RawReportRow): OfficialReportRow {
+  const designations = row.designations
   return {
-    id: row.id,
-    full_name: row.full_name,
-    designation_id: row.designation_id,
-    term_start: row.term_start ?? null,
-    term_end: row.term_end ?? null,
-    status: row.status,
-    created_at: row.created_at,
-    designations: Array.isArray(row.designations) ? row.designations[0] ?? null : row.designations ?? null,
+    id: stringValue(row.id),
+    full_name: stringValue(row.full_name, 'Unnamed official'),
+    designation_id: stringValue(row.designation_id),
+    term_start: typeof row.term_start === 'string' ? row.term_start : null,
+    term_end: typeof row.term_end === 'string' ? row.term_end : null,
+    status: stringValue(row.status, 'inactive'),
+    created_at: stringValue(row.created_at),
+    designations: Array.isArray(designations) ? (designations[0] as DesignationRecord | undefined) ?? null : (designations as DesignationRecord | null),
   }
 }
 
-function mapOfficialWithDesignation(row: any, designationsById: Map<string, DesignationRecord>): OfficialReportRow {
+function mapOfficialWithDesignation(row: RawReportRow, designationsById: Map<string, DesignationRecord>): OfficialReportRow {
   return {
     ...mapOfficialRow(row),
-    designations: row.designation_id ? designationsById.get(row.designation_id) ?? null : null,
+    designations: row.designation_id ? designationsById.get(stringValue(row.designation_id)) ?? null : null,
   }
 }
 
@@ -181,66 +208,92 @@ export default function AdminGeneratedReportsPage() {
   const [officials, setOfficials] = useState<OfficialReportRow[]>([])
   const [loading, setLoading] = useState(true)
   const [configError, setConfigError] = useState<string | null>(null)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
   useEffect(() => {
+    let cancelled = false
+
     async function loadData() {
+      setConfigError(null)
+      setLoadError(null)
+
       if (!hasSupabaseConfig()) {
-        setConfigError('Supabase environment variables are missing. Create .env.local with NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY, then restart pnpm dev.')
-        setLoading(false)
+        if (!cancelled) {
+          setConfigError('Supabase environment variables are missing. Create .env.local with NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY, then restart pnpm dev.')
+          setLoading(false)
+        }
         return
       }
 
-      const supabase = createClient()
+      try {
+        const supabase = createClient()
 
-      const [{ data: requestsData, error: requestsError }, { data: complaintsData, error: complaintsError }, { data: officialsData, error: officialsError }] = await Promise.all([
-        supabase
-          .from('requests')
-          .select('id, resident_id, request_type, title, description, category, status, created_at')
-          .order('created_at', { ascending: false }),
-        supabase
-          .from('complaints')
-          .select('id, resident_id, title, description, category, status, created_at')
-          .order('created_at', { ascending: false }),
-        supabase
-          .from('officials')
-          .select('id, full_name, designation_id, term_start, term_end, status, created_at')
-          .order('created_at', { ascending: false }),
-      ])
+        const [{ data: requestsData, error: requestsError }, { data: complaintsData, error: complaintsError }, { data: officialsData, error: officialsError }] = await Promise.all([
+          supabase
+            .from('requests')
+            .select('id, resident_id, request_type, title, description, category, status, created_at')
+            .order('created_at', { ascending: false }),
+          supabase
+            .from('complaints')
+            .select('id, resident_id, title, description, category, status, created_at')
+            .order('created_at', { ascending: false }),
+          supabase
+            .from('officials')
+            .select('id, full_name, designation_id, term_start, term_end, status, created_at')
+            .order('created_at', { ascending: false }),
+        ])
 
-      if (requestsError) {
-        console.warn('Requests report query failed:', requestsError)
+        const sourceErrors = [requestsError, complaintsError, officialsError]
+          .filter((error): error is NonNullable<typeof requestsError> => Boolean(error))
+          .map((error) => error.message)
+
+        const residentIds = [
+          ...(requestsData || []).map((row: RawReportRow) => stringValue(row.resident_id)).filter(Boolean),
+          ...(complaintsData || []).map((row: RawReportRow) => stringValue(row.resident_id)).filter(Boolean),
+        ]
+        const designationIds = (officialsData || []).map((row: RawReportRow) => stringValue(row.designation_id)).filter(Boolean)
+
+        const residentResult = residentIds.length
+          ? await supabase.from('residents').select('id, first_name, last_name, email, barangay').in('id', residentIds)
+          : null
+        const designationResult = designationIds.length
+          ? await supabase.from('designations').select('id, name, category, priority_order, badge_color').in('id', designationIds)
+          : null
+
+        if (residentResult?.error) sourceErrors.push(residentResult.error.message)
+        if (designationResult?.error) sourceErrors.push(designationResult.error.message)
+
+        const residentRows = (residentResult?.data as ResidentRecord[] | undefined) ?? []
+        const designationRows = (designationResult?.data as DesignationRecord[] | undefined) ?? []
+        const residentsById = new Map<string, ResidentRecord>(residentRows.map((resident) => [resident.id, resident]))
+        const designationsById = new Map<string, DesignationRecord>(designationRows.map((designation) => [designation.id, designation]))
+
+        if (!cancelled) {
+          if (sourceErrors.length > 0) {
+            setLoadError(`Some report data could not be loaded: ${sourceErrors.join('; ')}`)
+          } else {
+            setLoadError(null)
+          }
+          setRequests((requestsData || []).map((row: RawReportRow) => mapRequestWithResident(row, residentsById)))
+          setComplaints((complaintsData || []).map((row: RawReportRow) => mapComplaintWithResident(row, residentsById)))
+          setOfficials((officialsData || []).map((row: RawReportRow) => mapOfficialWithDesignation(row, designationsById)))
+          setLoading(false)
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setLoadError(error instanceof Error ? error.message : 'Failed to load report data')
+          setLoading(false)
+        }
       }
-      if (complaintsError) {
-        console.warn('Complaints report query failed:', complaintsError)
-      }
-      if (officialsError) {
-        console.warn('Officials report query failed:', officialsError)
-      }
-
-      const residentIds = [
-        ...(requestsData || []).map((row: any) => row.resident_id).filter(Boolean),
-        ...(complaintsData || []).map((row: any) => row.resident_id).filter(Boolean),
-      ]
-      const designationIds = (officialsData || []).map((row: any) => row.designation_id).filter(Boolean)
-
-      const residentRows = residentIds.length
-        ? (await supabase.from('residents').select('id, first_name, last_name, email, barangay').in('id', residentIds)).data || []
-        : []
-      const designationRows = designationIds.length
-        ? (await supabase.from('designations').select('id, name, category, priority_order, badge_color').in('id', designationIds)).data || []
-        : []
-
-      const residentsById = new Map<string, ResidentRecord>((residentRows || []).map((resident) => [resident.id, resident]))
-      const designationsById = new Map<string, DesignationRecord>((designationRows || []).map((designation) => [designation.id, designation]))
-
-      setRequests((requestsData || []).map((row: any) => mapRequestWithResident(row, residentsById)))
-      setComplaints((complaintsData || []).map((row: any) => mapComplaintWithResident(row, residentsById)))
-      setOfficials((officialsData || []).map((row: any) => mapOfficialWithDesignation(row, designationsById)))
-      setLoading(false)
     }
 
     loadData()
+
+    return () => {
+      cancelled = true
+    }
   }, [])
+
 
   useEffect(() => {
     setStatusFilter('all')
@@ -257,19 +310,19 @@ export default function AdminGeneratedReportsPage() {
       return complaintCategories
     }
 
-    return Array.from(new Set(officials.map((record) => record.designations?.category).filter(Boolean) as string[])).sort()
-  }, [officials, reportType, requests])
+    return designationCategories
+  }, [reportType, requests])
 
   const statusOptions = useMemo(() => {
     if (reportType === 'requests') {
-      return ['pending', 'processing', 'approved', 'rejected']
+      return requestStatuses
     }
 
     if (reportType === 'residents') {
-      return ['open', 'in-progress', 'resolved']
+      return complaintStatuses
     }
 
-    return ['active', 'inactive']
+    return officialStatuses
   }, [reportType])
 
   const preview = useMemo(() => {
@@ -309,7 +362,7 @@ export default function AdminGeneratedReportsPage() {
     if (reportType === 'residents') {
       const rows = complaints
         .filter((record) => isWithinRange(record.created_at, dateFrom, dateTo))
-        .filter((record) => statusFilter === 'all' || (record.status || '').toLowerCase() === statusFilter)
+        .filter((record) => statusFilter === 'all' || normalizeComplaintStatus(record.status) === statusFilter)
         .filter((record) => categoryFilter === 'all' || normalizeComplaintCategory(record.category) === categoryFilter)
         .map((record) => ({
           printableName: getResidentFullName(record),
@@ -385,6 +438,15 @@ export default function AdminGeneratedReportsPage() {
           <CardHeader>
             <CardTitle className="text-amber-900">Supabase not configured</CardTitle>
             <CardDescription className="text-amber-800">{configError}</CardDescription>
+          </CardHeader>
+        </Card>
+      )}
+
+      {loadError && (
+        <Card className="border-amber-200 bg-amber-50 shadow-sm">
+          <CardHeader>
+            <CardTitle className="text-amber-900">Report data incomplete</CardTitle>
+            <CardDescription className="text-amber-800">{loadError}</CardDescription>
           </CardHeader>
         </Card>
       )}
@@ -496,8 +558,8 @@ export default function AdminGeneratedReportsPage() {
             </div>
 
             <div className="rounded-2xl border border-dashed border-emerald-200 bg-emerald-50/60 p-4 text-sm text-slate-600">
-              <p className="font-medium text-slate-800">Phase 2 export options</p>
-              <p className="mt-1">PDF and Excel export buttons can be added later without changing the report preview contract.</p>
+              <p className="font-medium text-slate-800">Export options</p>
+              <p className="mt-1">Print or save the filtered report as PDF, or export the same rows as CSV.</p>
             </div>
           </CardContent>
         </Card>
@@ -565,7 +627,7 @@ export default function AdminGeneratedReportsPage() {
                 <Download className="mr-2 h-4 w-4" />
                 Export as CSV
               </Button>
-              <Button variant="outline" disabled className="border-slate-200 text-slate-400">
+              <Button variant="outline" className="border-emerald-200 text-emerald-700 hover:bg-emerald-50" onClick={handlePrint}>
                 <FileUp className="mr-2 h-4 w-4" />
                 Export PDF
               </Button>
