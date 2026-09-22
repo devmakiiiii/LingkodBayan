@@ -18,6 +18,9 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { RequestActions } from '@/components/admin/request-actions'
+import { logAdminActionClient } from '@/lib/audit-log'
+import { canTransitionRequest } from '@/lib/status-machine'
+import { toast } from 'sonner'
 import {
   getRequestStatusClassName,
   getRequestStatusLabel,
@@ -211,7 +214,18 @@ export default function AdminRequestsPage() {
   async function updateRequestStatus(requestId: string, newStatus: RequestStatus) {
     try {
       const supabase = createClient()
-      
+      const previousStatus = requests.find((request) => request.id === requestId)?.status ?? null
+
+      // Enforce the request status finite state machine before writing
+      if (!canTransitionRequest(previousStatus, newStatus)) {
+        toast.error(
+          previousStatus && previousStatus.toLowerCase() === newStatus.toLowerCase()
+            ? `Request is already ${newStatus}.`
+            : `That status change is not allowed from "${previousStatus ?? 'pending'}".`,
+        )
+        return
+      }
+
       const { error } = await supabase
         .from('requests')
         .update({ status: newStatus, updated_at: new Date() })
@@ -230,6 +244,14 @@ export default function AdminRequestsPage() {
           ? { ...currentRequest, status: newStatus }
           : currentRequest,
       )
+
+      void logAdminActionClient({
+        action: 'request_status_updated',
+        resourceType: 'request',
+        resourceId: requestId,
+        oldValues: previousStatus ? { status: previousStatus } : undefined,
+        newValues: { status: newStatus },
+      })
     } catch (error) {
       console.error('Error updating request:', error)
     }

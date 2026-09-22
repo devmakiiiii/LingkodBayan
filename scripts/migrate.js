@@ -76,6 +76,9 @@ const sql = readMigrationScript()
   + '--- Migration 19: Add Date of Birth to Residents ---\n'
   + readMigrationFile('19_add_date_of_birth_to_residents.sql')
   + '\n'
+  + '--- Migration 20: Audit Logs ---\n'
+  + readMigrationFile('20_create_audit_logs.sql')
+  + '\n'
   + '--- Finalize Complaints Schema ---\n'
   + readMigrationFile('finalize_complaints_schema.sql');
 console.log(sql);

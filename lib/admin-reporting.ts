@@ -2,7 +2,7 @@ import { getRequestTypeTitle } from './request-types'
 import { complaintCategories as canonicalComplaintCategories, type ComplaintCategory as CanonicalComplaintCategory } from './complaint-categories'
 import { getDesignationCategoryShortLabel, getDesignationCategoryLabel, getOfficialTermDuration, normalizeBadgeColor } from './governance'
 
-export const adminReportTypes = ['requests', 'residents', 'officials'] as const
+export const adminReportTypes = ['requests', 'residents', 'officials', 'audit'] as const
 export type AdminReportType = (typeof adminReportTypes)[number]
 
 export const analyticsTrendViews = ['daily', 'weekly', 'monthly'] as const
@@ -15,6 +15,7 @@ export const adminReportTypeLabels: Record<AdminReportType, string> = {
   requests: 'Requests Report',
   residents: 'Resident Reports',
   officials: 'Officials List',
+  audit: 'Audit Trail Report',
 }
 
 export const analyticsTrendLabels: Record<AnalyticsTrendView, string> = {
@@ -104,6 +105,20 @@ export interface OfficialReportRow {
     priority_order: number
     badge_color: string | null
   } | null
+}
+
+export interface AuditLogReportRow {
+  id: string
+  admin_id: string | null
+  admin_email: string | null
+  action: string
+  resource_type: string
+  resource_id: string | null
+  old_values: Record<string, unknown> | null
+  new_values: Record<string, unknown> | null
+  ip_address: string | null
+  user_agent: string | null
+  created_at: string
 }
 
 export type PrintableColumn = {

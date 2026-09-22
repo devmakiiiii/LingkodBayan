@@ -3,6 +3,7 @@ import { createServerClient } from '@supabase/ssr'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createAnnouncementSchema, updateAnnouncementSchema, deleteAnnouncementSchema } from '@/lib/schemas'
 import { verifyRequest } from '@/lib/request-security'
+import { logAuditAction } from '@/lib/audit-log'
 import { logger } from '@/lib/logger'
 
 function generateExcerpt(content: string, maxLength = 200): string {
@@ -142,6 +143,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: error.message || 'Failed to create announcement' }, { status: 500 })
     }
 
+    await logAuditAction({
+      adminId: user.id,
+      adminEmail: user.email ?? undefined,
+      action: 'announcement_created',
+      resourceType: 'announcement',
+      resourceId: data?.[0]?.id,
+      newValues: { title: validated.title, category: validated.category, is_published: validated.is_published },
+      ipAddress: request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? undefined,
+      userAgent: request.headers.get('user-agent') ?? undefined,
+    })
+
     return NextResponse.json({ announcement: data?.[0] || null })
   } catch (error: any) {
     logger.error('Error in POST /api/admin/announcements', error, { context: 'api/announcements' })
@@ -221,6 +233,17 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: error.message || 'Failed to update announcement' }, { status: 500 })
     }
 
+    await logAuditAction({
+      adminId: user.id,
+      adminEmail: user.email ?? undefined,
+      action: 'announcement_updated',
+      resourceType: 'announcement',
+      resourceId: validated.id,
+      newValues: { title: validated.title, category: validated.category, is_published: validated.is_published },
+      ipAddress: request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? undefined,
+      userAgent: request.headers.get('user-agent') ?? undefined,
+    })
+
     return NextResponse.json({ announcement: data?.[0] || null })
   } catch (error: any) {
     logger.error('Error in PUT /api/admin/announcements', error, { context: 'api/announcements' })
@@ -273,6 +296,16 @@ export async function DELETE(request: NextRequest) {
       logger.error('Error deleting announcement', error, { context: 'api/announcements' })
       return NextResponse.json({ error: error.message || 'Failed to delete announcement' }, { status: 500 })
     }
+
+    await logAuditAction({
+      adminId: user.id,
+      adminEmail: user.email ?? undefined,
+      action: 'announcement_deleted',
+      resourceType: 'announcement',
+      resourceId: validated.id,
+      ipAddress: request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? undefined,
+      userAgent: request.headers.get('user-agent') ?? undefined,
+    })
 
     return NextResponse.json({ success: true })
   } catch (error: any) {

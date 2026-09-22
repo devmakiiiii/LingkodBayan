@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { RequestInput, ComplaintInput, DesignationInput, OfficialInput, BarangayInfoInput, MissionVisionInput, SignatureUploadInput, ServiceCategoryInput } from './schemas'
 import { logger } from './logger'
+import { assertRequestTransition, assertComplaintTransition } from './status-machine'
 
 export async function createResident(userData: {
   userId: string
@@ -219,10 +220,21 @@ export async function getAllResidents() {
 
 export async function updateRequestStatus(requestId: string, status: string) {
   const supabase = await createClient()
-  
+
+  const { data: current, error: fetchError } = await supabase
+    .from('requests')
+    .select('status')
+    .eq('id', requestId)
+    .single()
+
+  if (fetchError) throw new Error(`Failed to load request: ${fetchError.message}`)
+
+  // Enforce the request status finite state machine
+  const nextStatus = assertRequestTransition(current?.status, status)
+
   const { data, error } = await supabase
     .from('requests')
-    .update({ status, updated_at: new Date() })
+    .update({ status: nextStatus, updated_at: new Date() })
     .eq('id', requestId)
     .select()
     .single()
@@ -233,10 +245,21 @@ export async function updateRequestStatus(requestId: string, status: string) {
 
 export async function updateComplaintStatus(complaintId: string, status: string) {
   const supabase = await createClient()
-  
+
+  const { data: current, error: fetchError } = await supabase
+    .from('complaints')
+    .select('status')
+    .eq('id', complaintId)
+    .single()
+
+  if (fetchError) throw new Error(`Failed to load complaint: ${fetchError.message}`)
+
+  // Enforce the complaint status finite state machine
+  const nextStatus = assertComplaintTransition(current?.status, status)
+
   const { data, error } = await supabase
     .from('complaints')
-    .update({ status, updated_at: new Date() })
+    .update({ status: nextStatus, updated_at: new Date() })
     .eq('id', complaintId)
     .select()
     .single()

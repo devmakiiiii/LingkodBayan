@@ -3,6 +3,7 @@ import { createServerClient } from '@supabase/ssr'
 import { z } from 'zod'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { verifyRequest } from '@/lib/request-security'
+import { logAuditAction } from '@/lib/audit-log'
 import { logger } from '@/lib/logger'
 
 function stripBom(text: string): string {
@@ -324,6 +325,21 @@ export async function POST(request: NextRequest) {
         response.failedRows = failedRows
         response.failedCount = failedRows.length
       }
+
+      await logAuditAction({
+        adminId: user.id,
+        adminEmail: user.email ?? undefined,
+        action: 'residents_csv_imported',
+        resourceType: 'pre_registered_residents',
+        resourceId: batchId,
+        newValues: {
+          imported: importedCount,
+          totalProcessed: rows.length - 1,
+          failedCount: failedRows.length,
+        },
+        ipAddress: request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? undefined,
+        userAgent: request.headers.get('user-agent') ?? undefined,
+      })
 
       return NextResponse.json(response)
     }

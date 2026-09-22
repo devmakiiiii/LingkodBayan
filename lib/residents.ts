@@ -10,6 +10,7 @@ type ResidentProfile = {
   phone?: string | null
   address?: string | null
   barangay: string
+  date_of_birth?: string | null
 }
 
 function getUserField(user: User, key: string) {
@@ -81,7 +82,7 @@ export async function getOrCreateResidentProfile(
 ): Promise<ResidentProfile | null> {
   const { data: residents, error: residentError } = await supabase
     .from('residents')
-    .select('id, user_id, first_name, last_name, email, phone, address, barangay, verification_status')
+    .select('id, user_id, first_name, last_name, email, phone, address, barangay, date_of_birth, verification_status')
     .eq('user_id', user.id)
     .order('created_at', { ascending: false })
     .limit(1)
@@ -113,6 +114,7 @@ export async function getOrCreateResidentProfile(
   const email = user.email?.trim() || getUserField(user, 'email')
   const phone = getUserPhone(user)
   const address = getUserAddress(user)
+  const dateOfBirth = getUserField(user, 'date_of_birth') || null
 
   const missingFields: string[] = []
   if (!firstName) missingFields.push('first_name')
@@ -136,9 +138,10 @@ export async function getOrCreateResidentProfile(
         phone,
         address,
         barangay,
+        date_of_birth: dateOfBirth,
       },
     ])
-    .select('id, user_id, first_name, last_name, email, phone, address, barangay, verification_status')
+    .select('id, user_id, first_name, last_name, email, phone, address, barangay, date_of_birth, verification_status')
     .single()
 
   if (insertError) {

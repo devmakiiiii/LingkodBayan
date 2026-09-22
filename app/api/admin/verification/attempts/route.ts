@@ -8,6 +8,7 @@ import {
   updateResidentVerification,
 } from '@/lib/db'
 import { verifyRequest } from '@/lib/request-security'
+import { logAuditAction } from '@/lib/audit-log'
 import { logger } from '@/lib/logger'
 
 export async function GET(request: NextRequest) {
@@ -124,6 +125,22 @@ export async function PATCH(request: NextRequest) {
         verifiedBy: user.id,
       })
     }
+
+    await logAuditAction({
+      adminId: user.id,
+      adminEmail: user.email ?? undefined,
+      action: 'verification_reviewed',
+      resourceType: 'verification_attempt',
+      resourceId: attemptId,
+      oldValues: { status: attempt.status },
+      newValues: {
+        status: status || attempt.status,
+        ...(verificationStatus ? { verificationStatus } : {}),
+        ...(notes ? { notes } : {}),
+      },
+      ipAddress: request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? undefined,
+      userAgent: request.headers.get('user-agent') ?? undefined,
+    })
 
     return NextResponse.json({
       success: true,

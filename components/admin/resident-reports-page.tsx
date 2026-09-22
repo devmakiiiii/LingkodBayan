@@ -56,6 +56,8 @@ import {
   type PrintableColumn,
 } from '@/lib/admin-reporting'
 import { complaintCategories, complaintCategoryKeywords, complaintCategoryBadgeClasses, complaintCategoryFallbackPriorities, type ComplaintCategory, analyzeComplaintPriority } from '@/lib/complaint-categories'
+import { logAdminActionClient } from '@/lib/audit-log'
+import { canTransitionComplaint, getAllowedComplaintTransitions } from '@/lib/status-machine'
 
 type CanonicalStatus = 'pending' | 'under_review' | 'resolved' | 'rejected'
 type CanonicalPriority = 'low' | 'medium' | 'high' | 'critical'
@@ -628,6 +630,12 @@ evidenceUrls: extractEvidenceUrls(row),
         const canonicalStatus = updates.status || report.status
         const dbStatus = statusToDatabaseValue[canonicalStatus]
         if (dbStatus) {
+          // Enforce the complaint status finite state machine before writing
+          const currentDbStatus = statusToDatabaseValue[report.status]
+          if (dbStatus !== currentDbStatus && !canTransitionComplaint(currentDbStatus, dbStatus)) {
+            toast.error(`That status change is not allowed while the report is ${statusDefinitions[report.status].label}.`)
+            return false
+          }
           payload.status = dbStatus
         }
       }
@@ -659,6 +667,18 @@ evidenceUrls: extractEvidenceUrls(row),
         toast.error('Update was blocked. You may not have permission to update this report. Please check that your admin account has the correct role in the database.')
         return false
       }
+
+      const changedValues = Object.fromEntries(
+        Object.entries(payload).filter(([key]) => key !== 'updated_at'),
+      )
+
+      void logAdminActionClient({
+        action: 'complaint_updated',
+        resourceType: 'complaint',
+        resourceId: report.id,
+        oldValues: { status: report.status },
+        newValues: Object.keys(changedValues).length > 0 ? changedValues : undefined,
+      })
 
       if (systemMessage && profileUser?.id && report.residentUserId) {
         const { error: msgError } = await supabase.from('complaint_messages').insert([
@@ -970,11 +990,19 @@ evidenceUrls: extractEvidenceUrls(row),
                             <SelectValue placeholder="Change status" />
                           </SelectTrigger>
                           <SelectContent>
-                            {Object.entries(statusDefinitions).map(([key, definition]) => (
-                              <SelectItem key={key} value={key}>
-                                {definition.label}
-                              </SelectItem>
-                            ))}
+                            {Object.entries(statusDefinitions).map(([key, definition]) => {
+                              // Only offer statuses the complaint state machine allows from the current state
+                              const dbValue = statusToDatabaseValue[key as CanonicalStatus]
+                              const isAllowed =
+                                key === selectedReport.status ||
+                                getAllowedComplaintTransitions(selectedReport.status).some((transition) => transition.to === dbValue)
+
+                              return (
+                                <SelectItem key={key} value={key} disabled={!isAllowed}>
+                                  {definition.label}
+                                </SelectItem>
+                              )
+                            })}
                           </SelectContent>
                         </Select>
                         <div className="flex flex-wrap gap-1 pt-1">

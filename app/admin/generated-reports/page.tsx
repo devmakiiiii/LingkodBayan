@@ -14,6 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Download, FileText, FileUp, Printer, Table2 } from 'lucide-react'
 import {
   adminReportTypeLabels,
+  adminReportTypes,
   buildCsv,
   complaintCategoryLabels,
   complaintStatuses,
@@ -24,12 +25,14 @@ import {
   getOfficialName,
   formatTermDuration,
   getReportDateLabel,
+  getReportDateTimeLabel,
   getRequestTypeLabel,
   normalizeComplaintCategory,
   normalizeComplaintStatus,
   normalizeRequestStatus,
   openPrintableReport,
   type AdminReportType,
+  type AuditLogReportRow,
   type ComplaintReportRow,
   type OfficialReportRow,
   type PrintableColumn,
@@ -131,7 +134,27 @@ function mapReportTypeToLabel(reportType: AdminReportType) {
 function formatLabel(value: string) {
   return value
     .replace(/-/g, ' ')
+    .replace(/_/g, ' ')
     .replace(/\b\w/g, (character) => character.toUpperCase())
+}
+
+function formatAuditDetails(record: AuditLogReportRow) {
+  const parts: string[] = []
+
+  if (record.new_values && Object.keys(record.new_values).length > 0) {
+    parts.push(`New: ${JSON.stringify(record.new_values)}`)
+  }
+
+  if (record.old_values && Object.keys(record.old_values).length > 0) {
+    parts.push(`Previous: ${JSON.stringify(record.old_values)}`)
+  }
+
+  const details = parts.join(' | ')
+  if (!details) {
+    return '—'
+  }
+
+  return details.length > 160 ? `${details.slice(0, 160)}…` : details
 }
 
 function mapRequestRow(row: RawReportRow): RequestReportRow {
@@ -206,6 +229,9 @@ export default function AdminGeneratedReportsPage() {
   const [requests, setRequests] = useState<RequestReportRow[]>([])
   const [complaints, setComplaints] = useState<ComplaintReportRow[]>([])
   const [officials, setOfficials] = useState<OfficialReportRow[]>([])
+  const [auditLogs, setAuditLogs] = useState<AuditLogReportRow[]>([])
+  const [actionFilter, setActionFilter] = useState<ReportStatusOption>('all')
+  const [resourceTypeFilter, setResourceTypeFilter] = useState('all')
   const [loading, setLoading] = useState(true)
   const [configError, setConfigError] = useState<string | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -263,6 +289,21 @@ export default function AdminGeneratedReportsPage() {
         if (residentResult?.error) sourceErrors.push(residentResult.error.message)
         if (designationResult?.error) sourceErrors.push(designationResult.error.message)
 
+        let auditLogRows: AuditLogReportRow[] = []
+
+        try {
+          const auditResponse = await fetch('/api/admin/audit-logs?limit=1000')
+          if (auditResponse.ok) {
+            const auditBody = await auditResponse.json()
+            auditLogRows = Array.isArray(auditBody?.logs) ? (auditBody.logs as AuditLogReportRow[]) : []
+          } else {
+            const auditBody = await auditResponse.json().catch(() => null)
+            sourceErrors.push(auditBody?.error || 'Failed to load audit logs')
+          }
+        } catch {
+          sourceErrors.push('Failed to load audit logs')
+        }
+
         const residentRows = (residentResult?.data as ResidentRecord[] | undefined) ?? []
         const designationRows = (designationResult?.data as DesignationRecord[] | undefined) ?? []
         const residentsById = new Map<string, ResidentRecord>(residentRows.map((resident) => [resident.id, resident]))
@@ -277,6 +318,7 @@ export default function AdminGeneratedReportsPage() {
           setRequests((requestsData || []).map((row: RawReportRow) => mapRequestWithResident(row, residentsById)))
           setComplaints((complaintsData || []).map((row: RawReportRow) => mapComplaintWithResident(row, residentsById)))
           setOfficials((officialsData || []).map((row: RawReportRow) => mapOfficialWithDesignation(row, designationsById)))
+          setAuditLogs(auditLogRows)
           setLoading(false)
         }
       } catch (error) {
@@ -299,7 +341,17 @@ export default function AdminGeneratedReportsPage() {
     setStatusFilter('all')
     setCategoryFilter('all')
     setRequestTypeFilter('all')
+    setActionFilter('all')
+    setResourceTypeFilter('all')
   }, [reportType])
+
+  const auditActionOptions = useMemo(() => {
+    return Array.from(new Set(auditLogs.map((record) => record.action).filter(Boolean))).sort()
+  }, [auditLogs])
+
+  const auditResourceTypeOptions = useMemo(() => {
+    return Array.from(new Set(auditLogs.map((record) => record.resource_type).filter(Boolean))).sort()
+  }, [auditLogs])
 
   const categoryOptions = useMemo(() => {
     if (reportType === 'requests') {
@@ -386,6 +438,34 @@ export default function AdminGeneratedReportsPage() {
       }
     }
 
+    if (reportType === 'audit') {
+      const rows = auditLogs
+        .filter((record) => isWithinRange(record.created_at, dateFrom, dateTo))
+        .filter((record) => actionFilter === 'all' || record.action === actionFilter)
+        .filter((record) => resourceTypeFilter === 'all' || record.resource_type === resourceTypeFilter)
+        .map((record) => ({
+          printableDate: getReportDateTimeLabel(record.created_at),
+          printableAdmin: record.admin_email || 'Unknown admin',
+          printableAction: formatLabel(record.action),
+          printableResource: formatLabel(record.resource_type),
+          printableDetails: formatAuditDetails(record),
+        }))
+
+      return {
+        columns: [
+          { key: 'date', label: 'Date' },
+          { key: 'admin', label: 'Admin' },
+          { key: 'action', label: 'Action' },
+          { key: 'resource', label: 'Resource' },
+          { key: 'details', label: 'Details' },
+        ] satisfies PrintableColumn[],
+        rows: rows.map((row) => [row.printableDate, row.printableAdmin, row.printableAction, row.printableResource, row.printableDetails]),
+        csvRows: rows.map((row) => [row.printableDate, row.printableAdmin, row.printableAction, row.printableResource, row.printableDetails]),
+        total: rows.length,
+      }
+    }
+
+    // Officials report
     const rows = officials
       .filter((record) => isWithinRange(record.created_at, dateFrom, dateTo))
       .filter((record) => statusFilter === 'all' || record.status === statusFilter)
@@ -410,7 +490,7 @@ export default function AdminGeneratedReportsPage() {
       csvRows: rows.map((row) => [row.printableName, row.printableDesignation, row.printableCategory, row.printableTerm]),
       total: rows.length,
     }
-  }, [categoryFilter, complaints, dateFrom, dateTo, officials, requestTypeFilter, reportType, requests, statusFilter])
+  }, [actionFilter, auditLogs, categoryFilter, complaints, dateFrom, dateTo, officials, requestTypeFilter, reportType, requests, resourceTypeFilter, statusFilter])
 
   function handlePrint() {
     openPrintableReport({
@@ -419,7 +499,7 @@ export default function AdminGeneratedReportsPage() {
       dateRangeLabel: buildPrintableDateRange(dateFrom, dateTo),
       columns: preview.columns,
       rows: preview.rows,
-      subtitle: `Filtered by ${reportType === 'requests' ? 'request type / status / category' : reportType === 'residents' ? 'status / category' : 'status / category'}`,
+      subtitle: `Filtered by ${reportType === 'requests' ? 'request type / status / category' : reportType === 'audit' ? 'action / resource type' : 'status / category'}`,
     })
   }
 
@@ -474,9 +554,9 @@ export default function AdminGeneratedReportsPage() {
                   <SelectValue placeholder="Select report type" />
                 </SelectTrigger>
                 <SelectContent>
-                  {['requests', 'residents', 'officials'].map((type) => (
+                  {adminReportTypes.map((type) => (
                     <SelectItem key={type} value={type}>
-                      {adminReportTypeLabels[type as AdminReportType]}
+                      {adminReportTypeLabels[type]}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -494,6 +574,44 @@ export default function AdminGeneratedReportsPage() {
               </div>
             </div>
 
+            {reportType === 'audit' ? (
+              <>
+                <div className="space-y-2">
+                  <Label>Action</Label>
+                  <Select value={actionFilter} onValueChange={(value) => setActionFilter(value)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Filter by action" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Actions</SelectItem>
+                      {auditActionOptions.map((action) => (
+                        <SelectItem key={action} value={action}>
+                          {formatLabel(action)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Resource Type</Label>
+                  <Select value={resourceTypeFilter} onValueChange={setResourceTypeFilter}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Filter by resource type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Resource Types</SelectItem>
+                      {auditResourceTypeOptions.map((resourceType) => (
+                        <SelectItem key={resourceType} value={resourceType}>
+                          {formatLabel(resourceType)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </>
+            ) : (
+              <>
             <div className="space-y-2">
               <Label>Status</Label>
               <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value)}>
@@ -545,6 +663,8 @@ export default function AdminGeneratedReportsPage() {
               </Select>
               {!requestTypeFilterEnabled && <p className="text-xs text-slate-500">Available for requests report only.</p>}
             </div>
+              </>
+            )}
 
             <div className="flex flex-wrap gap-2 pt-2">
               <Button className="bg-emerald-600 text-white hover:bg-emerald-700" onClick={handlePrint}>
@@ -578,6 +698,8 @@ export default function AdminGeneratedReportsPage() {
                 {statusFilter !== 'all' && <Badge className="bg-emerald-50 text-emerald-700">Status: {formatLabel(statusFilter)}</Badge>}
                 {categoryFilter !== 'all' && <Badge className="bg-emerald-50 text-emerald-700">Category: {formatLabel(categoryFilter)}</Badge>}
                 {requestTypeFilter !== 'all' && <Badge className="bg-emerald-50 text-emerald-700">Request Type: {getRequestTypeLabel(requestTypeFilter)}</Badge>}
+                {actionFilter !== 'all' && <Badge className="bg-emerald-50 text-emerald-700">Action: {formatLabel(actionFilter)}</Badge>}
+                {resourceTypeFilter !== 'all' && <Badge className="bg-emerald-50 text-emerald-700">Resource: {formatLabel(resourceTypeFilter)}</Badge>}
               </div>
             </CardHeader>
             <CardContent>

@@ -38,6 +38,10 @@ import {
   type RequestPayload,
   type RequestStatus,
 } from '@/lib/request-types'
+import {
+  canTransitionRequest,
+  getAllowedRequestTransitions,
+} from '@/lib/status-machine'
 
 type RequestRecord = {
   id: string
@@ -406,13 +410,21 @@ export function RequestActions({ request, isOpen, onClose, onStatusChange }: Req
   const requesterName = `${request.residents?.first_name ?? ''} ${request.residents?.last_name ?? ''}`.trim() || 'N/A'
   const currentStatus = request.status ?? 'pending'
 
+  // Targets allowed by the request status finite state machine
+  const allowedTargets = new Set(getAllowedRequestTransitions(currentStatus).map((transition) => transition.to))
+
   const handleStatusChange = async (status: RequestStatus) => {
+    if (!canTransitionRequest(currentStatus, status)) {
+      toast.error(`That status change is not allowed from "${currentStatus}".`)
+      return
+    }
+
     setIsChangingStatus(true)
     try {
       await onStatusChange?.(request.id, status)
       toast.success(`Request marked as ${status}`)
     } catch (error) {
-      toast.error('Failed to update request status')
+      toast.error(error instanceof Error ? error.message : 'Failed to update request status')
     } finally {
       setIsChangingStatus(false)
     }
@@ -467,7 +479,7 @@ return (
                   <DropdownMenuGroup>
                     <DropdownMenuItem
                       onClick={() => handleStatusChange('pending')}
-                      disabled={currentStatus === 'pending' || isChangingStatus}
+                      disabled={currentStatus === 'pending' || isChangingStatus || !allowedTargets.has('pending')}
                       className="focus:bg-amber-50 focus:text-amber-900"
                     >
                       <Clock3 className="mr-2 h-4 w-4 text-amber-600" />
@@ -475,7 +487,7 @@ return (
                     </DropdownMenuItem>
                     <DropdownMenuItem
                       onClick={() => handleStatusChange('processing')}
-                      disabled={currentStatus === 'processing' || isChangingStatus}
+                      disabled={currentStatus === 'processing' || isChangingStatus || !allowedTargets.has('processing')}
                       className="focus:bg-sky-50 focus:text-sky-900"
                     >
                       <Clock3 className="mr-2 h-4 w-4 text-sky-600" />
@@ -483,7 +495,7 @@ return (
                     </DropdownMenuItem>
                     <DropdownMenuItem
                       onClick={() => handleStatusChange('approved')}
-                      disabled={currentStatus === 'approved' || isChangingStatus}
+                      disabled={currentStatus === 'approved' || isChangingStatus || !allowedTargets.has('approved')}
                       className="focus:bg-emerald-50 focus:text-emerald-900"
                     >
                       <CheckCircle2 className="mr-2 h-4 w-4 text-emerald-600" />
@@ -493,7 +505,7 @@ return (
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
                     onClick={handleRejectClick}
-                    disabled={currentStatus === 'rejected' || isChangingStatus}
+                    disabled={currentStatus === 'rejected' || isChangingStatus || !allowedTargets.has('rejected')}
                     variant="destructive"
                     className="focus:bg-rose-50 focus:text-rose-900"
                   >

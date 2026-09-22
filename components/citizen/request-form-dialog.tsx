@@ -82,6 +82,25 @@ export function RequestFormDialog({ open, onOpenChange, requestType, serviceInfo
       return
     }
 
+    // Auto-input the selected service's details into the form
+    if (serviceInfo) {
+      const purposeSeed = serviceInfo.description
+        ? `${serviceInfo.title} - ${serviceInfo.description}`
+        : ''
+
+      if (purposeSeed) {
+        setValues((currentValues) => {
+          const updates: Record<string, string> = {}
+          for (const fieldName of ['purpose', 'reasonForRequest']) {
+            if (fieldName in currentValues && currentValues[fieldName] === '') {
+              updates[fieldName] = purposeSeed
+            }
+          }
+          return Object.keys(updates).length > 0 ? { ...currentValues, ...updates } : currentValues
+        })
+      }
+    }
+
     const prefillFromProfile = async () => {
       const supabase = createClient()
       const {
@@ -93,17 +112,29 @@ export function RequestFormDialog({ open, onOpenChange, requestType, serviceInfo
       const resident = await getOrCreateResidentProfile(supabase, user)
       if (!resident) return
 
+      const residentFullName = `${resident.first_name ?? ''} ${resident.last_name ?? ''}`.trim()
+
+      // Profile values keyed by form field name - any matching empty field gets auto-filled
+      const profileFieldValues: Record<string, string> = {
+        fullName: residentFullName,
+        ownerName: residentFullName,
+        address: resident.address ?? '',
+        contactNumber: resident.phone ?? '',
+        email: resident.email ?? '',
+        dateOfBirth: resident.date_of_birth ?? '',
+      }
+
       setValues((currentValues) => {
         const updates: Record<string, string> = {}
-        if (currentValues.fullName === '' && resident.first_name && resident.last_name) {
-          updates.fullName = `${resident.first_name} ${resident.last_name}`.trim()
+
+        for (const field of config?.fields ?? []) {
+          if (field.type === 'file') continue
+          const profileValue = profileFieldValues[field.name]
+          if ((currentValues[field.name] ?? '') === '' && profileValue) {
+            updates[field.name] = profileValue
+          }
         }
-        if (currentValues.address === '' && resident.address) {
-          updates.address = resident.address
-        }
-        if (currentValues.contactNumber === '' && resident.phone) {
-          updates.contactNumber = resident.phone
-        }
+
         return Object.keys(updates).length > 0 ? { ...currentValues, ...updates } : currentValues
       })
     }
@@ -248,6 +279,17 @@ export function RequestFormDialog({ open, onOpenChange, requestType, serviceInfo
                 <span className="block text-xs text-emerald-600 mt-1">Some fields are auto-filled from your profile.</span>
               </DialogDescription>
             </DialogHeader>
+
+            {/* Auto-filled service details summary */}
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 px-4 py-3 text-sm">
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                <span className="font-semibold text-emerald-800">Service: {config.title}</span>
+                <span className="text-emerald-700">Category: {config.category}</span>
+              </div>
+              {serviceInfo?.description && (
+                <p className="mt-1 text-xs text-emerald-700">{serviceInfo.description}</p>
+              )}
+            </div>
 
             {errorMessage && (
               <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
