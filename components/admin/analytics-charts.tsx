@@ -10,6 +10,7 @@ import {
   complaintCategories,
   statusPalette,
   normalizeComplaintCategory,
+  normalizeComplaintStatus,
   normalizeRequestStatus,
   getRequestTypeLabel,
   type AnalyticsTrendView,
@@ -116,13 +117,18 @@ function countStatusDistribution(requests: RequestReportRow[], complaints: Compl
   })
 
   complaints.forEach((complaint) => {
-    const normalized = complaint.status?.toLowerCase() ?? 'open'
-    if (normalized === 'open') {
+    // Normalize first so canonical ("under_investigation", "dismissed") and
+    // legacy ("in-progress", "under_review", "rejected") statuses all land in
+    // a bucket instead of being silently dropped from the chart.
+    const status = normalizeComplaintStatus(complaint.status)
+    if (status === 'open') {
       counts.pending += 1
-    } else if (normalized === 'in-progress') {
+    } else if (status === 'under_investigation') {
       counts.processing += 1
-    } else if (normalized === 'resolved') {
+    } else if (status === 'resolved') {
       counts.resolved += 1
+    } else {
+      counts.rejected += 1
     }
   })
 

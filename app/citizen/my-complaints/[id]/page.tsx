@@ -3,14 +3,18 @@
 import { useEffect, useState, use } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Empty } from '@/components/ui/empty'
 import { Textarea } from '@/components/ui/textarea'
 import Link from 'next/link'
-import { AlertCircle, CheckCircle2, ArrowLeft, MapPin, Calendar, ImageIcon, MessageSquare, Send, Loader2 } from 'lucide-react'
+import { ArrowLeft, MapPin, Calendar, ImageIcon, MessageSquare, Send, Loader2 } from 'lucide-react'
 import { getOrCreateResidentProfile } from '@/lib/residents'
 import { ComplaintLocationMap } from '@/components/citizen/complaint-location-map'
+import {
+  ComplaintStatusBadge,
+  ComplaintStatusIcon,
+} from '@/components/citizen/complaint-status-badge'
+import { StatusTracker } from '@/components/citizen/status-tracker'
 import { toast } from 'sonner'
 
 interface Complaint {
@@ -113,32 +117,6 @@ export default function ComplaintDetailPage({ params }: { params: Promise<{ id: 
       toast.error(error instanceof Error ? error.message : 'Failed to send reply')
     } finally {
       setSendingReply(false)
-    }
-  }
-
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'resolved':
-        return <CheckCircle2 className="h-5 w-5 text-primary" />
-      case 'open':
-        return <AlertCircle className="h-5 w-5 text-yellow-600" />
-      case 'in-progress':
-        return <AlertCircle className="h-5 w-5 text-blue-600" />
-      default:
-        return null
-    }
-  }
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'resolved':
-        return 'bg-primary/10 text-primary border-primary/20'
-      case 'open':
-        return 'bg-yellow-500/10 text-yellow-700 border-yellow-500/20'
-      case 'in-progress':
-        return 'bg-blue-500/10 text-blue-700 border-blue-500/20'
-      default:
-        return 'bg-gray-500/10 text-gray-700 dark:text-gray-300 border-gray-500/20'
     }
   }
 
@@ -301,11 +279,10 @@ export default function ComplaintDetailPage({ params }: { params: Promise<{ id: 
             </CardHeader>
             <CardContent className="space-y-3 px-4 py-3">
               <div className="flex items-center gap-2">
-                {getStatusIcon(complaint.status)}
-                <Badge className={`text-xs px-2 py-0.5 ${getStatusColor(complaint.status)}`}>
-                  {complaint.status.charAt(0).toUpperCase() + complaint.status.slice(1)}
-                </Badge>
+                <ComplaintStatusIcon status={complaint.status} className="h-5 w-5" />
+                <ComplaintStatusBadge status={complaint.status} className="px-2 py-0.5" />
               </div>
+              <StatusTracker kind="complaint" status={complaint.status} />
               <div className="space-y-2 pt-2 border-t">
                 <div className="flex items-center gap-1.5 text-xs">
                   <Calendar className="h-3.5 w-3.5 text-muted-foreground" />

@@ -1,5 +1,5 @@
 {
-  "name": "my-project",
+  "name": "lingkodbayan",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
-    "test": "node --test lib/status-machine.test.ts"
+    "typecheck": "tsc --noEmit",
+    "test": "node --test lib/status-machine.test.ts lib/citizen-stats.test.ts lib/workload.test.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",

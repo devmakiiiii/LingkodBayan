@@ -40,6 +40,7 @@ import {
   Printer,
   RefreshCcw,
   RefreshCw,
+  Scale,
   Search,
   Send,
   ShieldCheck,
@@ -58,6 +59,7 @@ import {
 import { complaintCategories, complaintCategoryKeywords, complaintCategoryBadgeClasses, complaintCategoryFallbackPriorities, type ComplaintCategory, analyzeComplaintPriority } from '@/lib/complaint-categories'
 import { logAdminActionClient } from '@/lib/audit-log'
 import { canTransitionComplaint, getAllowedComplaintTransitions } from '@/lib/status-machine'
+import { computeOfficialWorkloads, planEvenDistribution, suggestAssignee } from '@/lib/workload'
 
 type CanonicalStatus = 'pending' | 'under_review' | 'resolved' | 'rejected'
 type CanonicalPriority = 'low' | 'medium' | 'high' | 'critical'
@@ -77,14 +79,17 @@ type ResidentRow = {
 
 type OfficialOption = {
   id: string
+  name: string
   label: string
   designationLabel: string
+  status?: string | null
 }
 
 type OfficialRow = {
   id: string
   full_name?: string | null
   designation_id?: string | null
+  status?: string | null
   designations?: {
     name?: string | null
   } | null
@@ -428,7 +433,7 @@ export function ResidentReportsPage() {
         supabase.from('service_categories').select('id, slug, title, description, is_active').eq('category_type', 'incident').eq('is_active', true).order('sort_order', { ascending: true }),
         supabase.from('complaints').select('*').order('created_at', { ascending: false }),
         supabase.from('residents').select('*'),
-        supabase.from('officials').select('id, full_name, designation_id, designations(id, name, category, priority_order, badge_color)').order('created_at', { ascending: false }),
+        supabase.from('officials').select('id, full_name, status, designation_id, designations(id, name, category, priority_order, badge_color)').order('created_at', { ascending: false }),
         supabase.from('complaint_messages').select('*').order('created_at', { ascending: true }),
       ])
 
@@ -448,8 +453,10 @@ export function ResidentReportsPage() {
 
       const officialOptions = (officialsData || []).map((official: OfficialRow) => ({
         id: official.id,
+        name: official.full_name || 'Official',
         label: `${official.full_name || 'Unassigned'}${official.designations?.name ? ` • ${official.designations.name}` : ''}`,
         designationLabel: official.designations?.name || 'Official',
+        status: official.status,
       }))
 
       setOfficials(officialOptions)
@@ -606,6 +613,113 @@ evidenceUrls: extractEvidenceUrls(row),
   }, [reports])
 
   const tableColumns = residentReportColumns()
+
+  // Priority-weighted workload per official, recomputed whenever the report
+  // list or official roster changes. Drives the auto-assign suggestions.
+  const officialWorkloads = useMemo(() => computeOfficialWorkloads(
+    officials.map((official) => ({
+      id: official.id,
+      name: official.name,
+      designationLabel: official.designationLabel,
+      status: official.status,
+    })),
+    reports.map((report) => ({
+      assignedOfficialId: report.assignedOfficialId,
+      status: report.status,
+      priority: report.priority,
+      archivedAt: report.archivedAt,
+    })),
+  ), [officials, reports])
+
+  /** Suggest the least-loaded active official for the currently open report. */
+  function autoAssignSelected() {
+    if (!selectedReport) return
+
+    const suggestion = suggestAssignee(officialWorkloads, {
+      excludeIds: selectedReport.assignedOfficialId ? [selectedReport.assignedOfficialId] : [],
+    })
+    if (!suggestion) {
+      toast.error('No active official is available for assignment.')
+      return
+    }
+
+    setAssignedOfficialDraft(suggestion.officialId)
+    toast.info(`Suggested: ${suggestion.name} (${suggestion.activeTotal} active case${suggestion.activeTotal === 1 ? '' : 's'}). Click Save Changes to apply.`)
+  }
+
+  /** Distribute every unassigned report evenly across active officials. */
+  async function autoAssignUnassigned() {
+    if (!hasSupabaseConfig()) {
+      toast.error('Supabase environment variables are missing. Create .env.local with NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY, then restart pnpm dev.')
+      return
+    }
+
+    const unassigned = reports.filter((report) => !report.assignedOfficialId && !report.archivedAt)
+    if (unassigned.length === 0) {
+      toast.info('Every report already has an assigned official.')
+      return
+    }
+
+    const plan = planEvenDistribution(
+      unassigned.map((report) => ({ id: report.id, priority: report.priority })),
+      officialWorkloads,
+    )
+    if (plan.length === 0) {
+      toast.error('No active official is available for assignment.')
+      return
+    }
+
+    setSavingAction(true)
+    try {
+      const supabase = createClient()
+      const reportsById = new Map(reports.map((report) => [report.id, report]))
+      let assignedCount = 0
+
+      for (const entry of plan) {
+        const { error } = await supabase
+          .from('complaints')
+          .update({ assigned_official_id: entry.officialId, updated_at: new Date().toISOString() })
+          .eq('id', entry.itemId)
+
+        if (error) {
+          toast.error(`Auto-assign stopped: ${error.message}`)
+          break
+        }
+
+        assignedCount += 1
+        const report = reportsById.get(entry.itemId)
+        void logAdminActionClient({
+          action: 'complaint_updated',
+          resourceType: 'complaint',
+          resourceId: entry.itemId,
+          oldValues: { assigned_official_id: null },
+          newValues: { assigned_official_id: entry.officialId },
+        })
+
+        if (report?.residentUserId && profileUser?.id) {
+          await supabase.from('complaint_messages').insert([
+            {
+              complaint_id: entry.itemId,
+              recipient_user_id: report.residentUserId,
+              sender_id: profileUser.id,
+              message: `Your report has been assigned to ${entry.officialName}.`,
+              message_type: 'system',
+              is_read: false,
+            },
+          ])
+        }
+      }
+
+      await loadReports(false)
+      if (assignedCount > 0) {
+        toast.success(`Auto-assigned ${assignedCount} report${assignedCount === 1 ? '' : 's'} across the least-loaded officials.`)
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to auto-assign reports')
+    } finally {
+      setSavingAction(false)
+    }
+  }
 
   function openReport(report: ResidentReportRow, tab: 'overview' | 'actions' | 'activity' = 'overview') {
     setSelectedReport(report)
@@ -1037,6 +1151,10 @@ evidenceUrls: extractEvidenceUrls(row),
                             ))}
                           </SelectContent>
                         </Select>
+                        <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={autoAssignSelected} disabled={savingAction}>
+                          <Scale className="mr-1 h-3.5 w-3.5" />
+                          Auto-assign least loaded
+                        </Button>
                       </div>
                     </div>
 
@@ -1155,6 +1273,10 @@ evidenceUrls: extractEvidenceUrls(row),
           <Button variant="outline" className="border-emerald-200 dark:border-border text-emerald-700 hover:bg-emerald-50" onClick={() => loadReports(false)}>
             <RefreshCcw className="mr-2 h-4 w-4" />
             Refresh
+          </Button>
+          <Button variant="outline" className="border-emerald-200 dark:border-border text-emerald-700 hover:bg-emerald-50" onClick={autoAssignUnassigned} disabled={savingAction}>
+            <Scale className="mr-2 h-4 w-4" />
+            Auto-assign Unassigned
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

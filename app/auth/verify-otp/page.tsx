@@ -140,7 +140,7 @@ export default function Page() {
                       type="text"
                       inputMode="numeric"
                       autoComplete="one-time-code"
-                      placeholder="123456"
+                      placeholder="12345678"
                       required
                       value={code}
                       onChange={(e) => setCode(normalizeCode(e.target.value))}

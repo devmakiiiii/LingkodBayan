@@ -3,9 +3,8 @@ INSERT INTO storage.buckets (id, name, public)
 VALUES ('announcement-images', 'announcement-images', true)
 ON CONFLICT (id) DO NOTHING;
 
--- Enable RLS on storage.objects if not already enabled
-ALTER TABLE IF EXISTS storage.objects ENABLE ROW LEVEL SECURITY;
-
+-- RLS is already enabled on storage.objects (it is owned by the internal
+-- supabase_storage_admin role, so ALTER TABLE on it is not permitted here).
 -- Add RLS policies for announcement-images bucket (needed for file uploads)
 DROP POLICY IF EXISTS "Public read access for announcement-images bucket" ON storage.objects;
 CREATE POLICY "Public read access for announcement-images bucket"

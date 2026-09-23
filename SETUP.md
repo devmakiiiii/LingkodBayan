@@ -257,6 +257,9 @@ After setting up the database:
 - Verify Supabase credentials in .env.local
 - Check Supabase project status
 
+**"column <table>.<column> does not exist" in the browser console:**
+- The Supabase project predates the current code. Run `node scripts/migrate.js`, paste the output into the Supabase SQL Editor, and re-run `node scripts/_check_schema.mjs` to confirm nothing is reported as missing
+
 ## Support
 
 For issues or questions, please refer to:

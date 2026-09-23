@@ -26,6 +26,36 @@ ADD COLUMN IF NOT EXISTS sender_id UUID REFERENCES auth.users(id) ON DELETE CASC
 ALTER TABLE public.complaint_messages
 ADD COLUMN IF NOT EXISTS is_read BOOLEAN DEFAULT FALSE;
 
+-- Deployments whose complaint_messages table already existed skip the CREATE
+-- TABLE above, so message_type has to be added explicitly here: the reply and
+-- activity flows write 'reply' / 'system' rows
+-- (see components/admin/resident-reports-page.tsx).
+ALTER TABLE public.complaint_messages
+ADD COLUMN IF NOT EXISTS message_type TEXT DEFAULT 'reply';
+
+-- Projects whose complaint_messages table was created by an earlier revision
+-- carry a NOT NULL sender_type that neither reply flow writes
+-- (see components/admin/resident-reports-page.tsx and
+-- app/api/citizen/complaint-reply/route.ts), which would reject every insert.
+-- The column is left in place for readers of the older schema.
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'complaint_messages'
+      AND column_name = 'sender_type'
+  ) THEN
+    ALTER TABLE public.complaint_messages ALTER COLUMN sender_type DROP NOT NULL;
+  END IF;
+END
+$$;
+
+-- Serves the unread-notification queries issued by the citizen dashboard,
+-- the notifications page, and the notification badge.
+CREATE INDEX IF NOT EXISTS complaint_messages_recipient_unread_idx
+  ON public.complaint_messages (recipient_user_id, is_read);
+
 -- Enable RLS on complaint_messages
 ALTER TABLE public.complaint_messages ENABLE ROW LEVEL SECURITY;
 
@@ -65,6 +95,11 @@ CREATE POLICY "Users can view messages for their complaints" ON public.complaint
     sender_id = auth.uid()
   );
 
+-- A resident replying to the barangay has no single recipient account, so
+-- recipient_user_id is deliberately left NULL on those rows
+-- (see app/api/citizen/complaint-reply/route.ts). Staff still see the thread
+-- through the "Admins can view all messages" policy, which is why the insert
+-- policy only has to prove thread ownership and authorship.
 CREATE POLICY "Users can create messages for their complaints" ON public.complaint_messages
   FOR INSERT WITH CHECK (
     complaint_id IN (
@@ -74,7 +109,6 @@ CREATE POLICY "Users can create messages for their complaints" ON public.complai
       )
     )
     AND sender_id = auth.uid()
-    AND recipient_user_id IS NOT NULL
   );
 
 CREATE POLICY "Admins can view all messages" ON public.complaint_messages

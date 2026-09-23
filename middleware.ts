@@ -1,6 +1,5 @@
 import { updateSession } from '@/lib/supabase/proxy'
 import { type NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@supabase/ssr'
 import { createCsrfToken, setCsrfCookie } from '@/lib/csrf'
 import { verifyRequest } from '@/lib/request-security'
 import { logger } from '@/lib/logger'
@@ -54,49 +53,10 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(url)
     }
 
-    if (userRole === 'citizen' && pathname.startsWith('/citizen')) {
-      const allowedPaths = [
-        '/citizen/verify-id',
-        '/citizen/dashboard',
-        '/citizen/announcements',
-        '/citizen/notifications',
-      ]
-      const isAllowedPath = allowedPaths.some((p) => pathname === p || pathname.startsWith(p + '/'))
-
-      if (!isAllowedPath) {
-        const supabase = createServerClient(
-          process.env.NEXT_PUBLIC_SUPABASE_URL!,
-          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-          {
-            cookies: {
-              getAll() {
-                return request.cookies.getAll()
-              },
-              setAll(cookiesToSet) {
-                cookiesToSet.forEach(({ name, value, options }) =>
-                  response.cookies.set(name, value, options),
-                )
-              },
-            },
-          },
-        )
-
-        const { data: resident } = await supabase
-          .from('residents')
-          .select('verification_status')
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .single()
-
-        const status = resident?.verification_status
-        if (status && status !== 'auto_verified' && status !== 'id_verified') {
-          const url = request.nextUrl.clone()
-          url.pathname = '/citizen/verify-id'
-          return NextResponse.redirect(url)
-        }
-      }
-    }
+    // Identity verification is advisory, not a navigation gate: residents can
+    // browse every citizen page (My Requests, Request Service, My Complaints,
+    // etc.). The dashboard surfaces the verification banner and "Verify Now"
+    // call to action that links to /citizen/verify-id.
   } else if (pathname.startsWith('/citizen') || pathname.startsWith('/admin')) {
     const url = request.nextUrl.clone()
     url.pathname = '/auth/login'

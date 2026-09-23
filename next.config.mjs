@@ -1,10 +1,9 @@
 /** @type {import('next').NextConfig} */
 import withBundleAnalyzer from '@next/bundle-analyzer'
 
+const isProduction = process.env.NODE_ENV === 'production'
+
 const nextConfig = {
-  typescript: {
-    ignoreBuildErrors: true,
-  },
   images: {
     unoptimized: true,
   },
@@ -20,7 +19,8 @@ const nextConfig = {
       "object-src 'none'",
       "base-uri 'self'",
       "form-action 'self'",
-      "upgrade-insecure-requests",
+      // Only upgrade to HTTPS in production; this breaks local http:// dev.
+      ...(isProduction ? ['upgrade-insecure-requests'] : []),
     ].join('; ')
 
     return [

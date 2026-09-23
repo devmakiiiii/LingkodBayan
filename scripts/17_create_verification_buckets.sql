@@ -5,35 +5,43 @@ INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_typ
 VALUES ('id-documents', 'id-documents', false, 5242880, ARRAY['image/jpeg', 'image/png', 'image/webp'])
 ON CONFLICT (id) DO NOTHING;
 
--- Storage policy: only admins can read id-documents
-INSERT INTO storage.policy (id, bucket_id, name, definition, effect)
-VALUES (
-  gen_random_uuid(),
-  'id-documents',
-  'Admin can read id documents',
-  'SELECT auth.uid()::text = auth.uid()::text WHERE (storage.foldername(name))[1] = auth.uid()::text OR EXISTS (SELECT 1 FROM admin_users WHERE user_id = auth.uid() AND role IN (''admin'', ''super_admin''))',
-  'ALLOW'
-)
-ON CONFLICT DO NOTHING;
+-- Storage policies live on storage.objects as RLS policies (there is no
+-- storage.policy table on current Supabase). Object paths are "<uid>/<file>",
+-- so (storage.foldername(name))[1] identifies the owning resident.
 
--- Storage policy: residents can upload only to their own folder
-INSERT INTO storage.policy (id, bucket_id, name, definition, effect)
-VALUES (
-  gen_random_uuid(),
-  'id-documents',
-  'Residents can upload id documents to their own folder',
-  '(storage.foldername(name))[1] = auth.uid()::text',
-  'ALLOW'
-)
-ON CONFLICT DO NOTHING;
+-- Only admins can read other residents' id-documents; residents can read
+-- their own folder.
+DROP POLICY IF EXISTS "Admin can read id documents" ON storage.objects;
+CREATE POLICY "Admin can read id documents"
+  ON storage.objects FOR SELECT
+  TO authenticated
+  USING (
+    bucket_id = 'id-documents'
+    AND (
+      (storage.foldername(name))[1] = auth.uid()::text
+      OR EXISTS (
+        SELECT 1 FROM public.admin_users
+        WHERE user_id = auth.uid() AND role IN ('admin', 'super_admin')
+      )
+    )
+  );
 
--- Storage policy: residents can read their own id documents
-INSERT INTO storage.policy (id, bucket_id, name, definition, effect)
-VALUES (
-  gen_random_uuid(),
-  'id-documents',
-  'Residents can read their own id documents',
-  'SELECT (storage.foldername(name))[1] = auth.uid()::text',
-  'ALLOW'
-)
-ON CONFLICT DO NOTHING;
+-- Residents can upload only to their own folder.
+DROP POLICY IF EXISTS "Residents can upload id documents to their own folder" ON storage.objects;
+CREATE POLICY "Residents can upload id documents to their own folder"
+  ON storage.objects FOR INSERT
+  TO authenticated
+  WITH CHECK (
+    bucket_id = 'id-documents'
+    AND (storage.foldername(name))[1] = auth.uid()::text
+  );
+
+-- Residents can read their own id documents.
+DROP POLICY IF EXISTS "Residents can read their own id documents" ON storage.objects;
+CREATE POLICY "Residents can read their own id documents"
+  ON storage.objects FOR SELECT
+  TO authenticated
+  USING (
+    bucket_id = 'id-documents'
+    AND (storage.foldername(name))[1] = auth.uid()::text
+  );

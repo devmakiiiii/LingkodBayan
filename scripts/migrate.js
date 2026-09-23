@@ -43,6 +43,9 @@ const sql = readMigrationScript()
   + '--- Migration 04: Add Request Payload ---\n'
   + readMigrationFile('04_add_request_payload.sql')
   + '\n'
+  + '--- Migration 05: Officials & Designations (tables + RLS policies) ---\n'
+  + readMigrationFile('05_add_officials_designations.sql')
+  + '\n'
   + '--- Migration 06: System Settings & Service Categories ---\n'
   + readMigrationFile('06_add_system_settings.sql')
   + '\n'
@@ -61,6 +64,9 @@ const sql = readMigrationScript()
   + '--- Migration 14: Add Image URL & Excerpt to Announcements ---\n'
   + readMigrationFile('14_add_image_url_to_announcements.sql')
   + '\n'
+  + '--- Migration 15: Add Excerpt to Announcements (idempotent) ---\n'
+  + readMigrationFile('15_add_excerpt_to_announcements.sql')
+  + '\n'
   + '--- Migration 16: Verification Schema ---\n'
   + readMigrationFile('16_add_verification_schema.sql')
   + '\n'
@@ -78,6 +84,9 @@ const sql = readMigrationScript()
   + '\n'
   + '--- Migration 20: Audit Logs ---\n'
   + readMigrationFile('20_create_audit_logs.sql')
+  + '\n'
+  + '--- Migration 21: Assign Officials to Requests (workload balancing) ---\n'
+  + readMigrationFile('21_add_assigned_official_to_requests.sql')
   + '\n'
   + '--- Finalize Complaints Schema ---\n'
   + readMigrationFile('finalize_complaints_schema.sql');

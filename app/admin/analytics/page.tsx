@@ -9,6 +9,9 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { AlertTriangle, BarChart3, CalendarRange, FileText, Users } from 'lucide-react'
 import { AnalyticsCharts } from '@/components/admin/analytics-charts'
 
+/** Upper bound for analytics fetches (summary cards count array lengths). */
+const ANALYTICS_ROW_LIMIT = 10000
+
 type ComplaintRecord = {
   id: string
   category: string | null
@@ -68,19 +71,24 @@ export default function AdminAnalyticsPage() {
 
       const supabase = createClient()
 
+      // Summary cards count array lengths, so lift PostgREST's default
+      // 1000-row cap to keep the totals accurate as the tables grow.
       const [{ data: requestsData, error: requestsError }, { data: complaintsData, error: complaintsError }, { data: officialsData, error: officialsError }] = await Promise.all([
         supabase
           .from('requests')
           .select('id, request_type, title, description, category, status, created_at')
-          .order('created_at', { ascending: true }),
+          .order('created_at', { ascending: true })
+          .limit(ANALYTICS_ROW_LIMIT),
         supabase
           .from('complaints')
           .select('id, category, status, created_at')
-          .order('created_at', { ascending: true }),
+          .order('created_at', { ascending: true })
+          .limit(ANALYTICS_ROW_LIMIT),
         supabase
           .from('officials')
           .select('id, status')
-          .order('created_at', { ascending: true }),
+          .order('created_at', { ascending: true })
+          .limit(ANALYTICS_ROW_LIMIT),
       ])
 
       if (requestsError) {

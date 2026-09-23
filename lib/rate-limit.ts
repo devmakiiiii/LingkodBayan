@@ -51,7 +51,10 @@ if (typeof setInterval !== 'undefined') {
 
 export function rateLimit(options: RateLimitOptions) {
   return (request: { ip?: string; headers: Headers }) => {
-    const key = request.ip || request.headers.get('x-forwarded-for') || 'global'
+    // Use the first value of x-forwarded-for: clients can append arbitrary
+    // entries, but the leftmost address is the one the trusted edge added.
+    const forwardedFor = request.headers.get('x-forwarded-for')
+    const key = request.ip || forwardedFor?.split(',')[0]?.trim() || 'global'
     return rateLimiter.check(key, options)
   }
 }

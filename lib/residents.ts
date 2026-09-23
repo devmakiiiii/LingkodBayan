@@ -11,7 +11,12 @@ type ResidentProfile = {
   address?: string | null
   barangay: string
   date_of_birth?: string | null
+  verification_status?: string | null
+  verification_confidence?: number | null
 }
+
+const RESIDENT_PROFILE_COLUMNS =
+  'id, user_id, first_name, last_name, email, phone, address, barangay, date_of_birth, verification_status, verification_confidence'
 
 function getUserField(user: User, key: string) {
   return typeof user.user_metadata?.[key] === 'string'
@@ -82,7 +87,7 @@ export async function getOrCreateResidentProfile(
 ): Promise<ResidentProfile | null> {
   const { data: residents, error: residentError } = await supabase
     .from('residents')
-    .select('id, user_id, first_name, last_name, email, phone, address, barangay, date_of_birth, verification_status')
+    .select(RESIDENT_PROFILE_COLUMNS)
     .eq('user_id', user.id)
     .order('created_at', { ascending: false })
     .limit(1)
@@ -141,7 +146,7 @@ export async function getOrCreateResidentProfile(
         date_of_birth: dateOfBirth,
       },
     ])
-    .select('id, user_id, first_name, last_name, email, phone, address, barangay, date_of_birth, verification_status')
+    .select(RESIDENT_PROFILE_COLUMNS)
     .single()
 
   if (insertError) {

@@ -49,6 +49,21 @@ export function Sidebar() {
     loadUser()
   }, [])
 
+  // Close the mobile sidebar after navigating to a new page
+  useEffect(() => {
+    setIsOpen(false)
+  }, [pathname])
+
+  // Let keyboard users dismiss the mobile sidebar with Escape
+  useEffect(() => {
+    if (!isOpen) return
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === 'Escape') setIsOpen(false)
+    }
+    document.addEventListener('keydown', handleEscape)
+    return () => document.removeEventListener('keydown', handleEscape)
+  }, [isOpen])
+
   async function handleLogout() {
     setIsLoggingOut(true)
     try {
@@ -68,13 +83,16 @@ export function Sidebar() {
       {/* Mobile menu button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
+        aria-label={isOpen ? 'Close navigation menu' : 'Open navigation menu'}
+        aria-expanded={isOpen}
+        aria-controls="citizen-sidebar"
         className="md:hidden fixed top-4 left-4 z-50 p-2 rounded-lg bg-sidebar text-sidebar-foreground border border-sidebar-border shadow-md"
       >
-        {isOpen ? <X size={24} /> : <Menu size={24} />}
+        {isOpen ? <X size={24} aria-hidden="true" /> : <Menu size={24} aria-hidden="true" />}
       </button>
 
       {/* Sidebar */}
-      <aside className={`
+      <aside id="citizen-sidebar" aria-label="Citizen navigation" className={`
         fixed md:relative inset-y-0 left-0 w-72 bg-sidebar text-sidebar-foreground border-r border-sidebar-border transition-transform duration-300
         ${isOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0
         z-40 md:z-auto flex flex-col h-screen
@@ -111,7 +129,12 @@ export function Sidebar() {
             const Icon = item.icon
             const isActive = pathname === item.href || pathname.startsWith(item.href + '/')
             return (
-              <Link key={item.href} href={item.href} onClick={() => setIsOpen(false)}>
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={() => setIsOpen(false)}
+                aria-current={isActive ? 'page' : undefined}
+              >
                 <button
                   className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
                     isActive

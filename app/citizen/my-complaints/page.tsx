@@ -7,10 +7,18 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Empty } from '@/components/ui/empty'
 import { Input } from '@/components/ui/input'
+import {
+  ComplaintStatusBadge,
+  ComplaintStatusIcon,
+} from '@/components/citizen/complaint-status-badge'
 import Link from 'next/link'
-import { AlertCircle, CheckCircle2, Search, X } from 'lucide-react'
+import { ChevronRight, Search, X } from 'lucide-react'
 import { getOrCreateResidentProfile } from '@/lib/residents'
-import { ChevronRight } from 'lucide-react'
+import { formatDate } from '@/lib/format-date'
+import {
+  complaintStatusFilterOptions,
+  getComplaintStatus,
+} from '@/lib/complaint-status'
 
 interface Complaint {
   id: string
@@ -67,7 +75,8 @@ export default function MyComplaintsPage() {
         complaint.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
         complaint.description.toLowerCase().includes(searchQuery.toLowerCase())
       
-      const matchesStatus = statusFilter === 'all' || complaint.status === statusFilter
+      const matchesStatus =
+        statusFilter === 'all' || getComplaintStatus(complaint.status) === statusFilter
       
       const matchesCategory = categoryFilter === 'all' || complaint.category === categoryFilter
 
@@ -81,30 +90,6 @@ export default function MyComplaintsPage() {
     setSearchQuery('')
     setStatusFilter('all')
     setCategoryFilter('all')
-  }
-
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'resolved':
-        return <CheckCircle2 className="h-4 w-4 text-primary" />
-      case 'open':
-        return <AlertCircle className="h-4 w-4 text-yellow-600" />
-      default:
-        return null
-    }
-  }
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'resolved':
-        return 'bg-primary/10 text-primary border-primary/20'
-      case 'open':
-        return 'bg-yellow-500/10 text-yellow-700 border-yellow-500/20'
-      case 'in-progress':
-        return 'bg-blue-500/10 text-blue-700 border-blue-500/20'
-      default:
-        return 'bg-gray-500/10 text-gray-700 dark:text-gray-300 border-gray-500/20'
-    }
   }
 
   return (
@@ -135,10 +120,11 @@ export default function MyComplaintsPage() {
           onChange={(e) => setStatusFilter(e.target.value)}
           className="h-9 px-3 rounded-md border bg-background text-sm"
         >
-          <option value="all">All Status</option>
-          <option value="open">Open</option>
-          <option value="in-progress">In Progress</option>
-          <option value="resolved">Resolved</option>
+          {complaintStatusFilterOptions.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
         </select>
         <select
           value={categoryFilter}
@@ -198,7 +184,7 @@ export default function MyComplaintsPage() {
                       <CardDescription className="mt-1 text-xs line-clamp-2">{complaint.description}</CardDescription>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
-                      {getStatusIcon(complaint.status)}
+                      <ComplaintStatusIcon status={complaint.status} />
                     </div>
                   </div>
                 </CardHeader>
@@ -207,14 +193,16 @@ export default function MyComplaintsPage() {
                     <Badge variant="outline" className="text-xs px-2 py-0">
                       {complaint.category}
                     </Badge>
-                    <Badge className={`text-xs px-2 py-0 ${getStatusColor(complaint.status)}`}>
-                      {complaint.status.charAt(0).toUpperCase() + complaint.status.slice(1)}
-                    </Badge>
+                    <ComplaintStatusBadge status={complaint.status} className="px-2 py-0" />
                     <Badge variant="secondary" className="text-xs px-2 py-0">
                       {complaint.priority.charAt(0).toUpperCase() + complaint.priority.slice(1)}
                     </Badge>
                     <span className="text-xs text-muted-foreground ml-auto">
-                      {new Date(complaint.created_at).toLocaleDateString()}
+                      {formatDate(complaint.created_at, {
+                        month: 'short',
+                        day: 'numeric',
+                        year: 'numeric',
+                      })}
                     </span>
                   </div>
                   {complaint.evidence_url && (

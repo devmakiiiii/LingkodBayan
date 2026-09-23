@@ -13,16 +13,14 @@ const SIGNUP_COOKIE = 'signup_temp_data'
 const COOKIE_MAX_AGE = 300
 
 async function getEncryptionKey(): Promise<CryptoKey> {
-  const secret = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
-  const encoder = new TextEncoder()
-  const keyMaterial = await crypto.subtle.importKey(
-    'raw',
-    encoder.encode(secret.slice(0, 32)),
-    'AES-GCM',
-    false,
-    ['encrypt', 'decrypt'],
-  )
-  return keyMaterial
+  const secret = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  if (!secret) {
+    throw new Error('Missing Supabase key material for encrypting temporary signup data.')
+  }
+  // Derive a uniformly distributed 256-bit key from the secret instead of
+  // truncating it, so the AES key does not inherit the secret's byte layout.
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(secret))
+  return crypto.subtle.importKey('raw', digest, 'AES-GCM', false, ['encrypt', 'decrypt'])
 }
 
 async function encryptData(data: string): Promise<string> {
