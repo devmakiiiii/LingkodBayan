@@ -60,7 +60,7 @@ export function ServiceCard({
   }
 
   return (
-    <div className="group bg-white rounded-[12px] shadow-sm hover:shadow-lg transition-shadow duration-300 overflow-hidden border border-gray-100">
+    <div className="group bg-white dark:bg-card rounded-[12px] shadow-sm hover:shadow-lg transition-shadow duration-300 overflow-hidden border border-gray-100 dark:border-border">
       {/* Card Content */}
       <div className="p-6 flex flex-col h-full">
         {/* Header with Icon and Badge */}
@@ -76,12 +76,12 @@ export function ServiceCard({
         </div>
 
         {/* Title */}
-        <h3 className="text-lg font-bold text-gray-900 mb-2 line-clamp-2">
+        <h3 className="text-lg font-bold text-gray-900 dark:text-foreground mb-2 line-clamp-2">
           {title}
         </h3>
 
         {/* Description */}
-        <p className="text-sm text-gray-600 mb-6 grow line-clamp-3">
+        <p className="text-sm text-gray-600 dark:text-muted-foreground mb-6 grow line-clamp-3">
           {description}
         </p>
 

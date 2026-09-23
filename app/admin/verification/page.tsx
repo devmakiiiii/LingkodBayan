@@ -86,7 +86,7 @@ export default function AdminVerificationPage() {
       case 'matched':
         return <CheckCircle2 className="h-4 w-4 text-green-500" />
       case 'no_match':
-        return <AlertCircle className="h-4 w-4 text-gray-500" />
+        return <AlertCircle className="h-4 w-4 text-gray-500 dark:text-muted-foreground" />
       case 'needs_review':
         return <Clock className="h-4 w-4 text-yellow-500" />
       case 'rejected':
@@ -99,10 +99,10 @@ export default function AdminVerificationPage() {
   function getStatusBadge(status: string) {
     const variant = {
       matched: 'bg-green-100 text-green-800',
-      no_match: 'bg-gray-100 text-gray-800',
+      no_match: 'bg-gray-100 dark:bg-muted text-gray-800 dark:text-foreground',
       needs_review: 'bg-yellow-100 text-yellow-800',
       rejected: 'bg-red-100 text-red-800',
-    }[status] || 'bg-gray-100 text-gray-800'
+    }[status] || 'bg-gray-100 dark:bg-muted text-gray-800 dark:text-foreground'
     return <Badge className={variant}>{status}</Badge>
   }
 

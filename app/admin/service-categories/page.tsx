@@ -268,8 +268,8 @@ if (loadError) {
     <div className="space-y-6 p-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Service Categories</h1>
-          <p className="text-gray-500 mt-2">Manage document requests and appointment types</p>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-foreground">Service Categories</h1>
+          <p className="text-gray-500 dark:text-muted-foreground mt-2">Manage document requests and appointment types</p>
         </div>
         <Button onClick={openCreateDialog} className="bg-green-600 hover:bg-green-700 gap-2">
           <Plus className="w-4 h-4" />
@@ -280,26 +280,26 @@ if (loadError) {
       {/* Document Requests */}
       <Card className="border-l-4 border-l-blue-600">
         <div className="p-6">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4 flex items-center gap-2">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-foreground mb-4 flex items-center gap-2">
             <CheckCircle className="w-5 h-5 text-blue-600" />
             Document Requests
           </h2>
 
           {documentCategories.length === 0 ? (
-            <p className="text-gray-500 text-sm py-8 text-center">No document categories yet</p>
+            <p className="text-gray-500 dark:text-muted-foreground text-sm py-8 text-center">No document categories yet</p>
           ) : (
             <div className="space-y-2">
               {documentCategories.map((category, idx) => (
-                <div key={category.id} className="flex items-center gap-4 p-3 border rounded-lg hover:bg-gray-50">
+                <div key={category.id} className="flex items-center gap-4 p-3 border rounded-lg hover:bg-gray-50 dark:hover:bg-muted dark:hover:bg-muted">
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
-                      <h3 className="font-medium text-gray-900">{category.title}</h3>
+                      <h3 className="font-medium text-gray-900 dark:text-foreground">{category.title}</h3>
                       <Badge variant={category.is_active ? 'default' : 'secondary'}>
                         {category.is_active ? 'Active' : 'Inactive'}
                       </Badge>
                     </div>
-                    {category.description && <p className="text-sm text-gray-600 mt-1">{category.description}</p>}
-                    <p className="text-xs text-gray-500 mt-1">Slug: {category.slug}</p>
+                    {category.description && <p className="text-sm text-gray-600 dark:text-muted-foreground mt-1">{category.description}</p>}
+                    <p className="text-xs text-gray-500 dark:text-muted-foreground mt-1">Slug: {category.slug}</p>
                   </div>
 
                   <div className="flex items-center gap-2">
@@ -346,26 +346,26 @@ if (loadError) {
       {/* Appointment Types */}
       <Card className="border-l-4 border-l-purple-600">
         <div className="p-6">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4 flex items-center gap-2">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-foreground mb-4 flex items-center gap-2">
             <CheckCircle className="w-5 h-5 text-purple-600" />
             Appointment Types
           </h2>
 
           {appointmentCategories.length === 0 ? (
-            <p className="text-gray-500 text-sm py-8 text-center">No appointment types yet</p>
+            <p className="text-gray-500 dark:text-muted-foreground text-sm py-8 text-center">No appointment types yet</p>
           ) : (
             <div className="space-y-2">
               {appointmentCategories.map((category, idx) => (
-                <div key={category.id} className="flex items-center gap-4 p-3 border rounded-lg hover:bg-gray-50">
+                <div key={category.id} className="flex items-center gap-4 p-3 border rounded-lg hover:bg-gray-50 dark:hover:bg-muted dark:hover:bg-muted">
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
-                      <h3 className="font-medium text-gray-900">{category.title}</h3>
+                      <h3 className="font-medium text-gray-900 dark:text-foreground">{category.title}</h3>
                       <Badge variant={category.is_active ? 'default' : 'secondary'}>
                         {category.is_active ? 'Active' : 'Inactive'}
                       </Badge>
                     </div>
-                    {category.description && <p className="text-sm text-gray-600 mt-1">{category.description}</p>}
-                    <p className="text-xs text-gray-500 mt-1">Slug: {category.slug}</p>
+                    {category.description && <p className="text-sm text-gray-600 dark:text-muted-foreground mt-1">{category.description}</p>}
+                    <p className="text-xs text-gray-500 dark:text-muted-foreground mt-1">Slug: {category.slug}</p>
                   </div>
 
                   <div className="flex items-center gap-2">
@@ -414,7 +414,7 @@ if (loadError) {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <Card className="w-full max-w-lg mx-4">
             <div className="p-6">
-              <h2 className="text-xl font-semibold text-gray-900 mb-4">
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-foreground mb-4">
                 {editingId ? 'Edit Service Category' : 'Create New Service Category'}
               </h2>
 
@@ -457,7 +457,7 @@ if (loadError) {
                     id="category_type"
                     value={formData.category_type}
                     onChange={(e) => setFormData({ ...formData, category_type: e.target.value as any })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-green-500 focus:border-green-500"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-input rounded-md text-sm focus:outline-none focus:ring-green-500 focus:border-green-500"
                   >
                     <option value="document">Document Request</option>
                     <option value="appointment">Appointment Type</option>

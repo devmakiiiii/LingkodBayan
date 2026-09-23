@@ -85,7 +85,7 @@ export default function AdminSettingsPage() {
       console.log('Loaded settings:', data?.length || 0)
 
       const settingsMap: SystemSettings = {}
-      data?.forEach((item) => {
+      data?.forEach((item: { setting_key: string; value: unknown }) => {
         settingsMap[item.setting_key] = item.value
       })
 
@@ -231,15 +231,15 @@ export default function AdminSettingsPage() {
 
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">System Settings</h1>
-          <p className="text-gray-500 mt-2">Configure barangay information, mission, vision, and official signatures</p>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-foreground">System Settings</h1>
+          <p className="text-gray-500 dark:text-muted-foreground mt-2">Configure barangay information, mission, vision, and official signatures</p>
         </div>
       </div>
 
       {/* Barangay Information */}
       <Card className="border-l-4 border-l-green-600">
         <div className="p-6">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4 flex items-center gap-2">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-foreground mb-4 flex items-center gap-2">
             <CheckCircle className="w-5 h-5 text-green-600" />
             Barangay Information
           </h2>
@@ -304,7 +304,7 @@ export default function AdminSettingsPage() {
       {/* Mission & Vision */}
       <Card className="border-l-4 border-l-green-600">
         <div className="p-6">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4 flex items-center gap-2">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-foreground mb-4 flex items-center gap-2">
             <CheckCircle className="w-5 h-5 text-green-600" />
             Mission & Vision
           </h2>
@@ -369,7 +369,7 @@ export default function AdminSettingsPage() {
       {/* Official Signatures */}
       <Card className="border-l-4 border-l-green-600">
         <div className="p-6">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4 flex items-center gap-2">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-foreground mb-4 flex items-center gap-2">
             <CheckCircle className="w-5 h-5 text-green-600" />
             Official Signatures
           </h2>

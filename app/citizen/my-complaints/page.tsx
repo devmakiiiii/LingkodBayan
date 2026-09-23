@@ -103,7 +103,7 @@ export default function MyComplaintsPage() {
       case 'in-progress':
         return 'bg-blue-500/10 text-blue-700 border-blue-500/20'
       default:
-        return 'bg-gray-500/10 text-gray-700 border-gray-500/20'
+        return 'bg-gray-500/10 text-gray-700 dark:text-gray-300 border-gray-500/20'
     }
   }
 
@@ -218,8 +218,8 @@ export default function MyComplaintsPage() {
                     </span>
                   </div>
                   {complaint.evidence_url && (
-                    <div className="mt-3 pt-3 border-t border-gray-100">
-                      <p className="text-xs font-semibold text-gray-700 mb-1.5">Attached Evidence:</p>
+                    <div className="mt-3 pt-3 border-t border-gray-100 dark:border-border">
+                      <p className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1.5">Attached Evidence:</p>
                       <a href={complaint.evidence_url} target="_blank" rel="noopener noreferrer" className="block w-32 h-20 rounded-md overflow-hidden border shadow-sm group">
                         <img
                           src={complaint.evidence_url}

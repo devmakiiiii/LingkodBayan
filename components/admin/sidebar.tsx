@@ -120,22 +120,22 @@ export function AdminSidebar() {
       {/* Mobile menu button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="md:hidden fixed top-4 left-4 z-50 p-2 rounded-lg bg-[#001a4d] text-white"
+        className="md:hidden fixed top-4 left-4 z-50 p-2 rounded-lg bg-sidebar text-sidebar-foreground border border-sidebar-border shadow-md"
       >
         {isOpen ? <X size={24} /> : <Menu size={24} />}
       </button>
 
       {/* Sidebar */}
       <aside className={`
-        fixed md:relative inset-y-0 left-0 w-72 bg-[#001a4d] transition-transform duration-300
+        fixed md:relative inset-y-0 left-0 w-72 bg-sidebar text-sidebar-foreground border-r border-sidebar-border transition-transform duration-300
         ${isOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0
         z-40 md:z-auto flex flex-col h-screen
       `}>
         {/* Logo Section */}
-        <div className="p-6 text-center border-b border-[#0d2d66]">
+        <div className="p-6 text-center border-b border-sidebar-border">
           <Link href="/admin/dashboard" onClick={() => setIsOpen(false)}>
-            <h1 className="text-2xl font-bold text-white tracking-wider">LINGKOD BAYAN</h1>
-            <p className="text-xs text-gray-300 mt-1">Admin Portal</p>
+            <h1 className="text-2xl font-bold text-sidebar-foreground tracking-wider">LINGKOD BAYAN</h1>
+            <p className="text-xs text-sidebar-foreground/70 mt-1">Admin Portal</p>
           </Link>
         </div>
 
@@ -154,8 +154,8 @@ export function AdminSidebar() {
                     onClick={() => toggleDropdown(item.label)}
                     className={`w-full flex items-center justify-between px-4 py-3 rounded-lg transition-colors ${
                       isExpanded || hasActiveChild
-                        ? 'bg-[#0d2d66] text-white'
-                        : 'text-gray-300 hover:bg-[#0d2d66]/50'
+                        ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+                        : 'text-sidebar-foreground/70 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground'
                     }`}
                   >
                     <div className="flex items-center gap-3">
@@ -172,8 +172,8 @@ export function AdminSidebar() {
                     <button
                       className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
                         isActive
-                          ? 'bg-[#0d2d66] text-white'
-                          : 'text-gray-300 hover:bg-[#0d2d66]/50'
+                          ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+                          : 'text-sidebar-foreground/70 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground'
                       }`}
                     >
                       <Icon size={20} />
@@ -193,7 +193,7 @@ export function AdminSidebar() {
                           <>
                             {activeIndex >= 0 && (
                               <div
-                                className="pointer-events-none absolute inset-x-0 h-10 rounded-lg bg-[#28A745] transition-transform duration-300 ease-out"
+                                className="pointer-events-none absolute inset-x-0 h-10 rounded-lg bg-sidebar-primary transition-transform duration-300 ease-out"
                                 style={{ transform: `translateY(${activeIndex * 2.75}rem)` }}
                               />
                             )}
@@ -206,8 +206,8 @@ export function AdminSidebar() {
                                 <button
                                   className={`relative z-10 w-full rounded-lg px-4 py-2.5 text-left text-sm transition-colors ${
                                     isSubItemActive(subItem.href)
-                                      ? 'text-white'
-                                      : 'text-gray-300 hover:bg-[#0d2d66]/50'
+                                      ? 'text-sidebar-primary-foreground'
+                                      : 'text-sidebar-foreground/70 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground'
                                   }`}
                                 >
                                   {subItem.label}
@@ -226,7 +226,7 @@ export function AdminSidebar() {
         </nav>
 
         {/* Logout Button */}
-        <div className="p-4 border-t border-[#0d2d66] space-y-2">
+        <div className="p-4 border-t border-sidebar-border space-y-2">
           <ThemeToggle />
           <Dialog open={showLogoutDialog} onOpenChange={setShowLogoutDialog}>
             <DialogTrigger asChild>

@@ -149,7 +149,7 @@ export default function AdminAnalyticsPage() {
       )}
 
       <div className="space-y-2">
-        <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-white px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-emerald-700 shadow-sm">
+        <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-white dark:bg-card px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-emerald-700 shadow-sm">
           <BarChart3 className="h-3.5 w-3.5" />
           Admin Analytics
         </div>
@@ -162,7 +162,7 @@ export default function AdminAnalyticsPage() {
           const Icon = card.icon
 
           return (
-            <Card key={card.label} className="border-emerald-100 bg-white/90 shadow-[0_12px_32px_rgba(16,185,129,0.08)] backdrop-blur">
+            <Card key={card.label} className="border-emerald-100 bg-white/90 dark:bg-card/90 shadow-[0_12px_32px_rgba(16,185,129,0.08)] backdrop-blur">
               <CardContent className="flex items-start justify-between gap-4 p-5">
                 <div className="space-y-2">
                   <p className="text-sm font-medium text-slate-600">{card.label}</p>

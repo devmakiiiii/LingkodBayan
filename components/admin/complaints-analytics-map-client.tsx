@@ -93,7 +93,7 @@ export default function ComplaintsAnalyticsMapClient({ complaints, onMarkerClick
       : [14.8405, 120.2575] // Subic Barretto default
 
   return (
-    <div className="w-full h-[600px] rounded-lg overflow-hidden border border-gray-200 shadow-sm">
+    <div className="w-full h-[600px] rounded-lg overflow-hidden border border-gray-200 dark:border-border shadow-sm">
       <MapContainer center={center} zoom={13} style={{ height: '100%', width: '100%' }}>
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
@@ -116,8 +116,8 @@ export default function ComplaintsAnalyticsMapClient({ complaints, onMarkerClick
                 <Popup>
                   <div className="space-y-1 text-sm">
                     <p className="font-bold">{complaint.subject}</p>
-                    <p className="text-gray-600">{complaint.resident_name}</p>
-                    <p className="text-gray-500">{complaint.location_address}</p>
+                    <p className="text-gray-600 dark:text-muted-foreground">{complaint.resident_name}</p>
+                    <p className="text-gray-500 dark:text-muted-foreground">{complaint.location_address}</p>
                     <span
                       className={`inline-block px-2 py-1 rounded text-xs font-semibold ${
                         complaint.status === 'pending'
@@ -154,7 +154,7 @@ export default function ComplaintsAnalyticsMapClient({ complaints, onMarkerClick
       </MapContainer>
 
       {/* Legend */}
-      <div className="absolute bottom-4 left-4 bg-white p-4 rounded-lg shadow-md border border-gray-200 z-999">
+      <div className="absolute bottom-4 left-4 bg-white dark:bg-card p-4 rounded-lg shadow-md border border-gray-200 dark:border-border z-999">
         <h4 className="font-semibold text-sm mb-2">Status Legend</h4>
         <div className="space-y-1 text-xs">
           <div className="flex items-center gap-2">

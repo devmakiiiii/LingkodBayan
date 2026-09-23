@@ -532,7 +532,7 @@ export default function AdminGeneratedReportsPage() {
       )}
 
       <div className="space-y-2">
-        <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-white px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-emerald-700 shadow-sm">
+        <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200 dark:border-border bg-white dark:bg-card px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-emerald-700 shadow-sm">
           <FileText className="h-3.5 w-3.5" />
           Generated Reports
         </div>
@@ -541,7 +541,7 @@ export default function AdminGeneratedReportsPage() {
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[360px_1fr]">
-        <Card className="border-emerald-100 bg-white shadow-[0_12px_32px_rgba(16,185,129,0.08)]">
+        <Card className="border-emerald-100 dark:border-border bg-white dark:bg-card shadow-[0_12px_32px_rgba(16,185,129,0.08)]">
           <CardHeader>
             <CardTitle>Report Filters</CardTitle>
             <CardDescription>Adjust the selected report and narrow the rows before export.</CardDescription>
@@ -671,13 +671,13 @@ export default function AdminGeneratedReportsPage() {
                 <Printer className="mr-2 h-4 w-4" />
                 Print Report
               </Button>
-              <Button variant="outline" className="border-emerald-200 text-emerald-700 hover:bg-emerald-50" onClick={handleExportCsv}>
+              <Button variant="outline" className="border-emerald-200 dark:border-border text-emerald-700 hover:bg-emerald-50" onClick={handleExportCsv}>
                 <Download className="mr-2 h-4 w-4" />
                 Export CSV
               </Button>
             </div>
 
-            <div className="rounded-2xl border border-dashed border-emerald-200 bg-emerald-50/60 p-4 text-sm text-slate-600">
+            <div className="rounded-2xl border border-dashed border-emerald-200 dark:border-border bg-emerald-50/60 p-4 text-sm text-slate-600">
               <p className="font-medium text-slate-800">Export options</p>
               <p className="mt-1">Print or save the filtered report as PDF, or export the same rows as CSV.</p>
             </div>
@@ -685,7 +685,7 @@ export default function AdminGeneratedReportsPage() {
         </Card>
 
         <div className="space-y-6">
-          <Card className="border-emerald-100 bg-white shadow-[0_12px_32px_rgba(16,185,129,0.08)]">
+          <Card className="border-emerald-100 dark:border-border bg-white dark:bg-card shadow-[0_12px_32px_rgba(16,185,129,0.08)]">
             <CardHeader className="flex flex-row items-start justify-between gap-4">
               <div>
                 <CardTitle>{mapReportTypeToLabel(reportType)} Preview</CardTitle>
@@ -711,7 +711,7 @@ export default function AdminGeneratedReportsPage() {
               ) : preview.total === 0 ? (
                 <Empty title="No matching records" description="Try adjusting the date range or filter selections." />
               ) : (
-                <div className="rounded-2xl border border-emerald-100 bg-white shadow-sm">
+                <div className="rounded-2xl border border-emerald-100 dark:border-border bg-white dark:bg-card shadow-sm">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -735,7 +735,7 @@ export default function AdminGeneratedReportsPage() {
             </CardContent>
           </Card>
 
-          <Card className="border-emerald-100 bg-white shadow-[0_12px_32px_rgba(16,185,129,0.08)]">
+          <Card className="border-emerald-100 dark:border-border bg-white dark:bg-card shadow-[0_12px_32px_rgba(16,185,129,0.08)]">
             <CardHeader>
               <CardTitle>Export Actions</CardTitle>
               <CardDescription>Use the same filtered rows for printing or CSV export.</CardDescription>
@@ -745,11 +745,11 @@ export default function AdminGeneratedReportsPage() {
                 <FileText className="mr-2 h-4 w-4" />
                 Print Report
               </Button>
-              <Button variant="outline" className="border-emerald-200 text-emerald-700 hover:bg-emerald-50" onClick={handleExportCsv}>
+              <Button variant="outline" className="border-emerald-200 dark:border-border text-emerald-700 hover:bg-emerald-50" onClick={handleExportCsv}>
                 <Download className="mr-2 h-4 w-4" />
                 Export as CSV
               </Button>
-              <Button variant="outline" className="border-emerald-200 text-emerald-700 hover:bg-emerald-50" onClick={handlePrint}>
+              <Button variant="outline" className="border-emerald-200 dark:border-border text-emerald-700 hover:bg-emerald-50" onClick={handlePrint}>
                 <FileUp className="mr-2 h-4 w-4" />
                 Export PDF
               </Button>

@@ -441,7 +441,7 @@ export function RequestActions({ request, isOpen, onClose, onStatusChange }: Req
 
 return (
     <NoCloseDialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-h-[90vh] max-w-4xl w-[95vw] overflow-y-auto border-emerald-100 bg-white p-4 md:p-6">
+      <DialogContent className="max-h-[90vh] max-w-4xl w-[95vw] overflow-y-auto border-emerald-100 bg-white dark:bg-card p-4 md:p-6">
         <DialogHeader>
           <DialogTitle className="text-2xl">Request Details</DialogTitle>
           <DialogDescription>

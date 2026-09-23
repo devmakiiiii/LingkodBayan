@@ -18,7 +18,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { CheckCircle2, AlertCircle, Loader2 } from 'lucide-react'
-import { OLONGAPO_BARANGAYS, signUpSchema } from '@/lib/schemas'
+import { OLONGAPO_BARANGAYS, signUpBarangaySchema } from '@/lib/schemas'
 
 export default function Page() {
   const [email, setEmail] = useState('')
@@ -129,7 +129,7 @@ export default function Page() {
       return
     }
 
-    const barangayResult = signUpSchema.shape.barangay.safeParse(barangay)
+    const barangayResult = signUpBarangaySchema.safeParse(barangay)
     if (!barangayResult.success) {
       setError(barangayResult.error.issues[0]?.message ?? 'Please select a barangay')
       setIsLoading(false)
@@ -168,7 +168,7 @@ export default function Page() {
   const getMatchStatusDisplay = () => {
     if (isCheckingMatch) {
       return (
-        <div className="flex items-center gap-2 text-blue-700 bg-blue-50 border border-blue-200 px-4 py-2.5 rounded-lg text-sm">
+        <div className="flex items-center gap-2 text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-900 px-4 py-2.5 rounded-lg text-sm">
           <Loader2 className="h-4 w-4 animate-spin" />
           <span>Checking against pre-registered data...</span>
         </div>
@@ -179,7 +179,7 @@ export default function Page() {
 
     if (matchResult.action === 'auto_verify') {
       return (
-        <div className="flex items-center gap-2 text-green-700 bg-green-50 border border-green-200 px-4 py-2.5 rounded-lg text-sm">
+        <div className="flex items-center gap-2 text-green-700 dark:text-green-300 bg-green-50 dark:bg-green-950/50 border border-green-200 dark:border-green-900 px-4 py-2.5 rounded-lg text-sm">
           <CheckCircle2 className="h-4 w-4" />
           <span>Your details match our records. Your account will be auto-verified.</span>
         </div>
@@ -188,7 +188,7 @@ export default function Page() {
 
     if (matchResult.action === 'id_verify') {
       return (
-        <div className="flex items-center gap-2 text-amber-700 bg-amber-50 border border-amber-200 px-4 py-2.5 rounded-lg text-sm">
+        <div className="flex items-center gap-2 text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-900 px-4 py-2.5 rounded-lg text-sm">
           <AlertCircle className="h-4 w-4" />
           <span>Partial match found ({Math.round(matchResult.confidence)}% confidence). You may need to upload an ID after sign-up.</span>
         </div>
@@ -197,7 +197,7 @@ export default function Page() {
 
     if (matchResult.action === 'needs_review') {
       return (
-        <div className="flex items-center gap-2 text-orange-700 bg-orange-50 border border-orange-200 px-4 py-2.5 rounded-lg text-sm">
+        <div className="flex items-center gap-2 text-orange-700 dark:text-orange-300 bg-orange-50 dark:bg-orange-950/50 border border-orange-200 dark:border-orange-900 px-4 py-2.5 rounded-lg text-sm">
           <AlertCircle className="h-4 w-4" />
           <span>Your details need manual review ({Math.round(matchResult.confidence)}% confidence). You may need to upload an ID after sign-up.</span>
         </div>
@@ -205,7 +205,7 @@ export default function Page() {
     }
 
     return (
-      <div className="flex items-center gap-2 text-gray-700 bg-gray-50 border border-gray-200 px-4 py-2.5 rounded-lg text-sm">
+      <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-muted border border-gray-200 dark:border-border px-4 py-2.5 rounded-lg text-sm">
         <AlertCircle className="h-4 w-4" />
         <span>No match found in pre-registered data. You can still sign up, but you may need to upload an ID for verification.</span>
       </div>
@@ -215,11 +215,11 @@ export default function Page() {
   return (
     <div className="flex min-h-screen w-full items-center justify-center p-4 bg-[#0D1B5E]">
       <div className="w-full max-w-170">
-        <div className="bg-white rounded-[12px] shadow-2xl overflow-hidden">
+        <div className="bg-white dark:bg-card dark:border-border rounded-[12px] shadow-2xl overflow-hidden">
           <div className="p-8 md:p-10">
             {/* Logo Section */}
             <div className="text-center mb-8">
-              <div className="mx-auto mb-4 flex h-24 w-24 items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-gray-200">
+              <div className="mx-auto mb-4 flex h-24 w-24 items-center justify-center rounded-full bg-white dark:bg-card dark:bg-muted shadow-sm ring-1 ring-gray-200 dark:ring-border">
                 <Image
                   src="/lingkod-logo.png"
                   alt="LingkodBayan logo"
@@ -229,8 +229,8 @@ export default function Page() {
                   priority
                 />
               </div>
-              <h1 className="text-2xl font-bold text-gray-900 tracking-wide">LINGKOD BAYAN</h1>
-              <p className="text-xs text-gray-500 mt-1">Create Your Account</p>
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-foreground dark:text-card-foreground tracking-wide">LINGKOD BAYAN</h1>
+              <p className="text-xs text-gray-500 dark:text-muted-foreground mt-1">Create Your Account</p>
             </div>
 
             {/* Sign Up Form */}
@@ -238,7 +238,7 @@ export default function Page() {
               <div className="grid md:grid-cols-2 gap-4 mb-4">
                 {/* First Name */}
                 <div className="space-y-2">
-                  <Label htmlFor="first-name" className="text-sm font-medium text-gray-700">
+                  <Label htmlFor="first-name" className="text-sm font-medium text-gray-700 dark:text-gray-300 dark:text-card-foreground">
                     First Name
                   </Label>
                   <Input
@@ -248,13 +248,13 @@ export default function Page() {
                     required
                     value={firstName}
                     onChange={(e) => setFirstName(e.target.value)}
-                    className="bg-[#E8F4FD] border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#28A745]"
+                    className="bg-[#E8F4FD] dark:bg-input/30 border border-gray-300 dark:border-input rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#28A745]"
                   />
                 </div>
 
                 {/* Last Name */}
                 <div className="space-y-2">
-                  <Label htmlFor="last-name" className="text-sm font-medium text-gray-700">
+                  <Label htmlFor="last-name" className="text-sm font-medium text-gray-700 dark:text-gray-300 dark:text-card-foreground">
                     Last Name
                   </Label>
                   <Input
@@ -264,13 +264,13 @@ export default function Page() {
                     required
                     value={lastName}
                     onChange={(e) => setLastName(e.target.value)}
-                    className="bg-[#E8F4FD] border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#28A745]"
+                    className="bg-[#E8F4FD] dark:bg-input/30 border border-gray-300 dark:border-input rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#28A745]"
                   />
                 </div>
 
                 {/* Middle Name */}
                 <div className="space-y-2">
-                  <Label htmlFor="middle-name" className="text-sm font-medium text-gray-700">
+                  <Label htmlFor="middle-name" className="text-sm font-medium text-gray-700 dark:text-gray-300 dark:text-card-foreground">
                     Middle Name
                   </Label>
                   <Input
@@ -279,13 +279,13 @@ export default function Page() {
                     placeholder="Santos"
                     value={middleName}
                     onChange={(e) => setMiddleName(e.target.value)}
-                    className="bg-[#E8F4FD] border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#28A745]"
+                    className="bg-[#E8F4FD] dark:bg-input/30 border border-gray-300 dark:border-input rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#28A745]"
                   />
                 </div>
 
                 {/* Date of Birth */}
                 <div className="space-y-2">
-                  <Label htmlFor="date-of-birth" className="text-sm font-medium text-gray-700">
+                  <Label htmlFor="date-of-birth" className="text-sm font-medium text-gray-700 dark:text-gray-300 dark:text-card-foreground">
                     Date of Birth
                   </Label>
                   <Input
@@ -294,7 +294,7 @@ export default function Page() {
                     required
                     value={dateOfBirth}
                     onChange={(e) => setDateOfBirth(e.target.value)}
-                    className="bg-[#E8F4FD] border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#28A745]"
+                    className="bg-[#E8F4FD] dark:bg-input/30 border border-gray-300 dark:border-input rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#28A745]"
                   />
                 </div>
               </div>
@@ -302,7 +302,7 @@ export default function Page() {
               <div className="space-y-4 mb-4">
                 {/* Email */}
                 <div className="space-y-2">
-                  <Label htmlFor="email" className="text-sm font-medium text-gray-700">
+                  <Label htmlFor="email" className="text-sm font-medium text-gray-700 dark:text-gray-300 dark:text-card-foreground">
                     Email Address
                   </Label>
                   <Input
@@ -312,19 +312,19 @@ export default function Page() {
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="w-full bg-[#E8F4FD] border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#28A745]"
+                    className="w-full bg-[#E8F4FD] dark:bg-input/30 border border-gray-300 dark:border-input rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#28A745]"
                   />
                 </div>
 
                 {/* Barangay */}
                 <div className="space-y-2">
-                  <Label htmlFor="barangay" className="text-sm font-medium text-gray-700">
+                  <Label htmlFor="barangay" className="text-sm font-medium text-gray-700 dark:text-gray-300 dark:text-card-foreground">
                     Barangay
                   </Label>
                   <Select value={barangay || undefined} onValueChange={setBarangay} required>
                     <SelectTrigger
                       id="barangay"
-                      className="w-full bg-[#E8F4FD] border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#28A745]"
+                      className="w-full bg-[#E8F4FD] dark:bg-input/30 border border-gray-300 dark:border-input rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#28A745]"
                     >
                       <SelectValue placeholder="Select your barangay" />
                     </SelectTrigger>
@@ -340,7 +340,7 @@ export default function Page() {
 
                 {/* Phone Number */}
                 <div className="space-y-2">
-                  <Label htmlFor="phone" className="text-sm font-medium text-gray-700">
+                  <Label htmlFor="phone" className="text-sm font-medium text-gray-700 dark:text-gray-300 dark:text-card-foreground">
                     Phone Number
                   </Label>
                   <Input
@@ -349,13 +349,13 @@ export default function Page() {
                     placeholder="09XX XXX XXXX"
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
-                    className="w-full bg-[#E8F4FD] border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#28A745]"
+                    className="w-full bg-[#E8F4FD] dark:bg-input/30 border border-gray-300 dark:border-input rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#28A745]"
                   />
                 </div>
 
                 {/* Address */}
                 <div className="space-y-2">
-                  <Label htmlFor="address" className="text-sm font-medium text-gray-700">
+                  <Label htmlFor="address" className="text-sm font-medium text-gray-700 dark:text-gray-300 dark:text-card-foreground">
                     Complete Address
                   </Label>
                   <Input
@@ -364,13 +364,13 @@ export default function Page() {
                     placeholder="Purok, Street, Block/Lot number"
                     value={address}
                     onChange={(e) => setAddress(e.target.value)}
-                    className="w-full bg-[#E8F4FD] border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#28A745]"
+                    className="w-full bg-[#E8F4FD] dark:bg-input/30 border border-gray-300 dark:border-input rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#28A745]"
                   />
                 </div>
 
                 {/* National ID */}
                 <div className="space-y-2">
-                  <Label htmlFor="national-id" className="text-sm font-medium text-gray-700">
+                  <Label htmlFor="national-id" className="text-sm font-medium text-gray-700 dark:text-gray-300 dark:text-card-foreground">
                     National ID (Optional)
                   </Label>
                   <Input
@@ -379,17 +379,17 @@ export default function Page() {
                     placeholder="12-digit PhilSys number"
                     value={nationalId}
                     onChange={(e) => setNationalId(e.target.value)}
-                    className="w-full bg-[#E8F4FD] border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#28A745]"
+                    className="w-full bg-[#E8F4FD] dark:bg-input/30 border border-gray-300 dark:border-input rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#28A745]"
                   />
                 </div>
 
                 {/* ID Type */}
                 <div className="space-y-2">
-                  <Label htmlFor="id-type" className="text-sm font-medium text-gray-700">
+                  <Label htmlFor="id-type" className="text-sm font-medium text-gray-700 dark:text-gray-300 dark:text-card-foreground">
                     ID Type
                   </Label>
                   <Select value={idType} onValueChange={setIdType}>
-                    <SelectTrigger className="w-full bg-[#E8F4FD] border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#28A745]">
+                    <SelectTrigger className="w-full bg-[#E8F4FD] dark:bg-input/30 border border-gray-300 dark:border-input rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#28A745]">
                       <SelectValue placeholder="Select ID type" />
                     </SelectTrigger>
                     <SelectContent>
@@ -406,7 +406,7 @@ export default function Page() {
 
                 {/* Password */}
                 <div className="space-y-2">
-                  <Label htmlFor="password" className="text-sm font-medium text-gray-700">
+                  <Label htmlFor="password" className="text-sm font-medium text-gray-700 dark:text-gray-300 dark:text-card-foreground">
                     Password
                   </Label>
                  <PasswordInput
@@ -415,13 +415,13 @@ export default function Page() {
                    required
                    value={password}
                    onChange={(e) => setPassword(e.target.value)}
-                   className="w-full bg-[#E8F4FD] border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#28A745]"
+                   className="w-full bg-[#E8F4FD] dark:bg-input/30 border border-gray-300 dark:border-input rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#28A745]"
                  />
                 </div>
 
                 {/* Confirm Password */}
                 <div className="space-y-2">
-                  <Label htmlFor="repeat-password" className="text-sm font-medium text-gray-700">
+                  <Label htmlFor="repeat-password" className="text-sm font-medium text-gray-700 dark:text-gray-300 dark:text-card-foreground">
                     Confirm Password
                   </Label>
                  <PasswordInput
@@ -430,7 +430,7 @@ export default function Page() {
                    required
                    value={repeatPassword}
                    onChange={(e) => setRepeatPassword(e.target.value)}
-                   className="w-full bg-[#E8F4FD] border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#28A745]"
+                   className="w-full bg-[#E8F4FD] dark:bg-input/30 border border-gray-300 dark:border-input rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#28A745]"
                  />
                 </div>
 
@@ -441,7 +441,7 @@ export default function Page() {
 
                 {/* Error Message */}
                 {error && (
-                  <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-2.5 rounded-lg text-sm">
+                  <div className="bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-900 text-red-700 dark:text-red-300 px-4 py-2.5 rounded-lg text-sm">
                     {error}
                   </div>
                 )}
@@ -461,7 +461,7 @@ export default function Page() {
                 <Button
                   type="button"
                   variant="outline"
-                  className="w-full border border-gray-300 text-gray-700 font-medium py-2.5 rounded-lg hover:bg-gray-50 transition-colors"
+                  className="w-full border border-gray-300 dark:border-input dark:border-border text-gray-700 dark:text-gray-300 dark:text-card-foreground font-medium py-2.5 rounded-lg hover:bg-gray-50 dark:hover:bg-muted dark:hover:bg-muted transition-colors"
                   onClick={() => router.push('/')}
                 >
                   Back to Home
@@ -470,7 +470,7 @@ export default function Page() {
 
               {/* Login Link */}
               <div className="mt-6 text-center">
-                <p className="text-sm text-gray-600">
+                <p className="text-sm text-gray-600 dark:text-muted-foreground">
                   Already have an account?{' '}
                   <Link href="/auth/login" className="text-[#28A745] font-semibold hover:underline">
                     Sign In

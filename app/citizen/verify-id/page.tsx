@@ -267,7 +267,7 @@ export default function VerifyIdPage() {
       case 'rejected':
         return <Badge className="bg-red-100 text-red-800"><X className="h-3 w-3 mr-1" /> Rejected</Badge>
       default:
-        return <Badge className="bg-gray-100 text-gray-800"><AlertCircle className="h-3 w-3 mr-1" /> Not Verified</Badge>
+        return <Badge className="bg-gray-100 dark:bg-muted text-gray-800 dark:text-foreground"><AlertCircle className="h-3 w-3 mr-1" /> Not Verified</Badge>
     }
   }
 
@@ -354,11 +354,11 @@ export default function VerifyIdPage() {
             <CardContent>
               {!previewUrl ? (
                 <div
-                  className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center cursor-pointer hover:border-primary transition-colors"
+                  className="border-2 border-dashed border-gray-300 dark:border-input rounded-lg p-8 text-center cursor-pointer hover:border-primary transition-colors"
                   onClick={() => fileInputRef.current?.click()}
                 >
-                  <Upload className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                  <p className="text-sm text-gray-600">Click to upload or drag and drop your ID image</p>
+                  <Upload className="h-12 w-12 text-gray-400 dark:text-muted-foreground mx-auto mb-4" />
+                  <p className="text-sm text-gray-600 dark:text-muted-foreground">Click to upload or drag and drop your ID image</p>
                   <input
                     ref={fileInputRef}
                     type="file"
@@ -372,7 +372,7 @@ export default function VerifyIdPage() {
                   <img
                     src={previewUrl}
                     alt="ID preview"
-                    className="max-w-xs max-h-64 object-contain rounded-lg border border-gray-200"
+                    className="max-w-xs max-h-64 object-contain rounded-lg border border-gray-200 dark:border-border"
                   />
                   <button
                     onClick={handleRemoveFile}
@@ -426,7 +426,7 @@ export default function VerifyIdPage() {
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                   {Object.entries(ocrResult.extractedFields).map(([key, value]) => (
                     <div key={key} className="space-y-1">
-                      <Label className="text-xs font-medium text-gray-500 uppercase">{key}</Label>
+                      <Label className="text-xs font-medium text-gray-500 dark:text-muted-foreground uppercase">{key}</Label>
                       <p className="text-sm font-medium">{value || 'N/A'}</p>
                     </div>
                   ))}

@@ -169,7 +169,7 @@ export function AnalyticsCharts({ requests, complaints, officials, trendView, on
 
   return (
     <div className="grid gap-6 xl:grid-cols-2">
-      <Card className="border-emerald-100 bg-white shadow-[0_12px_32px_rgba(16,185,129,0.08)]">
+      <Card className="border-emerald-100 dark:border-border bg-white dark:bg-card shadow-[0_12px_32px_rgba(16,185,129,0.08)]">
         <CardHeader>
           <CardTitle>Requests by Type</CardTitle>
           <CardDescription>Bar chart showing the current request volume for each service type.</CardDescription>
@@ -193,7 +193,7 @@ export function AnalyticsCharts({ requests, complaints, officials, trendView, on
         </CardContent>
       </Card>
 
-      <Card className="border-emerald-100 bg-white shadow-[0_12px_32px_rgba(16,185,129,0.08)]">
+      <Card className="border-emerald-100 dark:border-border bg-white dark:bg-card shadow-[0_12px_32px_rgba(16,185,129,0.08)]">
         <CardHeader className="flex flex-row items-start justify-between gap-4">
           <div>
             <CardTitle>Requests Over Time</CardTitle>
@@ -205,7 +205,7 @@ export function AnalyticsCharts({ requests, complaints, officials, trendView, on
                 key={view}
                 size="sm"
                 variant={trendView === view ? 'default' : 'outline'}
-                className={trendView === view ? 'bg-emerald-600 text-white hover:bg-emerald-700' : 'border-emerald-200 text-emerald-700 hover:bg-emerald-50'}
+                className={trendView === view ? 'bg-emerald-600 text-white hover:bg-emerald-700' : 'border-emerald-200 dark:border-border text-emerald-700 hover:bg-emerald-50'}
                 onClick={() => onTrendViewChange(view)}
               >
                 {analyticsTrendLabels[view]}
@@ -228,7 +228,7 @@ export function AnalyticsCharts({ requests, complaints, officials, trendView, on
         </CardContent>
       </Card>
 
-      <Card className="border-emerald-100 bg-white shadow-[0_12px_32px_rgba(16,185,129,0.08)]">
+      <Card className="border-emerald-100 dark:border-border bg-white dark:bg-card shadow-[0_12px_32px_rgba(16,185,129,0.08)]">
         <CardHeader>
           <CardTitle>Reports by Category</CardTitle>
           <CardDescription>Pie chart for complaint categories submitted by residents.</CardDescription>
@@ -248,7 +248,7 @@ export function AnalyticsCharts({ requests, complaints, officials, trendView, on
           </div>
           <div className="mt-4 flex flex-wrap gap-2">
             {complaintCategoryData.map((entry) => (
-              <span key={entry.category} className={complaintCategoryBadgeClasses[entry.category as keyof typeof complaintCategoryBadgeClasses] || 'border-gray-200 bg-gray-50 text-gray-700'}>
+              <span key={entry.category} className={complaintCategoryBadgeClasses[entry.category as keyof typeof complaintCategoryBadgeClasses] || 'border-gray-200 dark:border-border bg-gray-50 dark:bg-muted text-gray-700 dark:text-gray-300'}>
                 <span className="mr-2 inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: entry.fill }} />
                 {entry.label}: {entry.value}
               </span>
@@ -257,7 +257,7 @@ export function AnalyticsCharts({ requests, complaints, officials, trendView, on
         </CardContent>
       </Card>
 
-      <Card className="border-emerald-100 bg-white shadow-[0_12px_32px_rgba(16,185,129,0.08)]">
+      <Card className="border-emerald-100 dark:border-border bg-white dark:bg-card shadow-[0_12px_32px_rgba(16,185,129,0.08)]">
         <CardHeader>
           <CardTitle>Status Distribution</CardTitle>
           <CardDescription>Donut chart across pending, processing, approved, rejected, and resolved items.</CardDescription>
@@ -277,7 +277,7 @@ export function AnalyticsCharts({ requests, complaints, officials, trendView, on
           </div>
           <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
             {statusData.map((entry) => (
-              <div key={entry.status} className="rounded-2xl border border-emerald-100 bg-emerald-50/70 p-3 shadow-sm">
+              <div key={entry.status} className="rounded-2xl border border-emerald-100 dark:border-border bg-emerald-50/70 p-3 shadow-sm">
                 <div className="text-xs uppercase tracking-wide text-slate-500">{entry.status}</div>
                 <div className="mt-1 text-lg font-semibold text-slate-900">{entry.value}</div>
               </div>

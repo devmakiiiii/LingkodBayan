@@ -29,15 +29,17 @@ export const loginSchema = z.object({
   password: z.string().min(6, 'Password must be at least 6 characters'),
 })
 
+export const signUpBarangaySchema = z.enum(OLONGAPO_BARANGAYS, {
+  errorMap: () => ({ message: 'Please select a barangay' }),
+})
+
 export const signUpSchema = z.object({
   email: z.string().email('Invalid email address'),
   password: z.string().min(6, 'Password must be at least 6 characters'),
   confirmPassword: z.string().min(6, 'Password must be at least 6 characters'),
   firstName: z.string().min(2, 'First name is required'),
   lastName: z.string().min(2, 'Last name is required'),
-  barangay: z.enum(OLONGAPO_BARANGAYS, {
-    errorMap: () => ({ message: 'Please select a barangay' }),
-  }),
+  barangay: signUpBarangaySchema,
   phone: z.string().optional(),
   address: z.string().optional(),
 }).refine((data) => data.password === data.confirmPassword, {

@@ -75,7 +75,7 @@ const ResidentCard = React.memo(function ResidentCard({ resident }: { resident: 
                 Rejected
               </Badge>
             ) : (
-              <Badge className="bg-gray-100 text-gray-800">
+              <Badge className="bg-gray-100 dark:bg-muted text-gray-800 dark:text-foreground">
                 Unverified
               </Badge>
             )}

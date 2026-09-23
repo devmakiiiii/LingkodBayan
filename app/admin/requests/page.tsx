@@ -295,7 +295,7 @@ export default function AdminRequestsPage() {
               <div
                 className={`rounded-2xl border p-4 transition-all ${isActive
                   ? 'border-emerald-300 bg-emerald-50 shadow-sm'
-                  : 'border-emerald-100 bg-white hover:border-emerald-200 hover:shadow-sm'
+                  : 'border-emerald-100 bg-white dark:bg-card hover:border-emerald-200 hover:shadow-sm'
                 }`}
               >
                 <p className="text-sm font-medium text-muted-foreground">{section.label}</p>
@@ -324,7 +324,7 @@ export default function AdminRequestsPage() {
           description={configError || loadError || `No service requests found in the ${requestSectionLabels[activeSection].toLowerCase()} section yet`}
         />
       ) : (
-        <div className="rounded-2xl border border-emerald-100 bg-white shadow-sm">
+        <div className="rounded-2xl border border-emerald-100 bg-white dark:bg-card shadow-sm">
           <Table>
             <TableHeader>
               <TableRow>

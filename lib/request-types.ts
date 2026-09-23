@@ -242,9 +242,11 @@ function formatSimpleValue(value: RequestPayloadValue): string {
   return JSON.stringify(value)
 }
 
-export function formatRequestFieldValue(value: RequestPayloadValue) {
+export function formatRequestFieldValue(value: RequestPayloadValue): string {
   if (Array.isArray(value)) {
     return value
+      .map((item) => (typeof item === 'object' && item !== null && 'name' in item ? String(item.name) : formatSimpleValue(item as RequestPayloadValue)))
+      .join(', ')
   }
 
   return formatSimpleValue(value)

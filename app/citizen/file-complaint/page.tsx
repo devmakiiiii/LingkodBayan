@@ -230,7 +230,7 @@ export default function FileComplaintPage() {
                 </Select>
               </div>
 
-              <div className="flex items-center justify-between h-9 px-3 rounded-md bg-gray-50/50 border">
+              <div className="flex items-center justify-between h-9 px-3 rounded-md bg-gray-50/50 dark:bg-muted/50 border">
                 <Label className="flex items-center gap-1.5 mb-0 text-xs font-semibold">
                   <Zap size={16} className="text-amber-600" />
                   Detected Priority
@@ -244,7 +244,7 @@ export default function FileComplaintPage() {
                       ? 'border-orange-200 bg-orange-50 text-orange-700'
                       : detectedPriority === 'medium'
                       ? 'border-amber-200 bg-amber-50 text-amber-700'
-                      : 'border-slate-200 bg-slate-50 text-slate-700'
+                      : 'border-slate-200 bg-slate-50 text-slate-700 dark:text-slate-300'
                   }`}
                 >
                   {detectedPriority.charAt(0).toUpperCase() + detectedPriority.slice(1)}
@@ -259,7 +259,7 @@ export default function FileComplaintPage() {
                   Pinpoint Complaint Location
                 </Label>
                 <div>
-                  <Suspense fallback={<div className="h-[200px] bg-gray-100 rounded-md flex items-center justify-center text-xs">Loading map...</div>}>
+                  <Suspense fallback={<div className="h-[200px] bg-gray-100 dark:bg-muted rounded-md flex items-center justify-center text-xs">Loading map...</div>}>
                     <MapPicker
                       onLocationSelect={(lat, lng, address) => {
                         setLatitude(lat)
@@ -288,10 +288,10 @@ export default function FileComplaintPage() {
                 </p>
 
                 {!evidencePreview ? (
-                  <div className="relative border-2 border-dashed rounded-lg p-3 h-24 flex flex-col items-center justify-center bg-gray-50/50 hover:bg-gray-50 transition-colors">
-                    <Upload className="h-4 w-4 text-gray-400 mb-0.5" />
-                    <p className="text-xs text-gray-600 font-medium">Click to upload</p>
-                    <p className="text-xs text-gray-500">PNG, JPG or WEBP</p>
+                  <div className="relative border-2 border-dashed rounded-lg p-3 h-24 flex flex-col items-center justify-center bg-gray-50/50 dark:bg-muted/50 hover:bg-gray-50 dark:hover:bg-muted dark:hover:bg-muted transition-colors">
+                    <Upload className="h-4 w-4 text-gray-400 dark:text-muted-foreground mb-0.5" />
+                    <p className="text-xs text-gray-600 dark:text-muted-foreground font-medium">Click to upload</p>
+                    <p className="text-xs text-gray-500 dark:text-muted-foreground">PNG, JPG or WEBP</p>
                     <Input
                       id="evidence"
                       type="file"

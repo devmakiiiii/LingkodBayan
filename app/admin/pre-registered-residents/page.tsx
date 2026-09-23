@@ -171,7 +171,7 @@ export default function PreRegisteredResidentsPage() {
               />
               <div className="text-xs text-muted-foreground">
                 <p>CSV format example:</p>
-                <code className="block mt-1 p-2 bg-gray-100 rounded break-all max-w-full whitespace-pre-wrap overflow-wrap-anywhere">
+                <code className="block mt-1 p-2 bg-gray-100 dark:bg-muted rounded break-all max-w-full whitespace-pre-wrap overflow-wrap-anywhere">
                   first_name,last_name,middle_name,date_of_birth,email,phone,street_address,barangay,city_municipality,province,postal_code,national_id,id_type<br />
                   Juan,Dela Cruz,Santos,1985-03-15,juan@example.com,09171234567,"Block 10 Lot 5","San Antonio","Quezon City","Metro Manila",1112,123456789012,philsys
                 </code>
@@ -262,7 +262,7 @@ export default function PreRegisteredResidentsPage() {
                             Verified
                           </Badge>
                         ) : (
-                          <Badge className="bg-gray-100 text-gray-800">
+                          <Badge className="bg-gray-100 dark:bg-muted text-gray-800 dark:text-foreground">
                             Pending
                           </Badge>
                         )}

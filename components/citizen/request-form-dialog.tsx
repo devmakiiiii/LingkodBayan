@@ -269,7 +269,7 @@ export function RequestFormDialog({ open, onOpenChange, requestType, serviceInfo
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[92vh] max-w-4xl overflow-y-auto border-emerald-100 bg-white">
+      <DialogContent className="max-h-[92vh] max-w-4xl overflow-y-auto border-emerald-100 dark:border-border bg-white dark:bg-card">
         {!submittedState ? (
           <>
             <DialogHeader>
@@ -281,7 +281,7 @@ export function RequestFormDialog({ open, onOpenChange, requestType, serviceInfo
             </DialogHeader>
 
             {/* Auto-filled service details summary */}
-            <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 px-4 py-3 text-sm">
+            <div className="rounded-xl border border-emerald-200 dark:border-border bg-emerald-50/60 px-4 py-3 text-sm">
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
                 <span className="font-semibold text-emerald-800">Service: {config.title}</span>
                 <span className="text-emerald-700">Category: {config.category}</span>
@@ -312,11 +312,11 @@ export function RequestFormDialog({ open, onOpenChange, requestType, serviceInfo
                       onChange={(event) => handleValueChange(field.name, event.target.value)}
                       placeholder={field.placeholder}
                       rows={4}
-                      className="min-h-28 border-emerald-200 bg-white focus-visible:ring-emerald-500"
+                      className="min-h-28 border-emerald-200 dark:border-border bg-white dark:bg-card focus-visible:ring-emerald-500"
                     />
                   ) : field.type === 'select' ? (
                     <Select value={values[field.name] ?? ''} onValueChange={(value) => handleValueChange(field.name, value)}>
-                      <SelectTrigger className="border-emerald-200 bg-white focus:ring-emerald-500">
+                      <SelectTrigger className="border-emerald-200 dark:border-border bg-white dark:bg-card focus:ring-emerald-500">
                         <SelectValue placeholder={`Select ${field.label.toLowerCase()}`} />
                       </SelectTrigger>
                       <SelectContent>
@@ -328,7 +328,7 @@ export function RequestFormDialog({ open, onOpenChange, requestType, serviceInfo
                       </SelectContent>
                     </Select>
                   ) : field.type === 'file' ? (
-                    <div className="space-y-2 rounded-2xl border border-dashed border-emerald-200 bg-emerald-50/40 p-4">
+                    <div className="space-y-2 rounded-2xl border border-dashed border-emerald-200 dark:border-border bg-emerald-50/40 p-4">
                       <div className="flex items-center gap-3">
                         <Upload className="h-4 w-4 text-emerald-700" />
                         <Input
@@ -337,14 +337,14 @@ export function RequestFormDialog({ open, onOpenChange, requestType, serviceInfo
                           multiple={field.multiple}
                           accept={field.accept}
                           onChange={(event) => handleFileChange(field.name, event.target.files)}
-                          className="border-emerald-200 bg-white focus-visible:ring-emerald-500"
+                          className="border-emerald-200 dark:border-border bg-white dark:bg-card focus-visible:ring-emerald-500"
                         />
                       </div>
                       {field.helperText && <p className="text-xs text-muted-foreground">{field.helperText}</p>}
                       {(files[field.name] ?? []).length > 0 && (
                         <div className="space-y-2">
                           {(files[field.name] ?? []).map((file) => (
-                            <div key={`${field.name}-${file.name}`} className="rounded-lg bg-white px-3 py-2 text-sm text-foreground shadow-sm">
+                            <div key={`${field.name}-${file.name}`} className="rounded-lg bg-white dark:bg-card px-3 py-2 text-sm text-foreground shadow-sm">
                               {file.name}
                             </div>
                           ))}
@@ -358,7 +358,7 @@ export function RequestFormDialog({ open, onOpenChange, requestType, serviceInfo
                       value={values[field.name] ?? ''}
                       onChange={(event) => handleValueChange(field.name, event.target.value)}
                       placeholder={field.placeholder}
-                      className="border-emerald-200 bg-white focus-visible:ring-emerald-500"
+                      className="border-emerald-200 dark:border-border bg-white dark:bg-card focus-visible:ring-emerald-500"
                     />
                   )}
                 </div>

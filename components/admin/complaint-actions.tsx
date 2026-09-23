@@ -107,39 +107,39 @@ const handleReply = async () => {
             <div className="space-y-4 mb-6">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="text-sm font-semibold text-gray-700">Complainant</label>
-                  <p className="text-sm text-gray-600">{complaint.resident_name}</p>
+                  <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">Complainant</label>
+                  <p className="text-sm text-gray-600 dark:text-muted-foreground">{complaint.resident_name}</p>
                 </div>
                 <div>
-                  <label className="text-sm font-semibold text-gray-700">Email</label>
-                  <p className="text-sm text-gray-600">{complaint.resident_email}</p>
+                  <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">Email</label>
+                  <p className="text-sm text-gray-600 dark:text-muted-foreground">{complaint.resident_email}</p>
                 </div>
               </div>
 
               <div>
-                <label className="text-sm font-semibold text-gray-700">Category</label>
-                <p className="text-sm text-gray-600">{complaint.category}</p>
+                <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">Category</label>
+                <p className="text-sm text-gray-600 dark:text-muted-foreground">{complaint.category}</p>
               </div>
 
               <div>
-                <label className="text-sm font-semibold text-gray-700">Location</label>
-                <p className="text-sm text-gray-600">{complaint.location_address}</p>
+                <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">Location</label>
+                <p className="text-sm text-gray-600 dark:text-muted-foreground">{complaint.location_address}</p>
               </div>
 
               <div>
-                <label className="text-sm font-semibold text-gray-700">Description</label>
-                <p className="text-sm text-gray-600">{complaint.description}</p>
+                <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">Description</label>
+                <p className="text-sm text-gray-600 dark:text-muted-foreground">{complaint.description}</p>
               </div>
 
               <div className="flex gap-4">
                 <div>
-                  <label className="text-sm font-semibold text-gray-700">Submitted</label>
-                  <p className="text-sm text-gray-600">
+                  <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">Submitted</label>
+                  <p className="text-sm text-gray-600 dark:text-muted-foreground">
                     {new Date(complaint.created_at).toLocaleString('en-PH')}
                   </p>
                 </div>
                 <div>
-                  <label className="text-sm font-semibold text-gray-700">Status</label>
+                  <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">Status</label>
                   <span
                     className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${
                       complaint.status === 'pending'
@@ -189,14 +189,14 @@ const handleReply = async () => {
 
             <div className="space-y-4">
               <div>
-                <label className="text-sm font-semibold text-gray-700 block mb-2">
+                <label className="text-sm font-semibold text-gray-700 dark:text-gray-300 block mb-2">
                   Settlement Notes
                 </label>
                 <Textarea
                   placeholder="Describe the settlement agreement..."
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
-                  className="border border-gray-300 rounded-lg"
+                  className="border border-gray-300 dark:border-input rounded-lg"
                   rows={4}
                 />
               </div>
@@ -228,14 +228,14 @@ const handleReply = async () => {
 
             <div className="space-y-4">
               <div>
-                <label className="text-sm font-semibold text-gray-700 block mb-2">
+                <label className="text-sm font-semibold text-gray-700 dark:text-gray-300 block mb-2">
                   Investigation Notes
                 </label>
                 <Textarea
                   placeholder="Add notes for processing..."
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
-                  className="border border-gray-300 rounded-lg"
+                  className="border border-gray-300 dark:border-input rounded-lg"
                   rows={4}
                 />
               </div>
@@ -267,14 +267,14 @@ const handleReply = async () => {
 
             <div className="space-y-4">
               <div>
-                <label className="text-sm font-semibold text-gray-700 block mb-2">
+                <label className="text-sm font-semibold text-gray-700 dark:text-gray-300 block mb-2">
                   Your Message
                 </label>
                 <Textarea
                   placeholder="Type your message here..."
                   value={replyMessage}
                   onChange={(e) => setReplyMessage(e.target.value)}
-                  className="border border-gray-300 rounded-lg"
+                  className="border border-gray-300 dark:border-input rounded-lg"
                   rows={4}
                 />
               </div>

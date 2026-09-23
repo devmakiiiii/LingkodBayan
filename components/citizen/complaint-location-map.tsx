@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import dynamic from 'next/dynamic'
 
@@ -12,7 +12,7 @@ const ComplaintLocationMapClient = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="h-[200px] w-full bg-gray-50 rounded-lg border border-gray-200 flex items-center justify-center">
+      <div className="h-[200px] w-full bg-gray-50 dark:bg-muted rounded-lg border border-gray-200 dark:border-border flex items-center justify-center">
         <p className="text-sm text-muted-foreground">Loading map...</p>
       </div>
     ),

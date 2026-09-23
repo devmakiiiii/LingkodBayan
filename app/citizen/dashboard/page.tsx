@@ -129,27 +129,27 @@ export default function CitizenDashboard() {
           const totalRequests = requests?.length || 0;
           const totalComplaints = complaints?.length || 0;
           const pendingRequests =
-            requests?.filter((r) => r.status === "pending").length || 0;
+            requests?.filter((r: { status: string }) => r.status === "pending").length || 0;
           const resolvedRequests =
-            requests?.filter((r) =>
+            requests?.filter((r: { status: string }) =>
               ["approved", "rejected", "resolved"].includes(r.status),
             ).length || 0;
           const openComplaints =
-            complaints?.filter((c) => c.status === "open").length || 0;
+            complaints?.filter((c: { status: string }) => c.status === "open").length || 0;
           const inProgressComplaints =
-            complaints?.filter((c) => c.status === "in-progress").length || 0;
+            complaints?.filter((c: { status: string }) => c.status === "in-progress").length || 0;
           const resolvedComplaints =
-            complaints?.filter((c) => c.status === "resolved").length || 0;
+            complaints?.filter((c: { status: string }) => c.status === "resolved").length || 0;
 
           const recentReqs =
             requests
               ?.sort(
-                (a, b) =>
+                (a: { created_at: string }, b: { created_at: string }) =>
                   new Date(b.created_at).getTime() -
                   new Date(a.created_at).getTime(),
               )
               .slice(0, 3)
-              .map((r) => ({
+              .map((r: RecentRequest) => ({
                 id: r.id,
                 title: r.title,
                 category: r.category,
@@ -161,12 +161,12 @@ export default function CitizenDashboard() {
           const recentComps =
             complaints
               ?.sort(
-                (a, b) =>
+                (a: { created_at: string }, b: { created_at: string }) =>
                   new Date(b.created_at).getTime() -
                   new Date(a.created_at).getTime(),
               )
               .slice(0, 3)
-              .map((c) => ({
+              .map((c: RecentComplaint) => ({
                 id: c.id,
                 title: c.title,
                 category: c.category,

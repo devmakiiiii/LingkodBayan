@@ -138,7 +138,7 @@ export default function ComplaintDetailPage({ params }: { params: Promise<{ id: 
       case 'in-progress':
         return 'bg-blue-500/10 text-blue-700 border-blue-500/20'
       default:
-        return 'bg-gray-500/10 text-gray-700 border-gray-500/20'
+        return 'bg-gray-500/10 text-gray-700 dark:text-gray-300 border-gray-500/20'
     }
   }
 
@@ -190,34 +190,34 @@ export default function ComplaintDetailPage({ params }: { params: Promise<{ id: 
             </CardHeader>
             <CardContent className="space-y-3 px-4 py-3">
               <div>
-                <label className="text-xs font-semibold text-gray-700">Description</label>
-                <p className="text-sm text-gray-600 mt-1 whitespace-pre-wrap">{complaint.description}</p>
+                <label className="text-xs font-semibold text-gray-700 dark:text-gray-300">Description</label>
+                <p className="text-sm text-gray-600 dark:text-muted-foreground mt-1 whitespace-pre-wrap">{complaint.description}</p>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs font-semibold text-gray-700">Category</label>
-                  <p className="text-sm text-gray-600 mt-1">{complaint.category}</p>
+                  <label className="text-xs font-semibold text-gray-700 dark:text-gray-300">Category</label>
+                  <p className="text-sm text-gray-600 dark:text-muted-foreground mt-1">{complaint.category}</p>
                 </div>
                 <div>
-                  <label className="text-xs font-semibold text-gray-700">Priority</label>
-                  <p className="text-sm text-gray-600 mt-1 capitalize">{complaint.priority}</p>
+                  <label className="text-xs font-semibold text-gray-700 dark:text-gray-300">Priority</label>
+                  <p className="text-sm text-gray-600 dark:text-muted-foreground mt-1 capitalize">{complaint.priority}</p>
                 </div>
               </div>
 
               {complaint.location_address && (
                 <div>
-                  <label className="text-xs font-semibold text-gray-700 flex items-center gap-1">
+                  <label className="text-xs font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-1">
                     <MapPin className="h-3.5 w-3.5" />
                     Location
                   </label>
-                  <p className="text-sm text-gray-600 mt-1">{complaint.location_address}</p>
+                  <p className="text-sm text-gray-600 dark:text-muted-foreground mt-1">{complaint.location_address}</p>
                 </div>
               )}
 
               {complaint.evidence_url && (
                 <div>
-                  <label className="text-xs font-semibold text-gray-700 flex items-center gap-1">
+                  <label className="text-xs font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-1">
                     <ImageIcon className="h-3.5 w-3.5" />
                     Evidence
                   </label>
@@ -255,12 +255,12 @@ export default function ComplaintDetailPage({ params }: { params: Promise<{ id: 
                         <div
                           className={`max-w-[80%] rounded-lg p-2.5 text-sm ${
                             isAdmin
-                              ? 'bg-gray-100'
+                              ? 'bg-gray-100 dark:bg-muted'
                               : 'bg-primary text-primary-foreground'
                           }`}
                         >
                           <p className="whitespace-pre-wrap">{msg.message}</p>
-                          <p className={`text-xs mt-1.5 ${isAdmin ? 'text-gray-500' : 'text-primary-foreground/70'}`}>
+                          <p className={`text-xs mt-1.5 ${isAdmin ? 'text-gray-500 dark:text-muted-foreground' : 'text-primary-foreground/70'}`}>
                             {new Date(msg.created_at).toLocaleString('en-PH')}
                           </p>
                         </div>
@@ -309,12 +309,12 @@ export default function ComplaintDetailPage({ params }: { params: Promise<{ id: 
               <div className="space-y-2 pt-2 border-t">
                 <div className="flex items-center gap-1.5 text-xs">
                   <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
-                  <span className="text-gray-600">Submitted:</span>
+                  <span className="text-gray-600 dark:text-muted-foreground">Submitted:</span>
                   <span className="font-medium">{new Date(complaint.created_at).toLocaleString('en-PH')}</span>
                 </div>
                 <div className="flex items-center gap-1.5 text-xs">
                   <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
-                  <span className="text-gray-600">Last Updated:</span>
+                  <span className="text-gray-600 dark:text-muted-foreground">Last Updated:</span>
                   <span className="font-medium">{new Date(complaint.updated_at).toLocaleString('en-PH')}</span>
                 </div>
               </div>

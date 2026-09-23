@@ -20,7 +20,7 @@ function PasswordInput({ className, ...props }: React.ComponentProps<'input'>) {
         aria-label={showPassword ? 'Hide password' : 'Show password'}
         aria-pressed={showPassword}
         onClick={() => setShowPassword((prev) => !prev)}
-        className="absolute inset-y-0 right-0 flex items-center justify-center w-10 text-gray-500 hover:text-gray-700"
+        className="absolute inset-y-0 right-0 flex items-center justify-center w-10 text-gray-500 dark:text-muted-foreground hover:text-gray-700"
       >
         {showPassword ? (
           <EyeOff className="h-5 w-5" />

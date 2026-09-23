@@ -183,7 +183,7 @@ export default function AdminDesignationsPage() {
         </div>
       )}
 
-      <div className="rounded-2xl border border-emerald-100 bg-white p-4 shadow-sm">
+      <div className="rounded-2xl border border-emerald-100 bg-white dark:bg-card p-4 shadow-sm">
         <div className="relative max-w-xl">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -203,7 +203,7 @@ export default function AdminDesignationsPage() {
       ) : filteredDesignations.length === 0 ? (
         <Empty title="No designations found" description="Add designations to populate this list." />
       ) : (
-        <div className="overflow-hidden rounded-2xl border border-emerald-100 bg-white shadow-sm">
+        <div className="overflow-hidden rounded-2xl border border-emerald-100 bg-white dark:bg-card shadow-sm">
           <Table>
             <TableHeader>
               <TableRow>

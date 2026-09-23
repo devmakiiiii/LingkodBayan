@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import dynamic from 'next/dynamic'
 
@@ -9,7 +9,7 @@ interface MapPickerProps {
 const MapPickerClient = dynamic(() => import('./map-picker-client'), {
   ssr: false,
   loading: () => (
-    <div className="w-full rounded-lg border border-gray-200 bg-gray-50 text-center text-sm text-muted-foreground shadow-sm" style={{ height: '250px' }}>
+    <div className="w-full rounded-lg border border-gray-200 dark:border-border bg-gray-50 dark:bg-muted text-center text-sm text-muted-foreground shadow-sm" style={{ height: '250px' }}>
       Loading map...
     </div>
   ),

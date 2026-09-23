@@ -200,7 +200,7 @@ export function RequestDetails({
                             field.value.map((file) => {
                               const isImage = file.type?.startsWith('image/')
                               return (
-                                <div key={`${field.key}-${file.name}`} className="space-y-2 rounded-lg bg-white px-3 py-2 text-sm shadow-sm">
+                                <div key={`${field.key}-${file.name}`} className="space-y-2 rounded-lg bg-white dark:bg-card px-3 py-2 text-sm shadow-sm">
                                   <div className="flex items-center justify-between gap-2 min-w-0">
                                     <span className="truncate font-medium text-foreground min-w-0 flex-1">{file.name}</span>
                                     {file.content && !isImage && (
@@ -222,7 +222,7 @@ export function RequestDetails({
                   }
 
                   return (
-                    <div key={field.key} className="grid gap-1 rounded-xl border border-emerald-100 bg-white p-4 shadow-sm">
+                    <div key={field.key} className="grid gap-1 rounded-xl border border-emerald-100 bg-white dark:bg-card p-4 shadow-sm">
                       <p className="text-xs uppercase tracking-wide text-muted-foreground">{field.label}</p>
                       <p className="whitespace-pre-wrap text-sm font-medium text-foreground break-words">{formatRequestFieldValue(field.value)}</p>
                     </div>
@@ -251,7 +251,7 @@ export function RequestPrintDocument({
   const summaryValue = getRequestSummaryValue(request.request_type, request.payload, request.description)
 
   return (
-    <div className="mx-auto max-w-4xl bg-white p-10 text-slate-900">
+    <div className="mx-auto max-w-4xl bg-white dark:bg-card p-10 text-slate-900">
       <div className="flex items-start gap-4 border-b border-slate-200 pb-6">
         <img src="/lingkod-logo.png" alt="LingkodBayan logo" className="h-20 w-20 rounded-full border border-slate-200 object-cover" />
         <div className="flex-1 text-center">

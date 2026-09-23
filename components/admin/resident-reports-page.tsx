@@ -174,7 +174,7 @@ const statusDefinitions: Record<CanonicalStatus, { label: string; badgeClass: st
   },
   resolved: {
     label: 'Resolved',
-    badgeClass: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+    badgeClass: 'border-emerald-200 dark:border-border bg-emerald-50 text-emerald-700',
     rawValues: ['resolved'],
   },
   rejected: {
@@ -187,7 +187,7 @@ const statusDefinitions: Record<CanonicalStatus, { label: string; badgeClass: st
 const priorityDefinitions: Record<CanonicalPriority, { label: string; badgeClass: string; icon?: typeof TriangleAlert }> = {
   low: {
     label: 'Low',
-    badgeClass: 'border-slate-200 bg-slate-50 text-slate-700',
+    badgeClass: 'border-slate-200 bg-slate-50 text-slate-700 dark:text-slate-300',
   },
   medium: {
     label: 'Medium',
@@ -832,7 +832,7 @@ evidenceUrls: extractEvidenceUrls(row),
               </div>
             ) : (
               notificationAlerts.map((alert) => (
-                <div key={alert.id} className="rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-sm">
+                <div key={alert.id} className="rounded-xl border border-emerald-100 dark:border-border bg-emerald-50 px-3 py-2 text-sm">
                   <p className="font-medium text-emerald-900">{alert.message}</p>
                   <p className="text-xs text-emerald-700">{formatDateTime(alert.createdAt)}</p>
                 </div>
@@ -875,7 +875,7 @@ evidenceUrls: extractEvidenceUrls(row),
 
               <TabsContent value="overview" className="mt-6 space-y-6">
                 <div className="space-y-4">
-                  <Card className={`border-emerald-100 ${selectedReport.priority === 'critical' ? 'border-l-4 border-l-rose-600' : selectedReport.priority === 'high' ? 'border-l-4 border-l-red-500' : ''}`}>
+                  <Card className={`border-emerald-100 dark:border-border ${selectedReport.priority === 'critical' ? 'border-l-4 border-l-rose-600' : selectedReport.priority === 'high' ? 'border-l-4 border-l-red-500' : ''}`}>
                     <CardHeader>
                       <CardTitle>Resident Information</CardTitle>
                     </CardHeader>
@@ -899,7 +899,7 @@ evidenceUrls: extractEvidenceUrls(row),
                     </CardContent>
                   </Card>
 
-                  <Card className="border-emerald-100">
+                  <Card className="border-emerald-100 dark:border-border">
                     <CardHeader>
                       <CardTitle>Report Information</CardTitle>
                     </CardHeader>
@@ -922,9 +922,9 @@ evidenceUrls: extractEvidenceUrls(row),
                           <p className="font-semibold">{selectedReport.assignedOfficialLabel}</p>
                         </div>
                       </div>
-                      <div className="rounded-2xl border border-dashed border-emerald-200 bg-emerald-50/50 p-4">
+                      <div className="rounded-2xl border border-dashed border-emerald-200 dark:border-border bg-emerald-50/50 p-4">
                         <p className="text-sm font-semibold text-foreground">Full Complaint Description</p>
-                        <p className="mt-2 whitespace-pre-wrap text-sm text-slate-700">{selectedReport.description}</p>
+                        <p className="mt-2 whitespace-pre-wrap text-sm text-slate-700 dark:text-slate-300">{selectedReport.description}</p>
                       </div>
                       {selectedReport.priorityReasons && selectedReport.priorityReasons.length > 0 && (
                         <div className="text-xs text-slate-500">
@@ -935,7 +935,7 @@ evidenceUrls: extractEvidenceUrls(row),
                   </Card>
 
                   {selectedReport.evidenceUrls.length > 0 && (
-                    <Card className="border-emerald-100">
+                    <Card className="border-emerald-100 dark:border-border">
                       <CardHeader>
                         <CardTitle>Evidence Images</CardTitle>
                         <CardDescription>Preview any attached images or available evidence links.</CardDescription>
@@ -952,7 +952,7 @@ evidenceUrls: extractEvidenceUrls(row),
                     </Card>
                   )}
 
-                  <Card className="border-emerald-100">
+                  <Card className="border-emerald-100 dark:border-border">
                     <CardHeader>
                       <CardTitle>Location Map Preview</CardTitle>
                       <CardDescription>{selectedReport.locationAddress}</CardDescription>
@@ -976,7 +976,7 @@ evidenceUrls: extractEvidenceUrls(row),
               </TabsContent>
 
               <TabsContent value="actions" className="mt-6 space-y-6">
-                <Card className="border-emerald-100">
+                <Card className="border-emerald-100 dark:border-border">
                   <CardHeader>
                     <CardTitle>Admin Controls</CardTitle>
                     <CardDescription>Change the report status, assign an official, and save internal notes.</CardDescription>
@@ -1068,7 +1068,7 @@ evidenceUrls: extractEvidenceUrls(row),
                   </CardContent>
                 </Card>
 
-                <Card className="border-emerald-100">
+                <Card className="border-emerald-100 dark:border-border">
                   <CardHeader>
                     <CardTitle>Send Response to Resident</CardTitle>
                     <CardDescription>Use this box to reply directly to the resident.</CardDescription>
@@ -1097,8 +1097,8 @@ evidenceUrls: extractEvidenceUrls(row),
               </TabsContent>
 
               <TabsContent value="activity" className="mt-6 space-y-6">
-                <Card className="border-emerald-100">
-                  <CardHeader className="sticky top-0 bg-white z-10 border-b border-emerald-100">
+                <Card className="border-emerald-100 dark:border-border">
+                  <CardHeader className="sticky top-0 bg-white dark:bg-card z-10 border-b border-emerald-100 dark:border-border">
                     <CardTitle>Timeline / History Logs</CardTitle>
                     <CardDescription>Review every update, reply, and internal action made for this report.</CardDescription>
                   </CardHeader>
@@ -1121,7 +1121,7 @@ evidenceUrls: extractEvidenceUrls(row),
                                 <p className="font-semibold capitalize">{message.message_type || 'system'}</p>
                                 <Badge variant="outline">{formatRelativeTime(message.created_at)}</Badge>
                               </div>
-                              <p className="mt-1 text-sm text-slate-700">{message.message}</p>
+                              <p className="mt-1 text-sm text-slate-700 dark:text-slate-300">{message.message}</p>
                             </div>
                           </div>
                         </div>
@@ -1135,9 +1135,9 @@ evidenceUrls: extractEvidenceUrls(row),
         </DialogContent>
       </Dialog>
 
-      <div className="flex flex-col gap-6 rounded-[28px] border border-white/60 bg-white/80 p-6 shadow-[0_20px_60px_rgba(16,185,129,0.12)] backdrop-blur xl:flex-row xl:items-start xl:justify-between">
+      <div className="flex flex-col gap-6 rounded-[28px] border border-white/60 bg-white/80 dark:bg-card/80 p-6 shadow-[0_20px_60px_rgba(16,185,129,0.12)] backdrop-blur xl:flex-row xl:items-start xl:justify-between">
         <div className="space-y-3">
-          <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">
+          <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200 dark:border-border bg-emerald-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">
             <FileText className="h-3.5 w-3.5" />
             Resident Reports
           </div>
@@ -1148,17 +1148,17 @@ evidenceUrls: extractEvidenceUrls(row),
         </div>
 
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-          <div className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm font-medium ${isLive ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-amber-200 bg-amber-50 text-amber-700'}`}>
+          <div className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm font-medium ${isLive ? 'border-emerald-200 dark:border-border bg-emerald-50 text-emerald-700' : 'border-amber-200 bg-amber-50 text-amber-700'}`}>
             <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
             {refreshing ? 'Refreshing…' : isLive ? 'Realtime connected' : 'Syncing data'}
           </div>
-          <Button variant="outline" className="border-emerald-200 text-emerald-700 hover:bg-emerald-50" onClick={() => loadReports(false)}>
+          <Button variant="outline" className="border-emerald-200 dark:border-border text-emerald-700 hover:bg-emerald-50" onClick={() => loadReports(false)}>
             <RefreshCcw className="mr-2 h-4 w-4" />
             Refresh
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="icon" className="relative border-emerald-200 text-emerald-700 hover:bg-emerald-50">
+              <Button variant="outline" size="icon" className="relative border-emerald-200 dark:border-border text-emerald-700 hover:bg-emerald-50">
                 <Bell className="h-4 w-4" />
                 {unreadAlerts > 0 && <span className="absolute -right-1 -top-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-rose-600 px-1 text-[10px] font-bold text-white">{unreadAlerts}</span>}
               </Button>
@@ -1180,7 +1180,7 @@ evidenceUrls: extractEvidenceUrls(row),
           </DropdownMenu>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" className="border-emerald-200 bg-white text-slate-700 hover:bg-slate-50">
+              <Button variant="outline" className="border-emerald-200 dark:border-border bg-white dark:bg-card text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-muted dark:hover:bg-muted">
                 <Avatar className="h-8 w-8">
                   <AvatarFallback className="bg-emerald-600 text-white">{(profileUser?.name || 'AD').slice(0, 2).toUpperCase()}</AvatarFallback>
                 </Avatar>
@@ -1232,7 +1232,7 @@ evidenceUrls: extractEvidenceUrls(row),
           </Button>
         </div>
 
-        <Card className="border-emerald-100 bg-white shadow-sm">
+        <Card className="border-emerald-100 dark:border-border bg-white dark:bg-card shadow-sm">
           <CardContent className="flex items-center gap-3 p-4">
             <Sheet>
               <SheetTrigger asChild>
@@ -1331,7 +1331,7 @@ evidenceUrls: extractEvidenceUrls(row),
           </CardContent>
         </Card>
 
-      <Card className="border-emerald-100 bg-white shadow-sm">
+      <Card className="border-emerald-100 dark:border-border bg-white dark:bg-card shadow-sm">
         <CardHeader className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <CardTitle>Reports Table</CardTitle>
@@ -1344,11 +1344,11 @@ evidenceUrls: extractEvidenceUrls(row),
               <Printer className="mr-2 h-4 w-4" />
               Print Reports
             </Button>
-            <Button variant="outline" className="border-emerald-200 text-emerald-700 hover:bg-emerald-50" onClick={exportCsv}>
+            <Button variant="outline" className="border-emerald-200 dark:border-border text-emerald-700 hover:bg-emerald-50" onClick={exportCsv}>
               <Download className="mr-2 h-4 w-4" />
               Export CSV
             </Button>
-            <Button variant="outline" className="border-emerald-200 text-emerald-700 hover:bg-emerald-50" onClick={exportPdf}>
+            <Button variant="outline" className="border-emerald-200 dark:border-border text-emerald-700 hover:bg-emerald-50" onClick={exportPdf}>
               <FileDown className="mr-2 h-4 w-4" />
               Export PDF
             </Button>
@@ -1367,7 +1367,7 @@ evidenceUrls: extractEvidenceUrls(row),
               </EmptyMedia>
             </Empty>
           ) : (
-            <div className="overflow-hidden rounded-2xl border border-emerald-100">
+            <div className="overflow-hidden rounded-2xl border border-emerald-100 dark:border-border">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -1467,7 +1467,7 @@ evidenceUrls: extractEvidenceUrls(row),
         </CardContent>
       </Card>
 
-      <div className="flex flex-col gap-3 rounded-2xl border border-emerald-100 bg-white px-4 py-3 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-3 rounded-2xl border border-emerald-100 dark:border-border bg-white dark:bg-card px-4 py-3 shadow-sm sm:flex-row sm:items-center sm:justify-between">
         <div className="text-sm text-muted-foreground">
           Showing {paginatedReports.length} of {filteredReports.length} filtered reports
         </div>
@@ -1476,7 +1476,7 @@ evidenceUrls: extractEvidenceUrls(row),
             <ChevronLeft className="mr-1 h-4 w-4" />
             Previous
           </Button>
-          <div className="rounded-md border border-emerald-100 bg-emerald-50 px-3 py-1 text-sm font-medium text-emerald-700">
+          <div className="rounded-md border border-emerald-100 dark:border-border bg-emerald-50 px-3 py-1 text-sm font-medium text-emerald-700">
             Page {currentPage} of {totalPages}
           </div>
           <Button variant="outline" size="sm" onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))} disabled={currentPage === totalPages}>

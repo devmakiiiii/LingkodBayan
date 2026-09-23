@@ -121,7 +121,7 @@ export default function RequestServicePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-muted">
       <RequestFormDialog
         open={isFormOpen}
         onOpenChange={setIsFormOpen}
@@ -134,10 +134,10 @@ export default function RequestServicePage() {
         <div className="min-h-screen p-6 md:p-8">
           {/* Header */}
           <div className="mb-8">
-            <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-2">
+            <h1 className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-foreground mb-2">
               Request Services
             </h1>
-            <p className="text-gray-600">
+            <p className="text-gray-600 dark:text-muted-foreground">
               Browse and request available barangay services and documents
             </p>
             {loadError && (
@@ -146,23 +146,23 @@ export default function RequestServicePage() {
           </div>
 
           {/* Search and Filter Section */}
-          <div className="bg-white rounded-[12px] shadow-sm p-6 mb-8 border border-gray-100">
+          <div className="bg-white dark:bg-card rounded-[12px] shadow-sm p-6 mb-8 border border-gray-100 dark:border-border">
             <div className="grid md:grid-cols-3 gap-4">
               {/* Search Bar */}
               <div className="md:col-span-2">
                 <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 dark:text-muted-foreground w-5 h-5" />
                   <Input
                     type="text"
                     placeholder="Search services..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-10 pr-4 py-2.5 rounded-lg border border-gray-300 bg-white focus:ring-2 focus:ring-[#28A745] focus:border-transparent"
+                    className="pl-10 pr-4 py-2.5 rounded-lg border border-gray-300 dark:border-input bg-white dark:bg-card focus:ring-2 focus:ring-[#28A745] focus:border-transparent"
                   />
                   {searchQuery && (
                     <button
                       onClick={() => setSearchQuery('')}
-                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 dark:text-muted-foreground hover:text-gray-600 dark:hover:text-gray-300 dark:text-muted-foreground"
                     >
                       <X className="w-5 h-5" />
                     </button>
@@ -172,7 +172,7 @@ export default function RequestServicePage() {
 
               {/* Filter Dropdown */}
               <Select value={selectedFilter} onValueChange={setSelectedFilter}>
-                <SelectTrigger className="rounded-lg border border-gray-300 bg-white focus:ring-2 focus:ring-[#28A745]">
+                <SelectTrigger className="rounded-lg border border-gray-300 dark:border-input bg-white dark:bg-card focus:ring-2 focus:ring-[#28A745]">
                   <SelectValue placeholder="Filter by category" />
                 </SelectTrigger>
                 <SelectContent>
@@ -217,10 +217,10 @@ export default function RequestServicePage() {
           {/* Services Grid */}
           {loading ? (
             <div className="text-center py-12">
-              <div className="text-gray-400 mb-4">
+              <div className="text-gray-400 dark:text-muted-foreground mb-4">
                 <Loader2 className="w-12 h-12 mx-auto opacity-50 animate-spin" />
               </div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-foreground mb-2">
                 Loading services...
               </h3>
             </div>
@@ -236,13 +236,13 @@ export default function RequestServicePage() {
             </div>
           ) : (
             <div className="text-center py-12">
-              <div className="text-gray-400 mb-4">
+              <div className="text-gray-400 dark:text-muted-foreground mb-4">
                 <Search className="w-12 h-12 mx-auto opacity-50" />
               </div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-foreground mb-2">
                 No services found
               </h3>
-              <p className="text-gray-600 mb-6">
+              <p className="text-gray-600 dark:text-muted-foreground mb-6">
                 Try adjusting your search or filters
               </p>
               <Button

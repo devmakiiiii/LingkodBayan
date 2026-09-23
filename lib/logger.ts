@@ -5,6 +5,7 @@ export interface LogEntry {
   message: string
   timestamp: string
   context?: Record<string, unknown>
+  data?: Record<string, unknown>
   error?: unknown
 }
 
@@ -28,6 +29,10 @@ function formatLog(entry: LogEntry): string {
 
   if (entry.context && Object.keys(entry.context).length > 0) {
     message += ` ${JSON.stringify(entry.context)}`
+  }
+
+  if (entry.data && Object.keys(entry.data).length > 0) {
+    message += ` ${JSON.stringify(entry.data)}`
   }
 
   if (entry.error) {

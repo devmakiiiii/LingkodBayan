@@ -26,7 +26,6 @@ export default function ComplaintLocationMapClient({ latitude, longitude }: Comp
 
   return (
     <MapContainer
-      // @ts-expect-error - react-leaflet types have issues
       center={position}
       zoom={17}
       style={{ height: '200px', width: '100%' }}
@@ -35,13 +34,11 @@ export default function ComplaintLocationMapClient({ latitude, longitude }: Comp
       doubleClickZoom={false}
     >
       <TileLayer
-        // @ts-expect-error - react-leaflet types have issues
         attribution='&copy; OpenStreetMap'
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
       <Marker
         position={position}
-        // @ts-expect-error - react-leaflet types have issues
         icon={defaultIcon}
       />
     </MapContainer>

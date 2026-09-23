@@ -25,7 +25,7 @@ const getCategoryColor = (category: string) => {
     'maintenance': 'bg-yellow-500/10 text-yellow-700 border-yellow-500/20',
     'news': 'bg-purple-500/10 text-purple-700 border-purple-500/20',
   }
-  return colors[category.toLowerCase()] || 'bg-gray-500/10 text-gray-700 border-gray-500/20'
+  return colors[category.toLowerCase()] || 'bg-gray-500/10 text-gray-700 dark:text-gray-300 border-gray-500/20'
 }
 
 const formatDate = (dateString: string) => {
@@ -62,7 +62,7 @@ export default async function AnnouncementDetailPage({ params }: { params: Promi
 
       <Card className="overflow-hidden">
         {announcementData.image_url && (
-          <div className="relative aspect-video bg-gray-100">
+          <div className="relative aspect-video bg-gray-100 dark:bg-muted">
             <img
               src={announcementData.image_url}
               alt={announcementData.title}

@@ -65,7 +65,7 @@ const getCategoryColor = (category: string) => {
     'maintenance': 'bg-yellow-500/10 text-yellow-700 border-yellow-500/20',
     'news': 'bg-purple-500/10 text-purple-700 border-purple-500/20',
   }
-  return colors[category.toLowerCase()] || 'bg-gray-500/10 text-gray-700 border-gray-500/20'
+  return colors[category.toLowerCase()] || 'bg-gray-500/10 text-gray-700 dark:text-gray-300 border-gray-500/20'
 }
 
 function stripHtml(html: string) {
@@ -458,10 +458,10 @@ export default function AdminAnnouncementsPage() {
                   </p>
 
                   {!imagePreview ? (
-                    <div className="relative border-2 border-dashed rounded-lg p-4 flex flex-col items-center justify-center bg-gray-50/50 hover:bg-gray-50 transition-colors h-32">
-                      <Upload className="h-5 w-5 text-gray-400 mb-1" />
-                      <p className="text-xs text-gray-600 font-medium">Click to upload image</p>
-                      <p className="text-xs text-gray-500">PNG, JPG, WEBP, or GIF</p>
+                    <div className="relative border-2 border-dashed rounded-lg p-4 flex flex-col items-center justify-center bg-gray-50/50 dark:bg-muted/50 hover:bg-gray-50 dark:hover:bg-muted dark:hover:bg-muted transition-colors h-32">
+                      <Upload className="h-5 w-5 text-gray-400 dark:text-muted-foreground mb-1" />
+                      <p className="text-xs text-gray-600 dark:text-muted-foreground font-medium">Click to upload image</p>
+                      <p className="text-xs text-gray-500 dark:text-muted-foreground">PNG, JPG, WEBP, or GIF</p>
                       <Input
                         id="announcement-image"
                         type="file"
@@ -633,7 +633,7 @@ export default function AdminAnnouncementsPage() {
                               className={
                                 announcement.is_published
                                   ? 'bg-primary/10 text-primary border-primary/20'
-                                  : 'bg-gray-500/10 text-gray-700 border-gray-500/20'
+                                  : 'bg-gray-500/10 text-gray-700 dark:text-gray-300 border-gray-500/20'
                               }
                               variant="outline"
                             >
@@ -804,10 +804,10 @@ export default function AdminAnnouncementsPage() {
                   </Button>
                 </div>
               ) : (
-                <div className="relative border-2 border-dashed rounded-lg p-4 flex flex-col items-center justify-center bg-gray-50/50 hover:bg-gray-50 transition-colors h-32">
-                  <Upload className="h-5 w-5 text-gray-400 mb-1" />
-                  <p className="text-xs text-gray-600 font-medium">Click to upload image</p>
-                  <p className="text-xs text-gray-500">PNG, JPG, WEBP, or GIF</p>
+                <div className="relative border-2 border-dashed rounded-lg p-4 flex flex-col items-center justify-center bg-gray-50/50 dark:bg-muted/50 hover:bg-gray-50 dark:hover:bg-muted dark:hover:bg-muted transition-colors h-32">
+                  <Upload className="h-5 w-5 text-gray-400 dark:text-muted-foreground mb-1" />
+                  <p className="text-xs text-gray-600 dark:text-muted-foreground font-medium">Click to upload image</p>
+                  <p className="text-xs text-gray-500 dark:text-muted-foreground">PNG, JPG, WEBP, or GIF</p>
                   <Input
                     id="edit-announcement-image"
                     type="file"

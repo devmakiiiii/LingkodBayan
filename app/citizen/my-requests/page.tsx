@@ -18,6 +18,7 @@ import {
   getRequestStatusLabel,
   getRequestSummaryValue,
   getRequestTypeTitle,
+  type RequestPayload,
 } from '@/lib/request-types'
 
 interface Request {
@@ -30,7 +31,7 @@ interface Request {
   priority: string
   created_at: string
   updated_at: string
-  payload?: Record<string, unknown> | null
+  payload?: RequestPayload | null
 }
 
 export default function MyRequestsPage() {
@@ -90,7 +91,7 @@ export default function MyRequestsPage() {
 return (
     <div className="space-y-8 p-8">
       <NoCloseDialog open={Boolean(selectedRequest)} onOpenChange={(open) => !open && setSelectedRequest(null)}>
-        <DialogContent className="max-h-[90vh] max-w-5xl overflow-y-auto border-emerald-100 bg-white">
+        <DialogContent className="max-h-[90vh] max-w-5xl overflow-y-auto border-emerald-100 bg-white dark:bg-card">
           {selectedRequest && (
             <>
               <DialogHeader>

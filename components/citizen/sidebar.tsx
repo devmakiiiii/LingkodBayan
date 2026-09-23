@@ -68,32 +68,32 @@ export function Sidebar() {
       {/* Mobile menu button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="md:hidden fixed top-4 left-4 z-50 p-2 rounded-lg bg-[#001a4d] text-white"
+        className="md:hidden fixed top-4 left-4 z-50 p-2 rounded-lg bg-sidebar text-sidebar-foreground border border-sidebar-border shadow-md"
       >
         {isOpen ? <X size={24} /> : <Menu size={24} />}
       </button>
 
       {/* Sidebar */}
       <aside className={`
-        fixed md:relative inset-y-0 left-0 w-72 bg-[#001a4d] transition-transform duration-300
+        fixed md:relative inset-y-0 left-0 w-72 bg-sidebar text-sidebar-foreground border-r border-sidebar-border transition-transform duration-300
         ${isOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0
         z-40 md:z-auto flex flex-col h-screen
       `}>
         {/* Logo Section */}
-        <div className="p-6 text-center border-b border-[#0d2d66]">
+        <div className="p-6 text-center border-b border-sidebar-border">
           <Link href="/citizen/dashboard" onClick={() => setIsOpen(false)}>
-            <h1 className="text-2xl font-bold text-white tracking-wider">LINGKOD BAYAN</h1>
-            <p className="text-xs text-gray-300 mt-1">Citizen Portal</p>
+            <h1 className="text-2xl font-bold text-sidebar-foreground tracking-wider">LINGKOD BAYAN</h1>
+            <p className="text-xs text-sidebar-foreground/70 mt-1">Citizen Portal</p>
           </Link>
         </div>
 
         {/* User Welcome */}
-        <div className="px-6 py-4 border-b border-[#0d2d66]">
-          <p className="text-xs text-gray-400">Welcome,</p>
+        <div className="px-6 py-4 border-b border-sidebar-border">
+          <p className="text-xs text-sidebar-foreground/60">Welcome,</p>
           <div className="flex items-center justify-between gap-3">
-            <p className="font-semibold text-white truncate">{userName}</p>
+            <p className="font-semibold text-sidebar-foreground truncate">{userName}</p>
             <Link href="/citizen/notifications" onClick={() => setIsOpen(false)}>
-              <button className="relative rounded-full p-2 text-white hover:bg-[#0d2d66] transition-colors" aria-label="Open notifications">
+              <button className="relative rounded-full p-2 text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors" aria-label="Open notifications">
                 <Bell size={18} />
                 {unreadCount > 0 && (
                   <Badge className="absolute -right-1 -top-1 h-5 min-w-5 justify-center rounded-full bg-destructive px-1 text-[10px] text-white">
@@ -115,8 +115,8 @@ export function Sidebar() {
                 <button
                   className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
                     isActive
-                      ? 'bg-[#0d2d66] text-white'
-                      : 'text-gray-300 hover:bg-[#0d2d66]/50'
+                      ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+                      : 'text-sidebar-foreground/70 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground'
                   }`}
                 >
                   <Icon size={20} />
@@ -128,7 +128,7 @@ export function Sidebar() {
         </nav>
 
         {/* Sign Out Button */}
-        <div className="p-4 border-t border-[#0d2d66] space-y-2">
+        <div className="p-4 border-t border-sidebar-border space-y-2">
           <ThemeToggle />
           <Dialog open={showLogoutDialog} onOpenChange={setShowLogoutDialog}>
             <DialogTrigger asChild>
