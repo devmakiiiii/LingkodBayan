@@ -16,6 +16,11 @@ next.user-config.*
 node_modules
 .next/
 .DS_Store
+tsconfig.tsbuildinfo
+
+# Local OCR / scratch artifacts (do not commit)
+scripts/_cc_barretto.txt
+scripts/_ccimg/
 
 # Kilo internal
 .kilo/node_modules/

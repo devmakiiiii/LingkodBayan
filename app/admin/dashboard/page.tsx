@@ -234,7 +234,7 @@ export default function AdminDashboard() {
                         {workload.name}
                         <span className="ml-2 text-xs font-normal text-muted-foreground">{workload.designationLabel}</span>
                         {!workload.isAssignable && (
-                          <span className="ml-2 rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">inactive</span>
+                          <span className="ml-2 rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">archived</span>
                         )}
                       </div>
                       <div className="text-xs text-muted-foreground">

@@ -72,7 +72,18 @@ const expected = {
     'archived_at',
   ],
   requests: ['id', 'resident_id', 'title', 'category', 'status', 'created_at', 'request_type'],
-  announcements: ['id', 'title', 'category', 'created_at', 'excerpt', 'is_published', 'image_url'],
+  announcements: [
+    'id',
+    'title',
+    'category',
+    'created_at',
+    'excerpt',
+    'is_published',
+    'image_url',
+    'published_at',
+    'expires_at',
+    'pinned',
+  ],
   residents: ['id', 'user_id', 'verification_status', 'verification_confidence', 'date_of_birth'],
 }
 

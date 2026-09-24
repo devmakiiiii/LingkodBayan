@@ -122,7 +122,7 @@ export default function Page() {
                   </Label>
                    <PasswordInput
                      id="password"
-                     placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
+                     placeholder="••••••••"
                      required
                      value={password}
                      onChange={(e) => setPassword(e.target.value)}

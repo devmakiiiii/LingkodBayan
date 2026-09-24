@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatRelativeDate } from '@/lib/format-date'
+import { getAnnouncementCategoryColor } from '@/lib/announcement-categories'
 import { Megaphone } from 'lucide-react'
 
 export interface DashboardAnnouncement {
@@ -26,21 +27,6 @@ export interface DashboardAnnouncement {
 interface AnnouncementsCardProps {
   announcements: DashboardAnnouncement[]
   loading: boolean
-}
-
-function getCategoryClassName(category: string) {
-  const colors: Record<string, string> = {
-    event: 'bg-blue-500/10 text-blue-700 border-blue-500/20',
-    update: 'bg-primary/10 text-primary border-primary/20',
-    alert: 'bg-red-500/10 text-red-700 border-red-500/20',
-    maintenance: 'bg-amber-500/10 text-amber-700 border-amber-500/20',
-    news: 'bg-purple-500/10 text-purple-700 border-purple-500/20',
-  }
-
-  return (
-    colors[category?.toLowerCase()] ??
-    'bg-gray-500/10 text-gray-700 dark:text-gray-300 border-gray-500/20'
-  )
 }
 
 /** Latest published barangay announcements, mirroring `/citizen/announcements`. */
@@ -89,7 +75,7 @@ export function AnnouncementsCard({
                 <p className="line-clamp-2 text-sm font-medium">{announcement.title}</p>
                 <Badge
                   variant="outline"
-                  className={`shrink-0 text-xs ${getCategoryClassName(announcement.category)}`}
+                  className={`shrink-0 text-xs ${getAnnouncementCategoryColor(announcement.category)}`}
                 >
                   {announcement.category}
                 </Badge>

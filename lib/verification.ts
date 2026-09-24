@@ -1,5 +1,29 @@
-import { get as levenshteinGet } from 'fast-levenshtein'
-import Nysiis from 'nysiis'
+import * as levenshteinNamespace from 'fast-levenshtein'
+import * as nysiisNamespace from 'nysiis'
+
+// `fast-levenshtein` and `nysiis` are CommonJS packages. The Next.js bundler
+// and the Node test runner surface their exports differently (bundlers expose
+// named exports / `exports.default`, while Node's ESM interop exposes the raw
+// `module.exports`), so resolve both shapes here to keep the matching logic
+// usable from `node --test` as well as from the app.
+type LevenshteinFn = (a: string, b: string) => number
+type NysiisEncoder = { encode(name: string): string }
+
+const levenshteinModule = levenshteinNamespace as unknown as {
+  get?: LevenshteinFn
+  default?: LevenshteinFn | { get?: LevenshteinFn }
+}
+const levenshteinGet: LevenshteinFn =
+  typeof levenshteinModule.get === 'function'
+    ? levenshteinModule.get
+    : (levenshteinModule.default as { get: LevenshteinFn }).get
+
+const nysiisExport: unknown = nysiisNamespace.default
+type NysiisConstructor = new () => NysiisEncoder
+const Nysiis: NysiisConstructor =
+  typeof nysiisExport === 'function'
+    ? (nysiisExport as NysiisConstructor)
+    : (nysiisExport as { default: NysiisConstructor }).default
 
 const nysiisEncoder = new Nysiis()
 
@@ -134,7 +158,7 @@ export function nameMatchScore(
   const firstLev = levenshteinSimilarity(firstNameA, firstNameB)
   const lastLev = levenshteinSimilarity(lastNameA, lastNameB)
   const firstPhonetic = phoneticSimilarity(firstNameA, firstNameB)
-  const lastPhonetic = phoneticSimilarity(lastNameB, lastNameB)
+  const lastPhonetic = phoneticSimilarity(lastNameA, lastNameB)
 
   // Take the best score per name part (levenshtein or phonetic)
   const firstScore = Math.max(firstLev, firstPhonetic)
@@ -299,7 +323,7 @@ export function parseOcrExtractedFields(
 
 function parsePhilsysFields(text: string): Record<string, string> {
   const fields: Record<string, string> = {}
-  const fullNameMatch = text.match(/FULL NAME\s*[:\-]?\s*([A-Z][A-Z\s.,'-]+)/i)
+  const fullNameMatch = text.match(/FULL NAME\s*[:\-]?\s*([A-Z][A-Z.,'\- ]+)/i)
   if (fullNameMatch) {
     const parts = fullNameMatch[1].trim()
     fields.fullName = parts
@@ -319,7 +343,7 @@ function parsePhilsysFields(text: string): Record<string, string> {
   const dobMatchResult = text.match(/(?:DATE\s*OF\s*BIRTH|DOB|BIRTHDATE)\s*[:\-]?\s*(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4})/i)
   if (dobMatchResult) fields.dateOfBirth = dobMatchResult[1]
 
-  const addressMatch = text.match(/ADDRESS\s*[:\-]?\s*([A-Z0-9][A-Z0-9\s.,'\-]+)/i)
+  const addressMatch = text.match(/ADDRESS\s*[:\-]?\s*([A-Z0-9][A-Z0-9.,'\- ]+)/i)
   if (addressMatch) fields.address = addressMatch[1].trim()
 
   return fields
@@ -327,24 +351,24 @@ function parsePhilsysFields(text: string): Record<string, string> {
 
 function parseDriversLicenseFields(text: string): Record<string, string> {
   const fields: Record<string, string> = {}
-  const lastMatch = text.match(/LAST NAME\s*[:\-]?\s*([A-Z\s]+)/i)
+  const lastMatch = text.match(/LAST NAME\s*[:\-]?\s*([A-Z ]+)/i)
   if (lastMatch) fields.lastName = lastMatch[1].trim()
-  const firstMatch = text.match(/FIRST NAME\s*[:\-]?\s*([A-Z\s]+)/i)
+  const firstMatch = text.match(/FIRST NAME\s*[:\-]?\s*([A-Z ]+)/i)
   if (firstMatch) fields.firstName = firstMatch[1].trim()
-  const middleMatch = text.match(/MIDDLE NAME\s*[:\-]?\s*([A-Z\s]*)/i)
+  const middleMatch = text.match(/MIDDLE NAME\s*[:\-]?\s*([A-Z ]*)/i)
   if (middleMatch) fields.middleName = middleMatch[1].trim()
   const dobMatchResult = text.match(/BIRTHDATE\s*[:\-]?\s*(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4})/i)
   if (dobMatchResult) fields.dateOfBirth = dobMatchResult[1]
-  const addressMatch = text.match(/ADDRESS\s*[:\-]?\s*([A-Z0-9][A-Z0-9\s.,'\-]+)/i)
+  const addressMatch = text.match(/ADDRESS\s*[:\-]?\s*([A-Z0-9][A-Z0-9.,'\- ]+)/i)
   if (addressMatch) fields.address = addressMatch[1].trim()
   return fields
 }
 
 function parsePassportFields(text: string): Record<string, string> {
   const fields: Record<string, string> = {}
-  const surnameMatch = text.match(/SURNAME\s*[:\-]?\s*([A-Z\s]+)/i)
+  const surnameMatch = text.match(/SURNAME\s*[:\-]?\s*([A-Z ]+)/i)
   if (surnameMatch) fields.lastName = surnameMatch[1].trim()
-  const givenMatch = text.match(/GIVEN NAMES?\s*[:\-]?\s*([A-Z\s]+)/i)
+  const givenMatch = text.match(/GIVEN NAMES?\s*[:\-]?\s*([A-Z ]+)/i)
   if (givenMatch) fields.firstName = givenMatch[1].trim()
   const dobMatchResult = text.match(/DATE\s*OF\s*BIRTH\s*[:\-]?\s*(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4})/i)
   if (dobMatchResult) fields.dateOfBirth = dobMatchResult[1]
@@ -353,7 +377,7 @@ function parsePassportFields(text: string): Record<string, string> {
 
 function parseVoterFields(text: string): Record<string, string> {
   const fields: Record<string, string> = {}
-  const nameMatch = text.match(/(?:NAME|VOTER'S NAME)\s*[:\-]?\s*([A-Z][A-Z\s.,'-]+)/i)
+  const nameMatch = text.match(/(?:NAME|VOTER'S NAME)\s*[:\-]?\s*([A-Z][A-Z.,'\- ]+)/i)
   if (nameMatch) {
     fields.fullName = nameMatch[1].trim()
     const parts = nameMatch[1].trim().split(/\s+/)
@@ -364,7 +388,7 @@ function parseVoterFields(text: string): Record<string, string> {
   }
   const dobMatchResult = text.match(/(?:BIRTHDAY|BIRTH DATE|DOB)\s*[:\-]?\s*(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4})/i)
   if (dobMatchResult) fields.dateOfBirth = dobMatchResult[1]
-  const addressMatch = text.match(/ADDRESS\s*[:\-]?\s*([A-Z0-9][A-Z0-9\s.,'\-]+)/i)
+  const addressMatch = text.match(/ADDRESS\s*[:\-]?\s*([A-Z0-9][A-Z0-9.,'\- ]+)/i)
   if (addressMatch) fields.address = addressMatch[1].trim()
   return fields
 }

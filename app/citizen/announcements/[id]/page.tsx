@@ -7,6 +7,8 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Calendar, ArrowLeft } from 'lucide-react'
 import Link from 'next/link'
+import { getAnnouncementCategoryColor } from '@/lib/announcement-categories'
+import { sanitizeRichText } from '@/lib/html-sanitize'
 
 interface Announcement {
   id: string
@@ -14,18 +16,9 @@ interface Announcement {
   content: string
   category: string
   created_at: string
+  updated_at?: string | null
+  published_at?: string | null
   image_url?: string | null
-}
-
-const getCategoryColor = (category: string) => {
-  const colors: Record<string, string> = {
-    'event': 'bg-blue-500/10 text-blue-700 border-blue-500/20',
-    'update': 'bg-primary/10 text-primary border-primary/20',
-    'alert': 'bg-red-500/10 text-red-700 border-red-500/20',
-    'maintenance': 'bg-yellow-500/10 text-yellow-700 border-yellow-500/20',
-    'news': 'bg-purple-500/10 text-purple-700 border-purple-500/20',
-  }
-  return colors[category.toLowerCase()] || 'bg-gray-500/10 text-gray-700 dark:text-gray-300 border-gray-500/20'
 }
 
 const formatDate = (dateString: string) => {
@@ -46,8 +39,18 @@ export default async function AnnouncementDetailPage({ params }: { params: Promi
 
   const announcementData = {
     ...announcement,
+    // Defence in depth: rows written before sanitisation was added still exist,
+    // so the stored HTML is cleaned again on the way to the browser.
+    content: sanitizeRichText(announcement.content),
     image_url: (announcement as any).image_url || null,
+    published_at: (announcement as any).published_at || null,
+    updated_at: (announcement as any).updated_at || null,
   }
+
+  const publishedAt = announcementData.published_at || announcementData.created_at
+  const wasUpdated =
+    !!announcementData.updated_at &&
+    new Date(announcementData.updated_at).getTime() - new Date(publishedAt).getTime() > 60_000
 
   return (
     <div className="space-y-8 p-8 max-w-4xl mx-auto">
@@ -77,13 +80,18 @@ export default async function AnnouncementDetailPage({ params }: { params: Promi
         <CardHeader className="pb-3">
           <div className="flex items-start justify-between gap-4">
             <CardTitle className="text-3xl text-balance flex-1">{announcementData.title}</CardTitle>
-            <Badge className={getCategoryColor(announcementData.category)} variant="outline">
+            <Badge className={getAnnouncementCategoryColor(announcementData.category)} variant="outline">
               {announcementData.category}
             </Badge>
           </div>
-          <div className="flex items-center gap-2 text-sm text-muted-foreground pt-2">
+          <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground pt-2">
             <Calendar className="h-4 w-4" />
-            <span>Published on {formatDate(announcementData.created_at)}</span>
+            <span>Published on {formatDate(publishedAt)}</span>
+            {wasUpdated && announcementData.updated_at && (
+              <span className="text-xs text-muted-foreground/80">
+                · Updated {formatDate(announcementData.updated_at)}
+              </span>
+            )}
           </div>
         </CardHeader>
         <CardContent>

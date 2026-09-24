@@ -21,6 +21,7 @@ import {
   type UnreadReply,
 } from '@/components/citizen/dashboard/unread-replies-card'
 import { VerificationBanner } from '@/components/citizen/verification-banner'
+import { AnnouncementAlertBanner } from '@/components/citizen/dashboard/announcement-alert-banner'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -36,6 +37,7 @@ import {
   sortByCreatedAtDesc,
 } from '@/lib/citizen-stats'
 import { getOrCreateResidentProfile } from '@/lib/residents'
+import { isAnnouncementColumnError } from '@/lib/announcements'
 import { createClient } from '@/lib/supabase/client'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { Bell, FileWarning, Megaphone, Plus, ShieldCheck } from 'lucide-react'
@@ -51,7 +53,9 @@ const REQUEST_COLUMNS = 'id, title, category, status, created_at, request_type'
 // title falls back to `title` (see `getRequestTypeTitle`) when it is absent.
 const REQUEST_COLUMNS_LEGACY = 'id, title, category, status, created_at'
 const COMPLAINT_COLUMNS = 'id, title, category, status, created_at'
-const ANNOUNCEMENT_COLUMNS = 'id, title, category, created_at, excerpt'
+const ANNOUNCEMENT_COLUMNS_FULL = 'id, title, category, created_at, excerpt, published_at, expires_at, pinned'
+const ANNOUNCEMENT_COLUMNS_NO_PIN = 'id, title, category, created_at, excerpt, published_at'
+const ANNOUNCEMENT_COLUMNS_BASE = 'id, title, category, created_at, excerpt'
 
 type ComplaintRow = RecentComplaint
 
@@ -186,39 +190,69 @@ async function loadUnreadReplies(
   }))
 }
 
-async function loadAnnouncements(
+/**
+ * Announcements a resident should actually see: published, already live (a
+ * future `published_at` is a schedule) and not expired. Visibility is resolved
+ * at read time, so scheduling needs no background job.
+ *
+ * The extra query variants only exist so deployments still work before
+ * migration 27 (pinned/expires_at) has been applied.
+ */
+async function loadVisibleAnnouncements(
   supabase: SupabaseClient,
+  options: { limit: number; category?: string },
 ): Promise<DashboardAnnouncement[]> {
-  const { data, error } = await supabase
-    .from('announcements')
-    .select(ANNOUNCEMENT_COLUMNS)
-    .eq('is_published', true)
-    .order('created_at', { ascending: false })
-    .limit(RECENT_LIMIT)
+  const now = new Date().toISOString()
+  const { limit, category } = options
 
-  if (!error) {
-    return (data ?? []) as unknown as DashboardAnnouncement[]
+  const start = (columns: string) => {
+    const query = supabase.from('announcements').select(columns).eq('is_published', true)
+    return category ? query.eq('category', category) : query
   }
 
-  if (!/excerpt/i.test(error.message ?? '')) {
-    throw error
+  const attempts: Array<() => PromiseLike<{ data: any[] | null; error: any }>> = [
+    () =>
+      start(ANNOUNCEMENT_COLUMNS_FULL)
+        .lte('published_at', now)
+        .or(`expires_at.is.null,expires_at.gt.${now}`)
+        .order('pinned', { ascending: false })
+        .order('published_at', { ascending: false })
+        .limit(limit),
+    () =>
+      start(ANNOUNCEMENT_COLUMNS_NO_PIN)
+        .lte('published_at', now)
+        .order('published_at', { ascending: false })
+        .limit(limit),
+    () =>
+      start(ANNOUNCEMENT_COLUMNS_BASE)
+        .order('created_at', { ascending: false })
+        .limit(limit),
+  ]
+
+  let lastError: any = null
+
+  for (const attempt of attempts) {
+    const { data, error } = await attempt()
+
+    if (!error) {
+      return (data ?? []) as unknown as DashboardAnnouncement[]
+    }
+
+    lastError = error
+    if (!isAnnouncementColumnError(error)) break
   }
 
-  const fallback = await supabase
-    .from('announcements')
-    .select('id, title, category, created_at')
-    .eq('is_published', true)
-    .order('created_at', { ascending: false })
-    .limit(RECENT_LIMIT)
-
-  if (fallback.error) {
-    throw fallback.error
+  // A genuinely broken query should surface, but a database missing one of the
+  // optional columns only means the cards show nothing.
+  if (lastError && !isAnnouncementColumnError(lastError)) {
+    throw lastError
   }
 
-  return ((fallback.data ?? []) as unknown as DashboardAnnouncement[]).map((row) => ({
-    ...row,
-    excerpt: null,
-  }))
+  console.warn(
+    'announcements could not be read with the current schema, apply the announcements migrations:',
+    lastError?.message,
+  )
+  return []
 }
 
 function describeError(error: unknown): string {
@@ -239,6 +273,7 @@ export default function CitizenDashboard() {
   const [complaints, setComplaints] = useState<ComplaintRow[]>([])
   const [unreadReplies, setUnreadReplies] = useState<UnreadReply[]>([])
   const [announcements, setAnnouncements] = useState<DashboardAnnouncement[]>([])
+  const [activeAlert, setActiveAlert] = useState<DashboardAnnouncement | null>(null)
   const { unreadCount, refreshUnreadCount } = useNotifications()
 
   useEffect(() => {
@@ -272,14 +307,15 @@ export default function CitizenDashboard() {
           setVerificationConfidence(resident.verification_confidence ?? null)
         }
 
-        // These four reads are independent, so run them concurrently rather
+        // These five reads are independent, so run them concurrently rather
         // than chaining round trips.
-        const [requestRows, complaintRows, replies, latestAnnouncements] =
+        const [requestRows, complaintRows, replies, latestAnnouncements, alertRows] =
           await Promise.all([
             loadRequests(supabase, resident.id),
             loadComplaints(supabase, resident.id),
             loadUnreadReplies(supabase, user.id),
-            loadAnnouncements(supabase),
+            loadVisibleAnnouncements(supabase, { limit: RECENT_LIMIT }),
+            loadVisibleAnnouncements(supabase, { limit: 1, category: 'Alert' }),
           ])
 
         if (cancelled) return
@@ -290,6 +326,7 @@ export default function CitizenDashboard() {
         setComplaints(sortByCreatedAtDesc(complaintRows))
         setUnreadReplies(replies)
         setAnnouncements(latestAnnouncements)
+        setActiveAlert(alertRows[0] ?? null)
 
         await refreshUnreadCount()
       } catch (error: unknown) {
@@ -354,6 +391,9 @@ export default function CitizenDashboard() {
           <p className="text-sm">{fetchError}</p>
         </div>
       )}
+
+      {/* Urgent barangay notice sits above everything else once acknowledged. */}
+      <AnnouncementAlertBanner alert={activeAlert} loading={loading} />
 
       <VerificationBanner
         status={verificationStatus}

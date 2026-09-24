@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "node --test lib/status-machine.test.ts lib/citizen-stats.test.ts lib/workload.test.ts lib/request-payment.test.ts"
+    "test": "node --test lib/status-machine.test.ts lib/citizen-stats.test.ts lib/workload.test.ts lib/request-payment.test.ts lib/verification.test.ts lib/html-sanitize.test.ts lib/announcements.test.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",

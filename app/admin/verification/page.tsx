@@ -27,6 +27,12 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog'
 
+const ATTEMPT_TYPE_LABELS: Record<string, string> = {
+  form_match: 'Form Match',
+  id_ocr: 'ID Upload (OCR)',
+  manual_review: 'Manual Review',
+}
+
 interface VerificationAttempt {
   id: string
   resident_id: string
@@ -171,7 +177,14 @@ export default function AdminVerificationPage() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <Badge variant="outline">{attempt.attempt_type}</Badge>
+                        <div className="flex items-center gap-1.5">
+                          <Badge variant="outline">
+                            {ATTEMPT_TYPE_LABELS[attempt.attempt_type] ?? attempt.attempt_type}
+                          </Badge>
+                          {attempt.input_data?.appeal ? (
+                            <Badge className="bg-blue-100 text-blue-800">Appeal</Badge>
+                          ) : null}
+                        </div>
                       </TableCell>
                       <TableCell>
                         {attempt.match_score !== null
@@ -262,7 +275,11 @@ export default function AdminVerificationPage() {
                                     {Object.entries(attempt.input_data).map(([key, value]) => (
                                       <div key={key} className="flex justify-between text-sm">
                                         <span>{key}</span>
-                                        <span>{String(value)}</span>
+                                        <span className="font-mono text-xs">
+                                          {value !== null && typeof value === 'object'
+                                            ? JSON.stringify(value)
+                                            : String(value)}
+                                        </span>
                                       </div>
                                     ))}
                                   </div>

@@ -2111,3 +2111,73 @@ UPDATE public.complaints
 SET tracking_number = COALESCE(tracking_number, 'RPT-' || UPPER(SUBSTRING(id::text, 1, 8)))
 WHERE tracking_number IS NULL;
 
+--- Migration 25: Fix verification_attempts RLS (INSERT/UPDATE) ---
+-- Migration 25: Fix verification_attempts RLS (INSERT/UPDATE policies)
+-- Migration 16 enabled RLS on verification_attempts but only created SELECT
+-- policies. Without INSERT/UPDATE policies, user-session writes were rejected:
+--   * Residents' OCR attempts were silently dropped, so the admin review queue
+--     never received `needs_review` entries.
+--   * Admin approve/reject failed with a permission error (HTTP 500).
+
+-- Residents can log verification attempts for their own profile (OCR uploads,
+-- re-submissions, and rejected-verification appeals).
+DROP POLICY IF EXISTS "Residents can log their own verification attempts" ON public.verification_attempts;
+CREATE POLICY "Residents can log their own verification attempts" ON public.verification_attempts
+  FOR INSERT WITH CHECK (
+    resident_id IN (
+      SELECT id FROM public.residents WHERE residents.user_id = auth.uid()
+    )
+  );
+
+-- Admins can update attempts when reviewing them (status, reviewer, timestamp).
+DROP POLICY IF EXISTS "Admins can review verification attempts" ON public.verification_attempts;
+CREATE POLICY "Admins can review verification attempts" ON public.verification_attempts
+  FOR UPDATE USING (public.is_admin_user(auth.uid()))
+  WITH CHECK (public.is_admin_user(auth.uid()));
+
+--- Migration 26: Add published_at to announcements ---
+-- Migration 26: Add published_at to announcements
+-- Records the real publish time. Before this, the UI reused created_at, so a
+-- draft written weeks earlier displayed a stale "Published on" date the moment
+-- it went live. Cleared back to NULL when an announcement is unpublished.
+
+ALTER TABLE public.announcements
+  ADD COLUMN IF NOT EXISTS published_at TIMESTAMP WITH TIME ZONE;
+
+COMMENT ON COLUMN public.announcements.published_at IS 'When the announcement was most recently published; NULL while it is a draft';
+
+-- Backfill: announcements that are already live were published when created.
+UPDATE public.announcements
+   SET published_at = created_at
+ WHERE is_published = TRUE
+   AND published_at IS NULL;
+
+-- Supports the citizen feed (published newest-first) and admin status filters.
+CREATE INDEX IF NOT EXISTS announcements_published_feed_idx
+  ON public.announcements (is_published, published_at DESC NULLS LAST);
+
+--- Migration 27: Announcement pinning and expiry ---
+-- Migration 27: Announcement pinning and expiry
+-- `pinned` keeps an important announcement at the top of the citizen feed.
+-- `expires_at` hides time-bound notices automatically (e.g. a maintenance window),
+-- so they do not linger on the dashboard once they stop applying.
+--
+-- No scheduled job is needed: migration 26's `published_at` doubles as the
+-- publish schedule (a future value means "publish later"), and visibility is
+-- resolved at read time.
+
+ALTER TABLE public.announcements
+  ADD COLUMN IF NOT EXISTS pinned BOOLEAN NOT NULL DEFAULT FALSE;
+
+ALTER TABLE public.announcements
+  ADD COLUMN IF NOT EXISTS expires_at TIMESTAMP WITH TIME ZONE;
+
+COMMENT ON COLUMN public.announcements.pinned IS 'Pins the announcement above unpinned ones in the citizen feed';
+COMMENT ON COLUMN public.announcements.expires_at IS 'Optional time after which the announcement is hidden from residents (NULL = never expires)';
+
+-- Supports the citizen feed: visible rows, pinned first, newest publish first.
+CREATE INDEX IF NOT EXISTS announcements_feed_idx
+  ON public.announcements (is_published, pinned DESC, published_at DESC);
+
+
+

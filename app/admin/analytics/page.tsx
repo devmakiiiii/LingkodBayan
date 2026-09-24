@@ -132,7 +132,7 @@ export default function AdminAnalyticsPage() {
       label: 'Total Officials',
       value: officials.length,
       icon: Users,
-      hint: 'Active and inactive records',
+      hint: 'Current and archived records',
     },
     {
       label: 'Trend View',

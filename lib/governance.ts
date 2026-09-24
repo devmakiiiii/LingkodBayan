@@ -2,7 +2,7 @@ export const designationCategories = ['barangay', 'sk', 'staff'] as const
 
 export type DesignationCategory = (typeof designationCategories)[number]
 
-export const officialStatuses = ['active', 'inactive', 'archived'] as const
+export const officialStatuses = ['active', 'archived'] as const
 
 export type OfficialStatus = (typeof officialStatuses)[number]
 
@@ -35,7 +35,6 @@ export function getDesignationCategoryShortLabel(category: string | null | undef
 }
 
 export function getOfficialStatusLabel(status: string | null | undefined) {
-  if (status === 'inactive') return 'Inactive'
   if (status === 'archived') return 'Archived'
   return 'Active'
 }

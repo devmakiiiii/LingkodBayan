@@ -3,9 +3,10 @@ export const revalidate = 60
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Empty, EmptyMedia } from '@/components/ui/empty'
-import { Megaphone, Calendar } from 'lucide-react'
+import { Megaphone, Calendar, Pin } from 'lucide-react'
 import Link from 'next/link'
 import { getPublishedAnnouncements } from '@/lib/db'
+import { getAnnouncementCategoryColor } from '@/lib/announcement-categories'
 
 interface Announcement {
   id: string
@@ -14,6 +15,9 @@ interface Announcement {
   excerpt?: string | null
   category: string
   created_at: string
+  published_at?: string | null
+  expires_at?: string | null
+  pinned?: boolean | null
   image_url?: string | null
 }
 
@@ -24,17 +28,6 @@ function stripHtml(html: string): string {
 function getPreviewText(announcement: Announcement): string {
   if (announcement.excerpt) return announcement.excerpt
   return stripHtml(announcement.content)
-}
-
-const getCategoryColor = (category: string) => {
-  const colors: Record<string, string> = {
-    'event': 'bg-blue-500/10 text-blue-700 border-blue-500/20',
-    'update': 'bg-primary/10 text-primary border-primary/20',
-    'alert': 'bg-red-500/10 text-red-700 border-red-500/20',
-    'maintenance': 'bg-yellow-500/10 text-yellow-700 border-yellow-500/20',
-    'news': 'bg-purple-500/10 text-purple-700 border-purple-500/20',
-  }
-  return colors[category.toLowerCase()] || 'bg-gray-500/10 text-gray-700 dark:text-gray-300 border-gray-500/20'
 }
 
 const formatDate = (dateString: string) => {
@@ -53,6 +46,9 @@ export default async function AnnouncementsPage() {
     dbAnnouncements = data.map((a: any) => ({
       ...a,
       image_url: a.image_url || null,
+      published_at: a.published_at || null,
+      expires_at: a.expires_at || null,
+      pinned: Boolean(a.pinned),
     })) as Announcement[]
   } catch (error) {
     console.error('Error loading announcements:', error)
@@ -123,9 +119,17 @@ if (dbAnnouncements.length === 0) {
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between gap-4">
                   <CardTitle className="text-xl text-balance flex-1">{announcement.title}</CardTitle>
-                  <Badge className={getCategoryColor(announcement.category)} variant="outline">
-                    {announcement.category}
-                  </Badge>
+                  <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+                    {announcement.pinned && (
+                      <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20">
+                        <Pin className="mr-1 h-3 w-3" aria-hidden="true" />
+                        Pinned
+                      </Badge>
+                    )}
+                    <Badge className={getAnnouncementCategoryColor(announcement.category)} variant="outline">
+                      {announcement.category}
+                    </Badge>
+                  </div>
                 </div>
               </CardHeader>
               <CardContent className="flex-1 flex flex-col space-y-4">
@@ -134,7 +138,7 @@ if (dbAnnouncements.length === 0) {
                 </p>
                 <div className="flex items-center gap-2 text-xs text-muted-foreground pt-2 border-t mt-auto">
                   <Calendar className="h-3 w-3" />
-                  <span>{formatDate(announcement.created_at)}</span>
+                  <span>{formatDate(announcement.published_at || announcement.created_at)}</span>
                 </div>
               </CardContent>
             </Card>

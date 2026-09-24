@@ -35,7 +35,7 @@ export interface WorkloadOfficialInput {
   id: string
   name: string
   designationLabel?: string | null
-  /** Officials status: 'active' | 'inactive' | 'archived' (missing = active). */
+  /** Official status: 'active' | 'archived' (missing = active). Legacy 'inactive' rows are treated as non-assignable. */
   status?: string | null
 }
 
@@ -222,5 +222,7 @@ export function planEvenDistribution(
 }
 
 function isActiveOfficialStatus(status?: string | null): boolean {
+  // Only 'active' (the default) is assignable. Archived — and any legacy
+  // 'inactive' rows that predate migration 28 — receive no new work.
   return (status ?? 'active').toLowerCase().trim() === 'active'
 }

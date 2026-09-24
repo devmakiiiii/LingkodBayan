@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 import { Upload, FileText, CheckCircle2, AlertCircle, Clock, X, Loader2 } from 'lucide-react'
@@ -38,6 +39,8 @@ export default function VerifyIdPage() {
   const [verificationStatus, setVerificationStatus] = useState<
     'unverified' | 'auto_verified' | 'id_verified' | 'needs_review' | 'rejected'
   >('unverified')
+  const [appealNote, setAppealNote] = useState('')
+  const [isAppealing, setIsAppealing] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -257,6 +260,35 @@ export default function VerifyIdPage() {
     }
   }
 
+  // Appeal a rejection to a human reviewer instead of re-running the same
+  // automated checks. The API moves the resident back to `needs_review` and
+  // queues a manual_review attempt for the admin review queue.
+  const handleAppeal = async () => {
+    setIsAppealing(true)
+    try {
+      const res = await fetch('/api/verification/appeal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ note: appealNote.trim() || undefined }),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to submit appeal')
+      }
+
+      setVerificationStatus('needs_review')
+      setAppealNote('')
+      toast.success('Your appeal was submitted. An administrator will review your verification.')
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to submit appeal'
+      toast.error(message)
+    } finally {
+      setIsAppealing(false)
+    }
+  }
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'auto_verified':
@@ -309,13 +341,44 @@ export default function VerifyIdPage() {
           <CardHeader>
             <CardTitle className="text-red-800">Verification Rejected</CardTitle>
             <CardDescription className="text-red-700">
-              Your ID submission was rejected. Please contact the barangay office or try uploading a clearer image.
+              Your ID submission was rejected. You can upload a clearer image to try again, or
+              request a manual review by an administrator.
             </CardDescription>
           </CardHeader>
-          <CardContent>
-            <Button onClick={() => setVerificationStatus('unverified')} variant="outline">
-              Try Again
-            </Button>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="appeal-note" className="text-sm font-medium text-red-900">
+                Message for the reviewer (optional)
+              </Label>
+              <Textarea
+                id="appeal-note"
+                value={appealNote}
+                onChange={(e) => setAppealNote(e.target.value)}
+                placeholder="Explain why your verification should be re-reviewed..."
+                rows={3}
+                maxLength={1000}
+                className="bg-white"
+              />
+            </div>
+            <div className="flex flex-wrap gap-3">
+              <Button onClick={() => setVerificationStatus('unverified')} variant="outline">
+                Try Again (Re-upload ID)
+              </Button>
+              <Button
+                onClick={handleAppeal}
+                disabled={isAppealing}
+                className="bg-primary hover:bg-primary/90"
+              >
+                {isAppealing ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    Submitting...
+                  </>
+                ) : (
+                  'Request Human Review'
+                )}
+              </Button>
+            </div>
           </CardContent>
         </Card>
       )}

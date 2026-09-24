@@ -8,9 +8,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Switch } from '@/components/ui/switch'
 import { toast } from 'sonner'
-import { getDesignationCategoryShortLabel, getOfficialStatusLabel, isCaptainDesignation } from '@/lib/governance'
+import { getDesignationCategoryShortLabel, isCaptainDesignation } from '@/lib/governance'
 import type { OfficialInput } from '@/lib/schemas'
 import type { DesignationRecord } from '@/components/admin/designations-actions'
 
@@ -79,14 +78,6 @@ function RequiredLabel({ children, htmlFor }: { children: string; htmlFor?: stri
   )
 }
 
-function RequiredValueLabel({ children }: { children: string }) {
-  return (
-    <Label>
-      {children} <span className="text-rose-600">*</span>
-    </Label>
-  )
-}
-
 export function OfficialActions({ isOpen, mode, official, designations, onClose, onSaved }: OfficialActionsProps) {
   const [fullName, setFullName] = useState('')
   const [designationId, setDesignationId] = useState('')
@@ -94,7 +85,6 @@ export function OfficialActions({ isOpen, mode, official, designations, onClose,
   const [email, setEmail] = useState('')
   const [termStart, setTermStart] = useState('')
   const [termEnd, setTermEnd] = useState('')
-  const [status, setStatus] = useState<'active' | 'inactive' | 'archived'>('active')
   const [photo, setPhoto] = useState('')
   const [photoFile, setPhotoFile] = useState<File | null>(null)
   const [isSaving, setIsSaving] = useState(false)
@@ -108,7 +98,6 @@ export function OfficialActions({ isOpen, mode, official, designations, onClose,
       setEmail(official.email || '')
       setTermStart(official.termStart || '')
       setTermEnd(official.termEnd || '')
-      setStatus(official.status)
       setPhoto(official.photo || '')
       setPhotoFile(null)
       return
@@ -121,7 +110,6 @@ export function OfficialActions({ isOpen, mode, official, designations, onClose,
       setEmail('')
       setTermStart('')
       setTermEnd('')
-      setStatus('active')
       setPhoto('')
       setPhotoFile(null)
     }
@@ -170,7 +158,7 @@ export function OfficialActions({ isOpen, mode, official, designations, onClose,
         email: email || null,
         term_start: termStart || null,
         term_end: termEnd || null,
-        status,
+        status: official?.status === 'archived' ? 'archived' : 'active',
         photo: nextPhoto || null,
       }
 
@@ -234,14 +222,12 @@ export function OfficialActions({ isOpen, mode, official, designations, onClose,
                 <p className="text-xs uppercase tracking-wide text-muted-foreground">Term</p>
                 <p className="font-medium">{(official.termStart || '').replaceAll('-', '/')} - {(official.termEnd || '').replaceAll('-', '/')}</p>
               </div>
-              <div>
-                <p className="text-xs uppercase tracking-wide text-muted-foreground">Status</p>
-                <p className="font-medium">{getOfficialStatusLabel(official.status)}</p>
-              </div>
               {isCaptainDesignation(official.designation?.name) && (
-                <span className="inline-flex rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">
-                  Top Priority
-                </span>
+                <div className="flex items-center">
+                  <span className="inline-flex rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">
+                    Top Priority
+                  </span>
+                </div>
               )}
             </div>
           </div>
@@ -331,18 +317,6 @@ export function OfficialActions({ isOpen, mode, official, designations, onClose,
           <div className="space-y-2">
             <RequiredLabel htmlFor="official-term-end">Term End Date</RequiredLabel>
             <Input id="official-term-end" type="date" value={termEnd} onChange={(event) => setTermEnd(event.target.value)} required />
-          </div>
-
-          <div className="flex items-center justify-between rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3 md:col-span-2">
-            <div>
-              <RequiredValueLabel>Status</RequiredValueLabel>
-              <p className="text-sm text-muted-foreground">Toggle Active / Inactive</p>
-            </div>
-            <div className="flex items-center gap-3">
-              <span className="text-sm text-muted-foreground">Inactive</span>
-              <Switch checked={status === 'active'} onCheckedChange={(checked) => setStatus(checked ? 'active' : 'inactive')} />
-              <span className="text-sm text-muted-foreground">Active</span>
-            </div>
           </div>
         </div>
 

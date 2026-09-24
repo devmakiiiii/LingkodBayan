@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { createServerClient } from '@supabase/ssr'
 import { verifyRequest } from '@/lib/request-security'
+import { getAdminFromRequest } from '@/lib/admin-auth'
 import { logger } from '@/lib/logger'
 
 const bucketName = 'announcement-images'
@@ -62,25 +62,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid request origin' }, { status: 403 })
   }
 
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll()
-        },
-        setAll() {},
-      },
-    },
-  )
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
+  const user = await getAdminFromRequest(request)
   if (!user) {
-    return NextResponse.json({ error: 'Authentication required.' }, { status: 401 })
+    return NextResponse.json({ error: 'Admin access required.' }, { status: 403 })
   }
 
   try {

@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { RequestInput, ComplaintInput, DesignationInput, OfficialInput, BarangayInfoInput, MissionVisionInput, SignatureUploadInput, ServiceCategoryInput } from './schemas'
 import { logger } from './logger'
+import { isAnnouncementColumnError } from './announcements'
 import { assertRequestTransition, assertComplaintTransition } from './status-machine'
 import {
   buildRequestPaymentSnapshot,
@@ -148,71 +149,124 @@ export async function getResidentComplaints(residentId: string) {
   return data || []
 }
 
-export async function getPublishedAnnouncements() {
-  const supabase = await createClient()
-  
-  let { data, error }: { data: any[] | null; error: any } = await supabase
-    .from('announcements')
-    .select('id, title, content, category, created_at, is_published, image_url, excerpt')
-    .eq('is_published', true)
-    .order('created_at', { ascending: false })
+/** Column sets from richest to leanest so older databases still work. */
+const ANNOUNCEMENT_COLUMNS_FULL =
+  'id, title, content, category, created_at, updated_at, published_at, expires_at, pinned, is_published, image_url, excerpt'
+const ANNOUNCEMENT_COLUMNS_NO_PIN =
+  'id, title, content, category, created_at, updated_at, published_at, is_published, image_url, excerpt'
+const ANNOUNCEMENT_COLUMNS_BASE = 'id, title, content, category, created_at, updated_at, is_published'
 
-  if ((error && error.message?.includes('image_url')) || (error && error.message?.includes('excerpt'))) {
-    const result = await supabase
-      .from('announcements')
-      .select('id, title, content, category, created_at, is_published')
-      .eq('is_published', true)
-      .order('created_at', { ascending: false })
-    data = result.data
-    error = result.error
+/**
+ * Runs each query variant until one succeeds, skipping variants whose columns
+ * have not been added by the migrations yet.
+ */
+async function runUntilColumnSupport<T>(
+  attempts: Array<() => PromiseLike<{ data: T; error: any }>>,
+): Promise<{ data: T | null; error: any }> {
+  let lastError: any = null
 
-    // Add image_url and excerpt fields if missing (for schema compatibility)
-    data = (data || []).map((announcement: any) => ({
-      ...announcement,
-      image_url: announcement.image_url || null,
-      excerpt: announcement.excerpt || null,
-    }))
+  for (const attempt of attempts) {
+    const { data, error } = await attempt()
+
+    if (!error) return { data, error: null }
+
+    lastError = error
+    if (!isAnnouncementColumnError(error)) break
   }
 
+  return { data: null, error: lastError }
+}
+
+function normalizeAnnouncementRow(announcement: any) {
+  return {
+    ...announcement,
+    image_url: announcement.image_url || null,
+    excerpt: announcement.excerpt || null,
+    published_at: announcement.published_at || null,
+    expires_at: announcement.expires_at || null,
+    pinned: Boolean(announcement.pinned),
+  }
+}
+
+/**
+ * Residents only see published announcements that are past their publish time
+ * (a future `published_at` is a schedule) and not yet expired. This is resolved
+ * at read time, so scheduling needs no background job.
+ */
+export async function getPublishedAnnouncements() {
+  const supabase = await createClient()
+  const now = new Date().toISOString()
+
+  const { data, error } = await runUntilColumnSupport<any>([
+    () =>
+      supabase
+        .from('announcements')
+        .select(ANNOUNCEMENT_COLUMNS_FULL)
+        .eq('is_published', true)
+        .lte('published_at', now)
+        .or(`expires_at.is.null,expires_at.gt.${now}`)
+        .order('pinned', { ascending: false })
+        .order('published_at', { ascending: false }),
+    () =>
+      supabase
+        .from('announcements')
+        .select(ANNOUNCEMENT_COLUMNS_NO_PIN)
+        .eq('is_published', true)
+        .lte('published_at', now)
+        .order('published_at', { ascending: false }),
+    () =>
+      supabase
+        .from('announcements')
+        .select(ANNOUNCEMENT_COLUMNS_BASE)
+        .eq('is_published', true)
+        .order('created_at', { ascending: false }),
+  ])
+
   if (error) throw new Error(`Failed to get announcements: ${error.message}`)
-  return data || []
+
+  return (data || []).map(normalizeAnnouncementRow)
 }
 
 export async function getPublishedAnnouncementById(id: string) {
   const supabase = await createClient()
-  
-  let { data, error }: { data: any | null; error: any } = await supabase
-    .from('announcements')
-    .select('id, title, content, category, created_at, is_published, image_url, excerpt')
-    .eq('is_published', true)
-    .eq('id', id)
-    .single()
+  const now = new Date().toISOString()
 
-  if ((error && error.message?.includes('image_url')) || (error && error.message?.includes('excerpt'))) {
-    const result = await supabase
-      .from('announcements')
-      .select('id, title, content, category, created_at, is_published')
-      .eq('is_published', true)
-      .eq('id', id)
-      .single()
-    data = result.data
-    error = result.error
-
-    // Add image_url and excerpt if missing (for schema compatibility)
-    if (data) {
-      data = {
-        ...data,
-        image_url: data.image_url || null,
-        excerpt: data.excerpt || null,
-      }
-    }
-  }
+  // Scheduled and expired announcements are hidden even when the id is known,
+  // so a direct link to one renders the not-found page.
+  const { data, error } = await runUntilColumnSupport<any>([
+    () =>
+      supabase
+        .from('announcements')
+        .select(ANNOUNCEMENT_COLUMNS_FULL)
+        .eq('is_published', true)
+        .eq('id', id)
+        .lte('published_at', now)
+        .or(`expires_at.is.null,expires_at.gt.${now}`)
+        .maybeSingle(),
+    () =>
+      supabase
+        .from('announcements')
+        .select(ANNOUNCEMENT_COLUMNS_NO_PIN)
+        .eq('is_published', true)
+        .eq('id', id)
+        .lte('published_at', now)
+        .maybeSingle(),
+    () =>
+      supabase
+        .from('announcements')
+        .select(ANNOUNCEMENT_COLUMNS_BASE)
+        .eq('is_published', true)
+        .eq('id', id)
+        .maybeSingle(),
+  ])
 
   if (error?.code === 'PGRST116') {
     return null
   }
   if (error) throw new Error(`Failed to get announcement: ${error.message}`)
-  return data
+  if (!data) return null
+
+  return normalizeAnnouncementRow(data)
 }
 
 // Admin functions

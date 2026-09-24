@@ -97,6 +97,18 @@ const sql = readMigrationScript()
   + '--- Migration 24: Save Requests With Payments ---\n'
   + readMigrationFile('24_add_request_payments.sql')
   + '\n'
+  + '--- Migration 25: Fix verification_attempts RLS (INSERT/UPDATE) ---\n'
+  + readMigrationFile('25_fix_verification_attempts_rls.sql')
+  + '\n'
+  + '--- Migration 26: Add published_at to Announcements ---\n'
+  + readMigrationFile('26_add_announcement_publishing.sql')
+  + '\n'
+  + '--- Migration 27: Announcement Pinning & Expiry ---\n'
+  + readMigrationFile('27_add_announcement_pinning_and_expiry.sql')
+  + '\n'
+  + '--- Migration 28: Retire Inactive Officials Status ---\n'
+  + readMigrationFile('28_retire_inactive_officials_status.sql')
+  + '\n'
   + '--- Finalize Complaints Schema ---\n'
   + readMigrationFile('finalize_complaints_schema.sql');
 console.log(sql);

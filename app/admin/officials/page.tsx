@@ -11,13 +11,12 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
-import { Plus, Pencil, Archive, Eye, Search } from 'lucide-react'
+import { Plus, Pencil, Archive, Eye, Search, Undo2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { OfficialActions, type OfficialRecord } from '@/components/admin/officials-actions'
 import { DesignationActions, type DesignationRecord } from '@/components/admin/designations-actions'
 import {
   getDesignationCategoryShortLabel,
-  getOfficialStatusLabel,
   getOfficialTermDuration,
   isCaptainDesignation,
   normalizeBadgeColor,
@@ -58,7 +57,7 @@ function mapOfficialRow(row: any): OfficialRow {
 }
 
 const categoryFilters = ['all', 'barangay', 'sk', 'staff'] as const
-const statusFilters = ['all', 'active', 'inactive', 'archived'] as const
+const recordFilters = ['current', 'archived'] as const
 
 const defaultDesignations = [
   { name: 'Barangay Captain', category: 'barangay', priority_order: 1, badge_color: '#166534' },
@@ -109,7 +108,7 @@ export default function AdminOfficialsPage() {
   const [loadError, setLoadError] = useState('')
   const [search, setSearch] = useState('')
   const [categoryFilter, setCategoryFilter] = useState<(typeof categoryFilters)[number]>('all')
-  const [statusFilter, setStatusFilter] = useState<(typeof statusFilters)[number]>('all')
+  const [recordFilter, setRecordFilter] = useState<(typeof recordFilters)[number]>('current')
   const [modalOpen, setModalOpen] = useState(false)
   const [modalMode, setModalMode] = useState<'create' | 'edit' | 'view'>('create')
   const [selectedOfficial, setSelectedOfficial] = useState<OfficialRow | null>(null)
@@ -188,11 +187,11 @@ export default function AdminOfficialsPage() {
           officialName.toLowerCase().includes(query) ||
           (designation?.name || '').toLowerCase().includes(query)
         const matchesCategory = categoryFilter === 'all' || designation?.category === categoryFilter
-        const matchesStatus = statusFilter === 'all'
-          ? official.status !== 'archived'
-          : official.status === statusFilter
+        const matchesRecord = recordFilter === 'archived'
+          ? official.status === 'archived'
+          : official.status !== 'archived'
 
-        return matchesSearch && matchesCategory && matchesStatus
+        return matchesSearch && matchesCategory && matchesRecord
       })
       .sort((a, b) => {
         const da = a.designation || (a as any).designations || null
@@ -201,7 +200,7 @@ export default function AdminOfficialsPage() {
         if (priorityDiff !== 0) return priorityDiff
         return (a.fullName || '').localeCompare(b.fullName || '')
       })
-  }, [officials, search, categoryFilter, statusFilter])
+  }, [officials, search, categoryFilter, recordFilter])
 
   const groupedOfficials = useMemo(() => {
     const groups: Record<'barangay' | 'sk' | 'staff', OfficialRow[]> = {
@@ -233,6 +232,25 @@ export default function AdminOfficialsPage() {
       loadData()
     } catch (error) {
       console.error('Error archiving official:', formatSupabaseError(error))
+      toast.error(formatSupabaseError(error))
+    } finally {
+      setIsArchiving(false)
+    }
+  }
+
+  async function restoreOfficialById(official: OfficialRow) {
+    try {
+      setIsArchiving(true)
+      const supabase = createClient()
+      const { error } = await supabase
+        .from('officials')
+        .update({ status: 'active', updated_at: new Date() })
+        .eq('id', official.id)
+      if (error) throw error
+      toast.success(`${official.fullName} has been restored.`)
+      loadData()
+    } catch (error) {
+      console.error('Error restoring official:', formatSupabaseError(error))
       toast.error(formatSupabaseError(error))
     } finally {
       setIsArchiving(false)
@@ -313,14 +331,14 @@ export default function AdminOfficialsPage() {
               ))}
             </SelectContent>
           </Select>
-          <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as typeof statusFilter)}>
+          <Select value={recordFilter} onValueChange={(value) => setRecordFilter(value as typeof recordFilter)}>
             <SelectTrigger>
-              <SelectValue placeholder="Filter by status" />
+              <SelectValue placeholder="Filter by record" />
             </SelectTrigger>
             <SelectContent>
-              {statusFilters.map((filter) => (
+              {recordFilters.map((filter) => (
                 <SelectItem key={filter} value={filter}>
-                  {filter === 'all' ? 'Active & Inactive' : filter === 'active' ? 'Active' : filter === 'inactive' ? 'Inactive' : 'Archived'}
+                  {filter === 'current' ? 'Current' : 'Archived'}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -359,7 +377,6 @@ export default function AdminOfficialsPage() {
                         <TableHead>Contact Number</TableHead>
                         <TableHead>Email</TableHead>
                         <TableHead>Term Duration</TableHead>
-                        <TableHead>Status</TableHead>
                         <TableHead className="text-right">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -398,17 +415,6 @@ export default function AdminOfficialsPage() {
                             <TableCell>{official.contactNumber || 'N/A'}</TableCell>
                             <TableCell>{official.email || 'N/A'}</TableCell>
                             <TableCell>{getOfficialTermDuration(official.termStart, official.termEnd)}</TableCell>
-                            <TableCell>
-                              <Badge className={
-                                official.status === 'active'
-                                  ? 'bg-emerald-500/10 text-emerald-700 border-emerald-500/20'
-                                  : official.status === 'archived'
-                                    ? 'bg-amber-500/10 text-amber-700 border-amber-500/20'
-                                    : 'bg-slate-500/10 text-slate-700 border-slate-500/20'
-                              }>
-                                {getOfficialStatusLabel(official.status)}
-                              </Badge>
-                            </TableCell>
                             <TableCell className="text-right">
                               <div className="flex justify-end gap-2">
                                 <Button variant="outline" size="sm" onClick={() => { setSelectedOfficial(official); setModalMode('view'); setModalOpen(true) }}>
@@ -419,10 +425,17 @@ export default function AdminOfficialsPage() {
                                   <Pencil className="mr-1 h-4 w-4" />
                                   Edit
                                 </Button>
-                                 <Button variant="outline" size="sm" className="border-amber-200 text-amber-700 hover:bg-amber-50" onClick={() => setArchiveTarget(official)}>
-                                   <Archive className="mr-1 h-4 w-4" />
-                                   Archive
-                                 </Button>
+                                {official.status === 'archived' ? (
+                                  <Button variant="outline" size="sm" className="border-emerald-200 text-emerald-700 hover:bg-emerald-50" onClick={() => restoreOfficialById(official)} disabled={isArchiving}>
+                                    <Undo2 className="mr-1 h-4 w-4" />
+                                    Restore
+                                  </Button>
+                                ) : (
+                                  <Button variant="outline" size="sm" className="border-amber-200 text-amber-700 hover:bg-amber-50" onClick={() => setArchiveTarget(official)}>
+                                    <Archive className="mr-1 h-4 w-4" />
+                                    Archive
+                                  </Button>
+                                )}
                               </div>
                             </TableCell>
                           </TableRow>

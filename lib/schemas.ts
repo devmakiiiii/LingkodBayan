@@ -161,6 +161,13 @@ export const verificationMatchSchema = z.object({
   nationalId: z.string().optional(),
 })
 
+export const verificationAppealSchema = z.object({
+  note: z
+    .string()
+    .max(1000, 'Appeal note must be 1000 characters or less')
+    .optional(),
+})
+
 export const preRegisteredResidentSchema = z.object({
   firstName: z.string().min(1, 'First name is required'),
   lastName: z.string().min(1, 'Last name is required'),
@@ -187,6 +194,7 @@ export const verificationReviewSchema = z.object({
 export type VerificationMatchInput = z.infer<typeof verificationMatchSchema>
 export type PreRegisteredResidentInput = z.infer<typeof preRegisteredResidentSchema>
 export type VerificationReviewInput = z.infer<typeof verificationReviewSchema>
+export type VerificationAppealInput = z.infer<typeof verificationAppealSchema>
 
 // API payload schemas for route validation
 export const createAnnouncementSchema = z.object({
@@ -196,6 +204,10 @@ export const createAnnouncementSchema = z.object({
   is_published: z.boolean().default(false),
   image_url: z.string().url('Invalid image URL').optional().or(z.literal('')),
   excerpt: z.string().max(500, 'Excerpt must be 500 characters or less').optional().or(z.literal('')),
+  // Scheduling: an empty publish_at means "publish now" when is_published is set.
+  publish_at: z.string().trim().optional().nullable(),
+  expires_at: z.string().trim().optional().nullable(),
+  pinned: z.boolean().optional(),
 })
 
 export const updateAnnouncementSchema = z.object({
@@ -206,11 +218,24 @@ export const updateAnnouncementSchema = z.object({
   is_published: z.boolean().default(false),
   image_url: z.string().url('Invalid image URL').optional().or(z.literal('')),
   excerpt: z.string().max(500, 'Excerpt must be 500 characters or less').optional().or(z.literal('')),
+  // Scheduling: an empty publish_at means "publish now" when is_published is set.
+  publish_at: z.string().trim().optional().nullable(),
+  expires_at: z.string().trim().optional().nullable(),
+  pinned: z.boolean().optional(),
 })
 
 export const deleteAnnouncementSchema = z.object({
   id: z.string().uuid('Invalid announcement ID'),
 })
+
+// Narrow schema for the Manage table's publish/unpublish toggle, which only
+// sends the id and the new publish state.
+export const setAnnouncementPublishStateSchema = z.object({
+  id: z.string().uuid('Invalid announcement ID'),
+  is_published: z.boolean(),
+})
+
+export type SetAnnouncementPublishStateInput = z.infer<typeof setAnnouncementPublishStateSchema>
 
 export const complaintReplySchema = z.object({
   complaintId: z.string().uuid('Invalid complaint ID'),

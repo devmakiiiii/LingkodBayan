@@ -34,13 +34,37 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { AlertCircle, CheckCircle2, Edit, Trash2, Eye, EyeOff, Megaphone, Search, Loader2, Upload, X, ImageIcon } from 'lucide-react'
+import { AlertCircle, Calendar, CheckCircle2, Edit, Trash2, Eye, EyeOff, Megaphone, Pin, Search, Loader2, Upload, X, ImageIcon } from 'lucide-react'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import { toast } from 'sonner'
+import { ANNOUNCEMENT_CATEGORIES, getAnnouncementCategoryColor } from '@/lib/announcement-categories'
+import { sanitizeRichText } from '@/lib/html-sanitize'
+import {
+  ANNOUNCEMENT_STATUS_CLASSES,
+  ANNOUNCEMENT_STATUS_LABELS,
+  getAnnouncementStatus,
+  toDateTimeLocalValue,
+  type AnnouncementStatus,
+} from '@/lib/announcements'
 
 const TinyMCEEditor = dynamic(() => import('@tinymce/tinymce-react').then((mod) => mod.Editor), {
   ssr: false,
 })
 
-const categories = ['Event', 'Update', 'Alert', 'Maintenance', 'News']
+// Shared with the citizen views so the picker can never offer a category the
+// public pages have no badge colour for.
+const categories = ANNOUNCEMENT_CATEGORIES
+
+const MAX_EXCERPT_LENGTH = 500
 
 interface Announcement {
   id: string
@@ -49,23 +73,28 @@ interface Announcement {
   excerpt?: string | null
   category: string
   created_at: string
+  updated_at?: string | null
+  published_at?: string | null
+  expires_at?: string | null
+  pinned?: boolean | null
   is_published: boolean
   image_url?: string | null
 }
+
+/** Rows in the Manage table, sorted the way the citizen feed is sorted. */
+type AnnouncementRow = Announcement & { status: AnnouncementStatus }
 
 function isContentEmpty(html: string) {
   return html.replace(/<[^>]*>/g, ' ').replace(/&nbsp;/gi, ' ').trim() === ''
 }
 
-const getCategoryColor = (category: string) => {
-  const colors: Record<string, string> = {
-    'event': 'bg-blue-500/10 text-blue-700 border-blue-500/20',
-    'update': 'bg-primary/10 text-primary border-primary/20',
-    'alert': 'bg-red-500/10 text-red-700 border-red-500/20',
-    'maintenance': 'bg-yellow-500/10 text-yellow-700 border-yellow-500/20',
-    'news': 'bg-purple-500/10 text-purple-700 border-purple-500/20',
-  }
-  return colors[category.toLowerCase()] || 'bg-gray-500/10 text-gray-700 dark:text-gray-300 border-gray-500/20'
+function formatAdminDate(value: string | null | undefined) {
+  if (!value) return '—'
+  return new Date(value).toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  })
 }
 
 function stripHtml(html: string) {
@@ -84,6 +113,10 @@ export default function AdminAnnouncementsPage() {
   const [excerpt, setExcerpt] = useState('')
   const [category, setCategory] = useState('')
   const [isPublished, setIsPublished] = useState(false)
+  const [pinned, setPinned] = useState(false)
+  // Empty = publish immediately when "publish" is on; a future value schedules it.
+  const [publishAt, setPublishAt] = useState('')
+  const [expiresAt, setExpiresAt] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
@@ -91,7 +124,8 @@ export default function AdminAnnouncementsPage() {
   const [announcements, setAnnouncements] = useState<Announcement[]>([])
   const [loadingAnnouncements, setLoadingAnnouncements] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
-  const [statusFilter, setStatusFilter] = useState<'all' | 'published' | 'draft'>('all')
+  const [statusFilter, setStatusFilter] = useState<'all' | AnnouncementStatus>('all')
+  const [categoryFilter, setCategoryFilter] = useState<string>('all')
   const [configError, setConfigError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -108,11 +142,19 @@ export default function AdminAnnouncementsPage() {
   const [editExcerpt, setEditExcerpt] = useState('')
   const [editCategory, setEditCategory] = useState('')
   const [editIsPublished, setEditIsPublished] = useState(false)
+  const [editPinned, setEditPinned] = useState(false)
+  const [editPublishAt, setEditPublishAt] = useState('')
+  const [editExpiresAt, setEditExpiresAt] = useState('')
   const [editImageUrl, setEditImageUrl] = useState<string | null>(null)
   const [editImageFile, setEditImageFile] = useState<File | null>(null)
   const [editImagePreview, setEditImagePreview] = useState<string | null>(null)
 
   const [savingEdit, setSavingEdit] = useState(false)
+
+  const [publishBusyId, setPublishBusyId] = useState<string | null>(null)
+  const [previewAnnouncement, setPreviewAnnouncement] = useState<AnnouncementRow | null>(null)
+  const [announcementToDelete, setAnnouncementToDelete] = useState<Announcement | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
   async function loadAnnouncements() {
     setLoadingAnnouncements(true)
@@ -151,21 +193,38 @@ export default function AdminAnnouncementsPage() {
 
   const filteredAnnouncements = useMemo(() => {
     const query = searchQuery.toLowerCase().trim()
-    return announcements.filter((announcement) => {
-      const matchesSearch =
-        !query ||
-        announcement.title.toLowerCase().includes(query) ||
-        stripHtml(announcement.content).toLowerCase().includes(query) ||
-        announcement.category.toLowerCase().includes(query)
 
-      const matchesStatus =
-        statusFilter === 'all' ||
-        (statusFilter === 'published' && announcement.is_published) ||
-        (statusFilter === 'draft' && !announcement.is_published)
+    return announcements
+      .map<AnnouncementRow>((announcement) => ({
+        ...announcement,
+        status: getAnnouncementStatus(announcement),
+      }))
+      .filter((announcement) => {
+        const matchesSearch =
+          !query ||
+          announcement.title.toLowerCase().includes(query) ||
+          stripHtml(announcement.content).toLowerCase().includes(query) ||
+          announcement.category.toLowerCase().includes(query)
 
-      return matchesSearch && matchesStatus
-    })
-  }, [announcements, searchQuery, statusFilter])
+        const matchesStatus = statusFilter === 'all' || statusFilter === announcement.status
+
+        const matchesCategory =
+          categoryFilter === 'all' ||
+          announcement.category.toLowerCase() === categoryFilter.toLowerCase()
+
+        return matchesSearch && matchesStatus && matchesCategory
+      })
+      // Pinned first, then the newest publish time — mirrors the citizen feed.
+      .sort((a, b) => {
+        const pinnedDiff = Number(b.pinned ?? false) - Number(a.pinned ?? false)
+        if (pinnedDiff !== 0) return pinnedDiff
+
+        return (
+          new Date(b.published_at || b.created_at).getTime() -
+          new Date(a.published_at || a.created_at).getTime()
+        )
+      })
+  }, [announcements, searchQuery, statusFilter, categoryFilter])
 
   async function uploadImage(file: File): Promise<string | null> {
     const formData = new FormData()
@@ -214,6 +273,9 @@ export default function AdminAnnouncementsPage() {
           category,
           is_published: isPublished,
           image_url: imageUrl,
+          publish_at: publishAt || null,
+          expires_at: expiresAt || null,
+          pinned,
         }),
       })
 
@@ -227,6 +289,9 @@ export default function AdminAnnouncementsPage() {
       setExcerpt('')
       setCategory('')
       setIsPublished(false)
+      setPinned(false)
+      setPublishAt('')
+      setExpiresAt('')
       setImageFile(null)
       setImagePreview(null)
       setSuccess(true)
@@ -247,6 +312,9 @@ export default function AdminAnnouncementsPage() {
     setEditExcerpt(announcement.excerpt || '')
     setEditCategory(announcement.category)
     setEditIsPublished(announcement.is_published)
+    setEditPinned(Boolean(announcement.pinned))
+    setEditPublishAt(toDateTimeLocalValue(announcement.published_at))
+    setEditExpiresAt(toDateTimeLocalValue(announcement.expires_at))
     setEditImageUrl(announcement.image_url || null)
     setEditDialogOpen(true)
   }
@@ -280,6 +348,9 @@ export default function AdminAnnouncementsPage() {
           category: editCategory,
           is_published: editIsPublished,
           image_url: finalImageUrl,
+          publish_at: editPublishAt || null,
+          expires_at: editExpiresAt || null,
+          pinned: editPinned,
         }),
       })
 
@@ -299,14 +370,17 @@ export default function AdminAnnouncementsPage() {
     }
   }
 
-  async function deleteAnnouncement(announcement: Announcement) {
-    if (!confirm(`Delete "${announcement.title}"? This action cannot be undone.`)) return
+  async function confirmDeleteAnnouncement() {
+    if (!announcementToDelete) return
+
+    setDeleting(true)
+    setError(null)
 
     try {
       const response = await fetch('/api/admin/announcements', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: announcement.id }),
+        body: JSON.stringify({ id: announcementToDelete.id }),
       })
 
       if (!response.ok) {
@@ -314,20 +388,30 @@ export default function AdminAnnouncementsPage() {
         throw new Error(errorData.error || 'Failed to delete announcement')
       }
 
+      toast.success('Announcement deleted.')
+      setAnnouncementToDelete(null)
       loadAnnouncements()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete announcement')
+      const message = err instanceof Error ? err.message : 'Failed to delete announcement'
+      setError(message)
+      toast.error(message)
+    } finally {
+      setDeleting(false)
     }
   }
 
   async function togglePublish(announcement: Announcement) {
+    const nextPublished = !announcement.is_published
+    setPublishBusyId(announcement.id)
+    setError(null)
+
     try {
       const response = await fetch('/api/admin/announcements', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           id: announcement.id,
-          is_published: !announcement.is_published,
+          is_published: nextPublished,
         }),
       })
 
@@ -336,11 +420,40 @@ export default function AdminAnnouncementsPage() {
         throw new Error(errorData.error || 'Failed to update announcement status')
       }
 
+      toast.success(nextPublished ? 'Announcement published.' : 'Announcement moved back to draft.')
       loadAnnouncements()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to update announcement status')
+      const message = err instanceof Error ? err.message : 'Failed to update announcement status'
+      setError(message)
+      toast.error(message)
+    } finally {
+      setPublishBusyId(null)
     }
   }
+
+  // Live status of the form so the admin sees Draft/Scheduled/Published/Expired
+  // reflected before saving.
+  const formStatus = getAnnouncementStatus({
+    is_published: isPublished,
+    published_at: publishAt ? new Date(publishAt).toISOString() : null,
+    expires_at: expiresAt ? new Date(expiresAt).toISOString() : null,
+  })
+
+  const editFormStatus = getAnnouncementStatus({
+    is_published: editIsPublished,
+    published_at: editPublishAt ? new Date(editPublishAt).toISOString() : null,
+    expires_at: editExpiresAt ? new Date(editExpiresAt).toISOString() : null,
+  })
+
+  const previewStatusText = !previewAnnouncement
+    ? ''
+    : previewAnnouncement.status === 'draft'
+      ? 'Draft — not visible to residents'
+      : previewAnnouncement.status === 'scheduled'
+        ? `Scheduled for ${formatAdminDate(previewAnnouncement.published_at)}`
+        : previewAnnouncement.status === 'expired'
+          ? `Expired ${formatAdminDate(previewAnnouncement.expires_at)}`
+          : `Published on ${formatAdminDate(previewAnnouncement.published_at)}`
 
   return (
     <div className="space-y-8 p-8 max-w-6xl">
@@ -440,11 +553,16 @@ export default function AdminAnnouncementsPage() {
                     onChange={(e) => setExcerpt(e.target.value)}
                     className="w-full px-3 py-2 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
                     rows={3}
-                    maxLength={300}
+                    maxLength={MAX_EXCERPT_LENGTH}
                   />
-                  <p className="text-xs text-muted-foreground">
-                    A short preview text shown on announcement cards. If empty, the first few lines of content will be used.
-                  </p>
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-xs text-muted-foreground">
+                      A short preview text shown on announcement cards. If empty, the first few lines of content will be used.
+                    </p>
+                    <span className="shrink-0 text-xs text-muted-foreground">
+                      {excerpt.length}/{MAX_EXCERPT_LENGTH}
+                    </span>
+                  </div>
                 </div>
 
                 {/* Image Upload */}
@@ -516,11 +634,54 @@ export default function AdminAnnouncementsPage() {
                     className="h-4 w-4 rounded border-border"
                   />
                   <Label htmlFor="published" className="flex-1 cursor-pointer">
-                    Publish immediately
+                    Publish this announcement
                   </Label>
-                  <span className="text-xs text-muted-foreground">
-                    {isPublished ? 'Published' : 'Draft'}
-                  </span>
+                  <Badge className={ANNOUNCEMENT_STATUS_CLASSES[formStatus]} variant="outline">
+                    {ANNOUNCEMENT_STATUS_LABELS[formStatus]}
+                  </Badge>
+                </div>
+
+                {/* Schedule & expiry */}
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="publish-at">Publish date &amp; time</Label>
+                    <Input
+                      id="publish-at"
+                      type="datetime-local"
+                      value={publishAt}
+                      onChange={(e) => setPublishAt(e.target.value)}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Leave empty to publish now. A future date and time schedules it.
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="expires-at">Expires at</Label>
+                    <Input
+                      id="expires-at"
+                      type="datetime-local"
+                      value={expiresAt}
+                      onChange={(e) => setExpiresAt(e.target.value)}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Optional. Hidden from residents after this time.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Pin to top */}
+                <div className="flex items-center gap-3 p-4 rounded-lg bg-background border border-border">
+                  <input
+                    type="checkbox"
+                    id="pinned"
+                    checked={pinned}
+                    onChange={(e) => setPinned(e.target.checked)}
+                    className="h-4 w-4 rounded border-border"
+                  />
+                  <Label htmlFor="pinned" className="flex-1 cursor-pointer">
+                    Pin to the top of the citizen announcements list
+                  </Label>
+                  <Pin className={`h-4 w-4 ${pinned ? 'text-primary' : 'text-muted-foreground'}`} aria-hidden="true" />
                 </div>
 
                 {/* Messages */}
@@ -580,14 +741,32 @@ export default function AdminAnnouncementsPage() {
                     className="pl-10"
                   />
                 </div>
-                <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as 'all' | 'published' | 'draft')}>
+                <Select
+                  value={statusFilter}
+                  onValueChange={(value) => setStatusFilter(value as 'all' | AnnouncementStatus)}
+                >
                   <SelectTrigger className="w-full sm:w-48">
                     <SelectValue placeholder="Filter by status" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Status</SelectItem>
                     <SelectItem value="published">Published</SelectItem>
+                    <SelectItem value="scheduled">Scheduled</SelectItem>
+                    <SelectItem value="expired">Expired</SelectItem>
                     <SelectItem value="draft">Draft</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                  <SelectTrigger className="w-full sm:w-48">
+                    <SelectValue placeholder="Filter by category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Categories</SelectItem>
+                    {categories.map((cat) => (
+                      <SelectItem key={cat} value={cat}>
+                        {cat}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -610,7 +789,7 @@ export default function AdminAnnouncementsPage() {
                         <TableHead>Title</TableHead>
                         <TableHead>Category</TableHead>
                         <TableHead>Status</TableHead>
-                        <TableHead>Created</TableHead>
+                        <TableHead>Published</TableHead>
                         <TableHead className="text-right">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -618,47 +797,70 @@ export default function AdminAnnouncementsPage() {
                       {filteredAnnouncements.map((announcement) => (
                         <TableRow key={announcement.id}>
                           <TableCell>
-                            <div className="font-medium">{announcement.title}</div>
+                            <div className="font-medium flex items-center gap-1.5">
+                              {announcement.pinned && (
+                                <Pin className="h-3.5 w-3.5 text-primary shrink-0" aria-label="Pinned" />
+                              )}
+                              <span className="truncate">{announcement.title}</span>
+                            </div>
                             <div className="text-xs text-muted-foreground mt-1 max-w-xs">
                               {truncateText(announcement.content)}
                             </div>
                           </TableCell>
                           <TableCell>
-                            <Badge className={getCategoryColor(announcement.category)} variant="outline">
+                            <Badge className={getAnnouncementCategoryColor(announcement.category)} variant="outline">
                               {announcement.category}
                             </Badge>
                           </TableCell>
                           <TableCell>
                             <Badge
-                              className={
-                                announcement.is_published
-                                  ? 'bg-primary/10 text-primary border-primary/20'
-                                  : 'bg-gray-500/10 text-gray-700 dark:text-gray-300 border-gray-500/20'
-                              }
+                              className={ANNOUNCEMENT_STATUS_CLASSES[announcement.status]}
                               variant="outline"
                             >
-                              {announcement.is_published ? 'Published' : 'Draft'}
+                              {ANNOUNCEMENT_STATUS_LABELS[announcement.status]}
                             </Badge>
                           </TableCell>
                           <TableCell>
-                            {new Date(announcement.created_at).toLocaleDateString('en-US', {
-                              year: 'numeric',
-                              month: 'short',
-                              day: 'numeric',
-                            })}
+                            <div>
+                              {announcement.published_at
+                                ? formatAdminDate(announcement.published_at)
+                                : 'Not published'}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {announcement.expires_at
+                                ? `Expires ${formatAdminDate(announcement.expires_at)}`
+                                : `Created ${formatAdminDate(announcement.created_at)}`}
+                            </div>
                           </TableCell>
                           <TableCell className="text-right">
-                            <div className="flex items-center justify-end gap-2">
+                            <div className="flex items-center justify-end gap-1">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setPreviewAnnouncement(announcement)}
+                                title="Preview"
+                                aria-label={`Preview ${announcement.title}`}
+                              >
+                                <Eye className="h-4 w-4" />
+                              </Button>
                               <Button
                                 variant="ghost"
                                 size="sm"
                                 onClick={() => togglePublish(announcement)}
+                                disabled={publishBusyId === announcement.id}
                                 title={announcement.is_published ? 'Unpublish' : 'Publish'}
+                                aria-label={
+                                  announcement.is_published
+                                    ? `Unpublish ${announcement.title}`
+                                    : `Publish ${announcement.title}`
+                                }
                               >
-                                {announcement.is_published ? (
+                                {publishBusyId === announcement.id ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : announcement.is_published ? (
                                   <EyeOff className="h-4 w-4" />
                                 ) : (
-                                  <Eye className="h-4 w-4" />
+                                  <CheckCircle2 className="h-4 w-4" />
                                 )}
                               </Button>
                               <Button
@@ -666,14 +868,16 @@ export default function AdminAnnouncementsPage() {
                                 size="sm"
                                 onClick={() => handleEdit(announcement)}
                                 title="Edit"
+                                aria-label={`Edit ${announcement.title}`}
                               >
                                 <Edit className="h-4 w-4" />
                               </Button>
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                onClick={() => deleteAnnouncement(announcement)}
+                                onClick={() => setAnnouncementToDelete(announcement)}
                                 title="Delete"
+                                aria-label={`Delete ${announcement.title}`}
                                 className="text-destructive hover:text-destructive"
                               >
                                 <Trash2 className="h-4 w-4" />
@@ -758,11 +962,16 @@ export default function AdminAnnouncementsPage() {
                 onChange={(e) => setEditExcerpt(e.target.value)}
                 className="w-full px-3 py-2 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
                 rows={3}
-                maxLength={300}
+                maxLength={MAX_EXCERPT_LENGTH}
               />
-              <p className="text-xs text-muted-foreground">
-                A short preview text shown on announcement cards. If empty, the first few lines of content will be used.
-              </p>
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-xs text-muted-foreground">
+                  A short preview text shown on announcement cards. If empty, the first few lines of content will be used.
+                </p>
+                <span className="shrink-0 text-xs text-muted-foreground">
+                  {editExcerpt.length}/{MAX_EXCERPT_LENGTH}
+                </span>
+              </div>
             </div>
 
             <div className="space-y-2">
@@ -845,9 +1054,53 @@ export default function AdminAnnouncementsPage() {
               <Label htmlFor="edit-published" className="flex-1 cursor-pointer">
                 Publish announcement
               </Label>
-              <span className="text-xs text-muted-foreground">
-                {editIsPublished ? 'Published' : 'Draft'}
-              </span>
+              <Badge className={ANNOUNCEMENT_STATUS_CLASSES[editFormStatus]} variant="outline">
+                {ANNOUNCEMENT_STATUS_LABELS[editFormStatus]}
+              </Badge>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="edit-publish-at">Publish date &amp; time</Label>
+                <Input
+                  id="edit-publish-at"
+                  type="datetime-local"
+                  value={editPublishAt}
+                  onChange={(e) => setEditPublishAt(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Leave empty to publish now. A future date and time schedules it.
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-expires-at">Expires at</Label>
+                <Input
+                  id="edit-expires-at"
+                  type="datetime-local"
+                  value={editExpiresAt}
+                  onChange={(e) => setEditExpiresAt(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Optional. Hidden from residents after this time.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 p-4 rounded-lg bg-background border border-border">
+              <input
+                type="checkbox"
+                id="edit-pinned"
+                checked={editPinned}
+                onChange={(e) => setEditPinned(e.target.checked)}
+                className="h-4 w-4 rounded border-border"
+              />
+              <Label htmlFor="edit-pinned" className="flex-1 cursor-pointer">
+                Pin to the top of the citizen announcements list
+              </Label>
+              <Pin
+                className={`h-4 w-4 ${editPinned ? 'text-primary' : 'text-muted-foreground'}`}
+                aria-hidden="true"
+              />
             </div>
           </div>
 
@@ -868,6 +1121,121 @@ export default function AdminAnnouncementsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Preview Dialog */}
+      <Dialog
+        open={!!previewAnnouncement}
+        onOpenChange={(open) => {
+          if (!open) setPreviewAnnouncement(null)
+        }}
+      >
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Preview</DialogTitle>
+            <DialogDescription>
+              This is how the announcement appears to residents.
+              {previewAnnouncement && previewAnnouncement.status !== 'published'
+                ? ` Residents cannot see it while it is ${ANNOUNCEMENT_STATUS_LABELS[previewAnnouncement.status].toLowerCase()}.`
+                : ''}
+            </DialogDescription>
+          </DialogHeader>
+
+          {previewAnnouncement && (
+            <article className="space-y-4">
+              {previewAnnouncement.image_url ? (
+                <div className="relative aspect-video overflow-hidden rounded-lg bg-muted">
+                  <img
+                    src={previewAnnouncement.image_url}
+                    alt={previewAnnouncement.title}
+                    className="h-full w-full object-cover"
+                  />
+                </div>
+              ) : null}
+
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <h2 className="text-2xl font-bold text-balance">{previewAnnouncement.title}</h2>
+                <Badge
+                  className={getAnnouncementCategoryColor(previewAnnouncement.category)}
+                  variant="outline"
+                >
+                  {previewAnnouncement.category}
+                </Badge>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+                <Calendar className="h-4 w-4" />
+                <span>{previewStatusText}</span>
+                {previewAnnouncement.updated_at &&
+                  new Date(previewAnnouncement.updated_at).getTime() -
+                    new Date(
+                      previewAnnouncement.published_at || previewAnnouncement.created_at,
+                    ).getTime() >
+                    60_000 && (
+                    <span className="text-xs text-muted-foreground/80">
+                      · Updated {formatAdminDate(previewAnnouncement.updated_at)}
+                    </span>
+                  )}
+              </div>
+
+              {previewAnnouncement.excerpt ? (
+                <p className="text-muted-foreground italic">{previewAnnouncement.excerpt}</p>
+              ) : null}
+
+              <div
+                className="prose prose-slate max-w-none text-foreground prose-p:my-3 prose-headings:mb-3 prose-headings:mt-0 prose-ul:my-3 prose-ol:my-3"
+                // Stored HTML is sanitised on write; re-sanitising here also covers
+                // rows created before that guard existed.
+                dangerouslySetInnerHTML={{ __html: sanitizeRichText(previewAnnouncement.content) }}
+              />
+            </article>
+          )}
+
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button variant="outline">Close</Button>
+            </DialogClose>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete confirmation */}
+      <AlertDialog
+        open={!!announcementToDelete}
+        onOpenChange={(open) => {
+          if (!open && !deleting) setAnnouncementToDelete(null)
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete announcement?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {announcementToDelete
+                ? `"${announcementToDelete.title}" will be permanently deleted, including its image. This action cannot be undone.`
+                : 'This action cannot be undone.'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(event) => {
+                event.preventDefault()
+                confirmDeleteAnnouncement()
+              }}
+              disabled={deleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                'Delete'
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
