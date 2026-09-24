@@ -86,23 +86,23 @@ async function findCandidateResidents(
   const orFilters: string[] = []
 
   if (input.email) {
-    orFilters.push(`email=eq.${input.email.trim().toLowerCase()}`)
+    orFilters.push(`email.eq.${input.email.trim().toLowerCase()}`)
   }
   if (input.phone) {
     const cleanPhone = input.phone.replace(/\D/g, '')
     if (cleanPhone) {
-      orFilters.push(`phone=like.*${cleanPhone}*`)
+      orFilters.push(`phone.like.*${cleanPhone}*`)
     }
   }
   if (input.nationalId) {
     const cleanId = input.nationalId.replace(/\D/g, '')
     if (cleanId) {
-      orFilters.push(`national_id=like.*${cleanId}*`)
+      orFilters.push(`national_id.like.*${cleanId}*`)
     }
   }
 
   if (orFilters.length > 0) {
-    const orClause = `(${orFilters.join(',')})`
+    const orClause = orFilters.join(',')
     const { data, error } = await supabase
       .from('pre_registered_residents')
       .select('*')

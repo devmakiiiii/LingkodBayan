@@ -30,6 +30,11 @@ export interface DynamicServiceInfo {
   title: string
   category: string
   description: string
+  // Charter fee snapshot used for payment capture when saving the request
+  fee_type?: string | null
+  fee_amount_min?: number | null
+  fee_amount_max?: number | null
+  fee_description?: string | null
 }
 
 export const requestStatuses = [
@@ -284,7 +289,7 @@ export function getRequestFieldEntries(requestType?: string | null, payload?: Re
   }
 
   const orderedFields = config?.fields ?? []
-  const remainingKeys = Object.keys(payload).filter((key) => !orderedFields.some((field) => field.name === key))
+  const remainingKeys = Object.keys(payload).filter((key) => key !== 'payment' && !orderedFields.some((field) => field.name === key))
 
   return [
     ...orderedFields.map((field) => ({

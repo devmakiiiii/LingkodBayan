@@ -10,15 +10,21 @@ import assert from 'node:assert/strict'
 import {
   IllegalStatusTransitionError,
   assertComplaintTransition,
+  assertFeedbackTransition,
   assertRequestTransition,
   canTransitionComplaint,
+  canTransitionFeedback,
   canTransitionRequest,
   complaintStatusMachine,
+  feedbackStatusMachine,
   getAllowedComplaintTransitions,
+  getAllowedFeedbackTransitions,
   getAllowedRequestTransitions,
   isTerminalComplaintStatus,
+  isTerminalFeedbackStatus,
   isTerminalRequestStatus,
   normalizeComplaintLifecycleStatus,
+  normalizeFeedbackLifecycleStatus,
   normalizeRequestLifecycleStatus,
   requestStatusMachine,
 } from './status-machine.ts'
@@ -160,5 +166,48 @@ describe('complaint status machine', () => {
 
   it('assertComplaintTransition returns the canonical target on success', () => {
     assert.equal(assertComplaintTransition('open', 'UNDER_INVESTIGATION'), 'under_investigation')
+  })
+})
+
+describe('feedback status machine', () => {
+  it('starts at submitted', () => {
+    assert.equal(feedbackStatusMachine.initialState, 'submitted')
+  })
+
+  it('follows the charter pipeline in order', () => {
+    assert.equal(canTransitionFeedback('submitted', 'acknowledged'), true)
+    assert.equal(canTransitionFeedback('acknowledged', 'under_evaluation'), true)
+    assert.equal(canTransitionFeedback('under_evaluation', 'action_taken'), true)
+    assert.equal(canTransitionFeedback('action_taken', 'responded'), true)
+    assert.equal(canTransitionFeedback('responded', 'documented'), true)
+  })
+
+  it('blocks skipping stages', () => {
+    assert.equal(canTransitionFeedback('submitted', 'responded'), false)
+    assert.equal(canTransitionFeedback('submitted', 'documented'), false)
+    assert.equal(canTransitionFeedback('acknowledged', 'responded'), false)
+  })
+
+  it('allows returning from responded to action_taken for revision', () => {
+    assert.equal(canTransitionFeedback('responded', 'action_taken'), true)
+  })
+
+  it('treats documented as the only terminal state', () => {
+    assert.equal(isTerminalFeedbackStatus('documented'), true)
+    assert.equal(isTerminalFeedbackStatus('responded'), false)
+    assert.equal(canTransitionFeedback('documented', 'acknowledged'), false)
+    assert.deepEqual(getAllowedFeedbackTransitions('documented'), [])
+  })
+
+  it('normalizes legacy and UI aliases', () => {
+    assert.equal(normalizeFeedbackLifecycleStatus('new'), 'submitted')
+    assert.equal(normalizeFeedbackLifecycleStatus('resolved'), 'action_taken')
+    assert.equal(normalizeFeedbackLifecycleStatus('closed'), 'documented')
+    assert.equal(normalizeFeedbackLifecycleStatus('garbage'), 'submitted')
+  })
+
+  it('assertFeedbackTransition returns the canonical target on success', () => {
+    assert.equal(assertFeedbackTransition('submitted', 'ACKNOWLEDGED'), 'acknowledged')
+    assert.throws(() => assertFeedbackTransition('submitted', 'documented'), IllegalStatusTransitionError)
   })
 })

@@ -2,6 +2,14 @@ import { createClient } from '@/lib/supabase/server'
 import { RequestInput, ComplaintInput, DesignationInput, OfficialInput, BarangayInfoInput, MissionVisionInput, SignatureUploadInput, ServiceCategoryInput } from './schemas'
 import { logger } from './logger'
 import { assertRequestTransition, assertComplaintTransition } from './status-machine'
+import {
+  buildRequestPaymentSnapshot,
+  toRequestPaymentRow,
+  validateRequestPayment,
+  type RequestPaymentDraft,
+  type RequestPaymentFeeInfo,
+  type RequestPaymentSnapshot,
+} from './request-payment'
 
 export async function createResident(userData: {
   userId: string
@@ -44,9 +52,21 @@ export async function getResident(userId: string) {
   return data?.[0] ?? null
 }
 
-export async function createRequest(residentId: string, input: RequestInput) {
+export type RequestPaymentInput = {
+  fee: RequestPaymentFeeInfo
+  draft: RequestPaymentDraft
+}
+
+export async function createRequest(residentId: string, input: RequestInput, payment?: RequestPaymentInput) {
   const supabase = await createClient()
-  
+
+  let paymentSnapshot: RequestPaymentSnapshot | null = null
+  if (payment) {
+    const paymentValidationError = validateRequestPayment(payment.fee, payment.draft)
+    if (paymentValidationError) throw new Error(paymentValidationError)
+    paymentSnapshot = buildRequestPaymentSnapshot(payment.fee, payment.draft)
+  }
+
   const { data, error } = await supabase.from('requests').insert([
     {
       resident_id: residentId,
@@ -54,13 +74,27 @@ export async function createRequest(residentId: string, input: RequestInput) {
       title: input.title,
       description: input.description,
       category: input.category,
-      payload: input.payload,
+      payload: paymentSnapshot ? { ...input.payload, payment: { ...paymentSnapshot } } : input.payload,
       status: 'pending',
       priority: 'normal',
     },
   ]).select().single()
 
   if (error) throw new Error(`Failed to create request: ${error.message}`)
+
+  if (paymentSnapshot && data?.id) {
+    const { error: paymentInsertError } = await supabase.from('request_payments').insert([
+      {
+        request_id: data.id,
+        resident_id: residentId,
+        ...toRequestPaymentRow(paymentSnapshot),
+      },
+    ])
+    if (paymentInsertError) {
+      throw new Error(`Failed to save request payment: ${paymentInsertError.message}`)
+    }
+  }
+
   return data
 }
 

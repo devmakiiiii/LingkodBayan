@@ -88,6 +88,15 @@ const sql = readMigrationScript()
   + '--- Migration 21: Assign Officials to Requests (workload balancing) ---\n'
   + readMigrationFile('21_add_assigned_official_to_requests.sql')
   + '\n'
+  + '--- Migration 22: Citizen\'s Charter 2025 Schema Extensions ---\n'
+  + readMigrationFile('22_add_charter_schema.sql')
+  + '\n'
+  + '--- Migration 23: Seed Citizen\'s Charter 2025 Data ---\n'
+  + readMigrationFile('23_seed_charter_data.sql')
+  + '\n'
+  + '--- Migration 24: Save Requests With Payments ---\n'
+  + readMigrationFile('24_add_request_payments.sql')
+  + '\n'
   + '--- Finalize Complaints Schema ---\n'
   + readMigrationFile('finalize_complaints_schema.sql');
 console.log(sql);

@@ -20,6 +20,23 @@ import {
   type DynamicServiceInfo,
   type RequestTypeConfig,
 } from '@/lib/request-types'
+import { formatServiceFee } from '@/lib/charter-services'
+import {
+  buildRequestPaymentSnapshot,
+  computePerPageAmount,
+  formatPeso,
+  getDefaultPaymentAmount,
+  getFeeType,
+  getPaymentMethodLabel,
+  requestPaymentMethods,
+  requiresAmountEntry,
+  requiresReferenceNumber,
+  toRequestPaymentRow,
+  validateRequestPayment,
+  type RequestPaymentFeeInfo,
+  type RequestPaymentMethod,
+  type RequestPaymentSnapshot,
+} from '@/lib/request-payment'
 
 type RequestFormDialogProps = {
   open: boolean
@@ -66,11 +83,58 @@ function fileToDataUrl(file: File) {
 export function RequestFormDialog({ open, onOpenChange, requestType, serviceInfo }: RequestFormDialogProps) {
   const router = useRouter()
   const config = getRequestTypeConfigAny(requestType, serviceInfo)
+  const paymentFee: RequestPaymentFeeInfo | null = serviceInfo
+    ? {
+        feeType: serviceInfo.fee_type ?? null,
+        feeAmountMin: serviceInfo.fee_amount_min ?? null,
+        feeAmountMax: serviceInfo.fee_amount_max ?? null,
+        feeDescription: serviceInfo.fee_description ?? null,
+      }
+    : null
+  // snake_case view of the fee for display via formatServiceFee
+  const paymentFeeDisplay = paymentFee
+    ? {
+        fee_type: paymentFee.feeType,
+        fee_amount_min: paymentFee.feeAmountMin,
+        fee_amount_max: paymentFee.feeAmountMax,
+        fee_description: paymentFee.feeDescription,
+      }
+    : null
   const [values, setValues] = useState<Record<string, string>>(() => createInitialValues(config))
   const [files, setFiles] = useState<Record<string, File[]>>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
   const [submittedState, setSubmittedState] = useState<SubmittedState | null>(null)
+  const [paymentMethod, setPaymentMethod] = useState<RequestPaymentMethod | ''>('')
+  const [paymentAmount, setPaymentAmount] = useState('')
+  const [paymentReference, setPaymentReference] = useState('')
+  const [paymentPages, setPaymentPages] = useState('')
+
+  const isPerPageFee = paymentFee != null && getFeeType(paymentFee) === 'per_page'
+  const perPageTotal = paymentFee != null && isPerPageFee ? computePerPageAmount(paymentFee, paymentPages) : null
+  const paymentMethodRequired = paymentFee != null && getFeeType(paymentFee) !== 'free'
+  const paymentAmountRequired =
+    paymentFee != null &&
+    !isPerPageFee &&
+    (getFeeType(paymentFee) === 'range' ||
+      (requiresAmountEntry(paymentFee) && requiresReferenceNumber(paymentMethod as RequestPaymentMethod)))
+  const paymentPagesRequired = isPerPageFee && requiresReferenceNumber(paymentMethod as RequestPaymentMethod)
+
+  // Live "amount due": charter-fixed numbers, computed per-page totals, or the
+  // resident's entry; null means the barangay office will assess it.
+  const enteredAmount = paymentAmount.trim() === '' ? null : Number(paymentAmount)
+  const amountDue: number | null =
+    paymentFee == null
+      ? null
+      : getFeeType(paymentFee) === 'free'
+        ? 0
+        : getFeeType(paymentFee) === 'fixed'
+          ? (paymentFee.feeAmountMin ?? 0)
+          : isPerPageFee
+            ? perPageTotal
+            : enteredAmount != null && Number.isFinite(enteredAmount)
+              ? enteredAmount
+              : null
 
   useEffect(() => {
     if (!open) {
@@ -79,11 +143,25 @@ export function RequestFormDialog({ open, onOpenChange, requestType, serviceInfo
       setIsSubmitting(false)
       setErrorMessage('')
       setSubmittedState(null)
+      setPaymentMethod('')
+      setPaymentAmount('')
+      setPaymentReference('')
+      setPaymentPages('')
       return
     }
 
-    // Auto-input the selected service's details into the form
-    if (serviceInfo) {
+    // Payment defaults: prefill an amount whenever the charter determines one
+    // (0 for free, the charter amount for fixed fees, and the charter minimum
+    // as an adjustable starting point for ranges).
+    if (paymentFee) {
+      const defaultAmount = getDefaultPaymentAmount(paymentFee)
+      if (defaultAmount != null) {
+        setPaymentAmount((current) => (current === '' ? String(defaultAmount) : current))
+      }
+    }
+
+    // Auto-input the selected service's details into the form (dynamic services only)
+    if (serviceInfo && !requestType) {
       const purposeSeed = serviceInfo.description
         ? `${serviceInfo.title} - ${serviceInfo.description}`
         : ''
@@ -222,6 +300,39 @@ export function RequestFormDialog({ open, onOpenChange, requestType, serviceInfo
         }
       }
 
+      let paymentSnapshot: RequestPaymentSnapshot | null = null
+
+      if (paymentFee) {
+        let draftAmount = paymentAmount
+
+        if (isPerPageFee) {
+          if (paymentPages.trim() !== '' && perPageTotal == null) {
+            setErrorMessage('Please enter a whole number of pages (1 or more) so the fee can be computed.')
+            return
+          }
+          if (paymentPagesRequired && perPageTotal == null) {
+            setErrorMessage('Please enter the number of pages so the total fee can be computed.')
+            return
+          }
+          draftAmount = perPageTotal != null ? String(perPageTotal) : ''
+        }
+
+        const paymentDraft = {
+          method: paymentMethod,
+          amount: draftAmount,
+          referenceNumber: paymentReference,
+        }
+        const paymentValidationError = validateRequestPayment(paymentFee, paymentDraft)
+
+        if (paymentValidationError) {
+          setErrorMessage(paymentValidationError)
+          return
+        }
+
+        paymentSnapshot = buildRequestPaymentSnapshot(paymentFee, paymentDraft)
+        payload.payment = { ...paymentSnapshot }
+      }
+
       const { data, error } = await supabase
         .from('requests')
         .insert([
@@ -243,9 +354,27 @@ export function RequestFormDialog({ open, onOpenChange, requestType, serviceInfo
         throw error
       }
 
+      let paymentLedgerNote = ''
+
+      if (paymentSnapshot && data?.id) {
+        const { error: paymentInsertError } = await supabase.from('request_payments').insert([
+          {
+            request_id: data.id,
+            resident_id: resident.id,
+            ...toRequestPaymentRow(paymentSnapshot),
+          },
+        ])
+
+        if (paymentInsertError) {
+          console.error('Failed to save payment record:', paymentInsertError)
+          paymentLedgerNote =
+            ' Note: your payment details were saved with the request, but the payment ledger entry could not be recorded.'
+        }
+      }
+
       setSubmittedState({
         requestId: data.id,
-        message: `${config.title} has been submitted successfully and is now pending review.`,
+        message: `${config.title} has been submitted successfully and is now pending review.${paymentLedgerNote}`,
       })
       setValues(createInitialValues(config))
       setFiles({})
@@ -364,6 +493,128 @@ export function RequestFormDialog({ open, onOpenChange, requestType, serviceInfo
                 </div>
               ))}
             </div>
+
+            {paymentFee && (
+              <div className="space-y-3 rounded-xl border border-emerald-200 dark:border-border bg-emerald-50/60 px-4 py-3 text-sm">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="font-semibold text-emerald-800">Payment</span>
+                  <span className="text-emerald-700">
+                    Charter fee: {paymentFeeDisplay ? formatServiceFee(paymentFeeDisplay) : ''}
+                  </span>
+                </div>
+
+                <div className="grid gap-3 md:grid-cols-2">
+                  <div>
+                    <Label htmlFor="payment-method" className="mb-2 block text-sm font-medium text-foreground">
+                      Payment Method
+                      {paymentMethodRequired ? <span className="ml-1 text-rose-600">*</span> : null}
+                    </Label>
+                    <Select
+                      value={paymentMethod}
+                      onValueChange={(value) => setPaymentMethod(value as RequestPaymentMethod)}
+                    >
+                      <SelectTrigger
+                        id="payment-method"
+                        className="border-emerald-200 dark:border-border bg-white dark:bg-card focus:ring-emerald-500"
+                      >
+                        <SelectValue placeholder="Select payment method" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {requestPaymentMethods.map((method) => (
+                          <SelectItem key={method} value={method}>
+                            {getPaymentMethodLabel(method)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {isPerPageFee && paymentFee && (
+                    <div>
+                      <Label htmlFor="payment-pages" className="mb-2 block text-sm font-medium text-foreground">
+                        Number of Pages
+                        {paymentPagesRequired ? <span className="ml-1 text-rose-600">*</span> : null}
+                      </Label>
+                      <Input
+                        id="payment-pages"
+                        type="number"
+                        min="1"
+                        step="1"
+                        value={paymentPages}
+                        onChange={(event) => setPaymentPages(event.target.value)}
+                        placeholder={
+                          paymentFee.feeAmountMin != null
+                            ? `e.g. 5 (${formatPeso(paymentFee.feeAmountMin)} per page)`
+                            : 'e.g. 5'
+                        }
+                        className="border-emerald-200 dark:border-border bg-white dark:bg-card focus-visible:ring-emerald-500"
+                      />
+                    </div>
+                  )}
+
+                  <div>
+                    <Label htmlFor="payment-amount" className="mb-2 block text-sm font-medium text-foreground">
+                      {isPerPageFee ? 'Computed Amount' : 'Amount to Pay'}
+                      {paymentAmountRequired ? <span className="ml-1 text-rose-600">*</span> : null}
+                    </Label>
+                    {isPerPageFee ? (
+                      <p className="flex h-10 items-center rounded-lg border border-emerald-200 dark:border-border bg-white dark:bg-card px-3 text-foreground">
+                        {perPageTotal != null ? formatPeso(perPageTotal) : 'Enter the number of pages'}
+                      </p>
+                    ) : requiresAmountEntry(paymentFee) ? (
+                      <Input
+                        id="payment-amount"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={paymentAmount}
+                        onChange={(event) => setPaymentAmount(event.target.value)}
+                        placeholder="0.00"
+                        className="border-emerald-200 dark:border-border bg-white dark:bg-card focus-visible:ring-emerald-500"
+                      />
+                    ) : (
+                      <p className="flex h-10 items-center rounded-lg border border-emerald-200 dark:border-border bg-white dark:bg-card px-3 text-foreground">
+                        {paymentFeeDisplay ? formatServiceFee(paymentFeeDisplay) : ''}
+                      </p>
+                    )}
+                  </div>
+
+                  {requiresReferenceNumber(paymentMethod as RequestPaymentMethod) && (
+                    <div className="md:col-span-2">
+                      <Label htmlFor="payment-reference" className="mb-2 block text-sm font-medium text-foreground">
+                        Reference / Transaction Number
+                        <span className="ml-1 text-rose-600">*</span>
+                      </Label>
+                      <Input
+                        id="payment-reference"
+                        type="text"
+                        value={paymentReference}
+                        onChange={(event) => setPaymentReference(event.target.value)}
+                        placeholder="Enter the GCash/Maya reference number"
+                        className="border-emerald-200 dark:border-border bg-white dark:bg-card focus-visible:ring-emerald-500"
+                      />
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-emerald-200 dark:border-border bg-white dark:bg-card px-3 py-2">
+                  <span className="font-medium text-emerald-800">Amount due</span>
+                  <span className="text-base font-semibold text-emerald-900">
+                    {amountDue != null
+                      ? formatPeso(amountDue)
+                      : isPerPageFee
+                        ? 'Enter the number of pages'
+                        : 'To be assessed at the barangay office'}
+                  </span>
+                </div>
+
+                <p className="text-xs text-emerald-700">
+                  {getFeeType(paymentFee) === 'free'
+                    ? 'This service is free of charge - no payment is required.'
+                    : 'No online payments: counter payments are settled at the barangay office, while GCash/Maya payments are verified by barangay staff before being marked as paid.'}
+                </p>
+              </div>
+            )}
 
             <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-end">
               <Button variant="outline" onClick={closeDialog} disabled={isSubmitting}>

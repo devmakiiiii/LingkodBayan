@@ -13,11 +13,19 @@
  * server, in the browser, and in plain Node test runners.
  */
 
-export type StatusMachineKind = 'request' | 'complaint'
+export type StatusMachineKind = 'request' | 'complaint' | 'feedback'
 
 export type RequestLifecycleStatus = 'pending' | 'processing' | 'approved' | 'rejected'
 
 export type ComplaintLifecycleStatus = 'open' | 'under_investigation' | 'resolved' | 'dismissed'
+
+export type FeedbackLifecycleStatus =
+  | 'submitted'
+  | 'acknowledged'
+  | 'under_evaluation'
+  | 'action_taken'
+  | 'responded'
+  | 'documented'
 
 export interface StatusTransition<S extends string = string> {
   from: S
@@ -108,6 +116,47 @@ export const complaintStatusMachine: StatusMachine<ComplaintLifecycleStatus> = {
     approved: 'resolved',
     dismissed: 'dismissed',
     rejected: 'dismissed',
+  },
+}
+
+/**
+ * Feedback lifecycle (Citizen's Charter Section 18 — Feedback Mechanism):
+ *
+ *   submitted ──▶ acknowledged ──▶ under_evaluation ──▶ action_taken ──▶ responded ──▶ documented (terminal)
+ *
+ * Mirrors the charter SLA: acknowledge within 2 working days, evaluate within
+ * 3–5 working days, act and respond within 7–10 working days, then document
+ * the feedback in the Feedback Registry. The pipeline is intentionally
+ * linear — each stage hands off to the next and earlier stages cannot be
+ * revisited except from `responded` back to `action_taken` when a response
+ * needs revision before documentation.
+ */
+export const feedbackStatusMachine: StatusMachine<FeedbackLifecycleStatus> = {
+  kind: 'feedback',
+  initialState: 'submitted',
+  states: ['submitted', 'acknowledged', 'under_evaluation', 'action_taken', 'responded', 'documented'],
+  terminalStates: ['documented'],
+  transitions: [
+    { from: 'submitted', to: 'acknowledged', label: 'Acknowledge', description: 'Acknowledge the feedback (charter SLA: within 2 working days).' },
+    { from: 'acknowledged', to: 'under_evaluation', label: 'Start Evaluation', description: 'Evaluate the feedback (charter SLA: 3–5 working days).' },
+    { from: 'under_evaluation', to: 'action_taken', label: 'Mark Action Taken', description: 'Act on or resolve the feedback.' },
+    { from: 'action_taken', to: 'responded', label: 'Send Response', description: 'Respond to the resident (charter SLA: 7–10 working days).' },
+    { from: 'responded', to: 'action_taken', label: 'Return to Resolution', description: 'Revise the resolution before documentation.' },
+    { from: 'responded', to: 'documented', label: 'Document & Close', description: 'Record the feedback in the Feedback Registry.' },
+  ],
+  aliases: {
+    submitted: 'submitted',
+    new: 'submitted',
+    acknowledged: 'acknowledged',
+    under_evaluation: 'under_evaluation',
+    'under-evaluation': 'under_evaluation',
+    evaluating: 'under_evaluation',
+    action_taken: 'action_taken',
+    'action-taken': 'action_taken',
+    resolved: 'action_taken',
+    responded: 'responded',
+    documented: 'documented',
+    closed: 'documented',
   },
 }
 
@@ -256,5 +305,25 @@ export function assertComplaintTransition(fromStatus?: string | null, toStatus?:
 
 export function isTerminalComplaintStatus(status?: string | null): boolean {
   return isTerminalStatus(complaintStatusMachine, status)
+}
+
+export function normalizeFeedbackLifecycleStatus(status?: string | null): FeedbackLifecycleStatus {
+  return normalizeStatus(feedbackStatusMachine, status)
+}
+
+export function canTransitionFeedback(fromStatus?: string | null, toStatus?: string | null): boolean {
+  return canTransition(feedbackStatusMachine, fromStatus, toStatus)
+}
+
+export function getAllowedFeedbackTransitions(fromStatus?: string | null): StatusTransition<FeedbackLifecycleStatus>[] {
+  return getAllowedTransitions(feedbackStatusMachine, fromStatus)
+}
+
+export function assertFeedbackTransition(fromStatus?: string | null, toStatus?: string | null): FeedbackLifecycleStatus {
+  return assertTransition(feedbackStatusMachine, fromStatus, toStatus)
+}
+
+export function isTerminalFeedbackStatus(status?: string | null): boolean {
+  return isTerminalStatus(feedbackStatusMachine, status)
 }
 

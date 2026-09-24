@@ -6,6 +6,14 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Copy } from 'lucide-react'
 import { formatDate } from '@/lib/format-date'
+import { formatServiceFee } from '@/lib/charter-services'
+import {
+  formatPeso,
+  getPaymentMethodLabel,
+  getPaymentStatusClassName,
+  getPaymentStatusLabel,
+  getRequestPayment,
+} from '@/lib/request-payment'
 import {
   formatRequestFieldValue,
   getRequestFieldEntries,
@@ -58,6 +66,7 @@ export function RequestDetails({
   const fieldEntries = getRequestFieldEntries(request.request_type, request.payload)
   const requestTypeTitle = getRequestTypeTitle(request.request_type, request.title)
   const summaryValue = getRequestSummaryValue(request.request_type, request.payload, request.description)
+  const payment = getRequestPayment(request.payload)
 
   const copyToClipboard = async (text: string, fieldKey: string) => {
     await navigator.clipboard.writeText(text)
@@ -124,6 +133,42 @@ export function RequestDetails({
                     ))}
                   </div>
                 </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {payment && (
+            <Card className="border-emerald-200/60 shadow-none h-fit">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Payment</CardTitle>
+              </CardHeader>
+              <CardContent className="grid gap-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Status</p>
+                    <Badge variant="outline" className={`mt-1 ${getPaymentStatusClassName(payment.payment_status)}`}>
+                      {getPaymentStatusLabel(payment.payment_status)}
+                    </Badge>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Amount</p>
+                    <p className="mt-1 font-semibold text-foreground">{formatPeso(payment.amount_paid)}</p>
+                  </div>
+                </div>
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-muted-foreground">Method</p>
+                  <p className="mt-1 font-medium text-foreground">{getPaymentMethodLabel(payment.payment_method)}</p>
+                </div>
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-muted-foreground">Charter Fee</p>
+                  <p className="mt-1 font-medium text-foreground">{formatServiceFee(payment)}</p>
+                </div>
+                {payment.reference_number && (
+                  <div>
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Reference Number</p>
+                    <p className="mt-1 wrap-break-word font-medium text-foreground">{payment.reference_number}</p>
+                  </div>
+                )}
               </CardContent>
             </Card>
           )}
@@ -249,6 +294,7 @@ export function RequestPrintDocument({
   const fieldEntries = getRequestFieldEntries(request.request_type, request.payload)
   const requestTypeTitle = getRequestTypeTitle(request.request_type, request.title)
   const summaryValue = getRequestSummaryValue(request.request_type, request.payload, request.description)
+  const payment = getRequestPayment(request.payload)
 
   return (
     <div className="mx-auto max-w-4xl bg-white dark:bg-card p-10 text-slate-900">
@@ -285,6 +331,36 @@ export function RequestPrintDocument({
         <p className="text-xs uppercase tracking-wide text-emerald-700">Summary</p>
         <p className="mt-2 text-base leading-7 text-slate-700">{summaryValue}</p>
       </div>
+
+      {payment && (
+        <div className="mt-6 rounded-2xl border border-slate-200 p-6">
+          <p className="text-xs uppercase tracking-wide text-emerald-700">Payment</p>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            <div>
+              <p className="text-xs uppercase tracking-wide text-slate-500">Charter Fee</p>
+              <p className="mt-1 text-base font-semibold">{formatServiceFee(payment)}</p>
+            </div>
+            <div>
+              <p className="text-xs uppercase tracking-wide text-slate-500">Amount Paid</p>
+              <p className="mt-1 text-base font-semibold">{formatPeso(payment.amount_paid)}</p>
+            </div>
+            <div>
+              <p className="text-xs uppercase tracking-wide text-slate-500">Payment Method</p>
+              <p className="mt-1 text-base font-semibold">{getPaymentMethodLabel(payment.payment_method)}</p>
+            </div>
+            <div>
+              <p className="text-xs uppercase tracking-wide text-slate-500">Payment Status</p>
+              <p className="mt-1 text-base font-semibold">{getPaymentStatusLabel(payment.payment_status)}</p>
+            </div>
+            {payment.reference_number && (
+              <div className="sm:col-span-2">
+                <p className="text-xs uppercase tracking-wide text-slate-500">Reference Number</p>
+                <p className="mt-1 text-base font-semibold">{payment.reference_number}</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       <div className="mt-6 rounded-2xl border border-slate-200 p-6">
         <p className="text-xs uppercase tracking-wide text-emerald-700">Request Details</p>

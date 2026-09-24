@@ -1,8 +1,9 @@
 'use client'
 
 import { Button } from '@/components/ui/button'
-import { FileText, CheckCircle, Briefcase, Award, Heart } from 'lucide-react'
+import { FileText, CheckCircle, Briefcase, Award, Heart, Clock, PhilippinePeso } from 'lucide-react'
 import Link from 'next/link'
+import { formatServiceFee, getServiceTypeLabel, NOT_SPECIFIED } from '@/lib/charter-services'
 
 interface ServiceCardProps {
   id: string
@@ -13,6 +14,9 @@ interface ServiceCardProps {
   buttonLabel: string
   buttonHref?: string
   onRequestClick?: (id: string) => void
+  feeLabel?: string | null
+  timeLabel?: string | null
+  onDetailsClick?: (id: string) => void
 }
 
 interface Service {
@@ -20,9 +24,15 @@ interface Service {
   slug: string
   title: string
   description: string | null
-  category_type: 'document' | 'appointment' | 'incident'
+  category_type: 'document' | 'appointment' | 'incident' | 'health' | 'emergency' | 'justice' | 'program'
   is_active: boolean
   sort_order: number
+  office_key?: string | null
+  fee_type?: string | null
+  fee_amount_min?: number | null
+  fee_amount_max?: number | null
+  fee_description?: string | null
+  processing_time_text?: string | null
 }
 
 const iconMap: Record<string, React.ReactNode> = {
@@ -50,6 +60,9 @@ export function ServiceCard({
   buttonLabel,
   buttonHref,
   onRequestClick,
+  feeLabel,
+  timeLabel,
+  onDetailsClick,
 }: ServiceCardProps) {
   const handleClick = () => {
     if (onRequestClick) {
@@ -81,50 +94,83 @@ export function ServiceCard({
         </h3>
 
         {/* Description */}
-        <p className="text-sm text-gray-600 dark:text-muted-foreground mb-6 grow line-clamp-3">
+        <p className="text-sm text-gray-600 dark:text-muted-foreground mb-4 grow line-clamp-3">
           {description}
         </p>
 
-        {/* Button */}
-        <Button
-          onClick={handleClick}
-          className="w-full bg-[#28A745] hover:bg-[#228039] text-white font-medium py-2.5 rounded-lg transition-colors"
-        >
-          {buttonLabel}
-        </Button>
+        {/* Charter metadata: fee + processing time */}
+        {(feeLabel || timeLabel) && (
+          <div className="flex flex-wrap gap-2 mb-4">
+            {feeLabel && (
+              <span className="inline-flex items-center gap-1 rounded-md border border-gray-200 dark:border-border px-2 py-0.5 text-[11px] font-medium text-gray-700 dark:text-muted-foreground">
+                <PhilippinePeso className="h-3 w-3" aria-hidden="true" />
+                {feeLabel}
+              </span>
+            )}
+            {timeLabel && (
+              <span className="inline-flex items-center gap-1 rounded-md border border-gray-200 dark:border-border px-2 py-0.5 text-[11px] font-medium text-gray-700 dark:text-muted-foreground">
+                <Clock className="h-3 w-3" aria-hidden="true" />
+                {timeLabel}
+              </span>
+            )}
+          </div>
+        )}
+
+        {/* Actions */}
+        <div className="flex gap-2">
+          {onDetailsClick && (
+            <Button
+              variant="outline"
+              onClick={() => onDetailsClick(id)}
+              className="flex-1 font-medium py-2.5 rounded-lg"
+            >
+              Details
+            </Button>
+          )}
+          <Button
+            onClick={handleClick}
+            className="flex-1 bg-[#28A745] hover:bg-[#228039] text-white font-medium py-2.5 rounded-lg transition-colors"
+          >
+            {buttonLabel}
+          </Button>
+        </div>
       </div>
     </div>
   )
 }
 
-function getDefaultTag(categoryType: string): string {
-  switch (categoryType) {
-    case 'document': return 'Document'
-    case 'appointment': return 'Appointment'
-    default: return 'Service'
-  }
-}
-
 export function DynamicServiceCard({
   service,
   onRequestClick,
+  onDetailsClick,
 }: {
   service: Service
   onRequestClick?: (id: string) => void
+  onDetailsClick?: (id: string) => void
 }) {
   const iconIndex = Math.abs(service.slug.split('').reduce((a, c) => a + c.charCodeAt(0), 0)) % defaultIcons.length
   const icon = iconMap[service.slug] || defaultIcons[iconIndex]
   const buttonLabel = 'Request Now'
-  
+
+  const hasCharterData = service.fee_type != null && service.fee_type !== 'unspecified'
+  const feeLabel = hasCharterData ? formatServiceFee(service) : null
+  const timeLabel =
+    service.processing_time_text && service.processing_time_text !== NOT_SPECIFIED
+      ? service.processing_time_text
+      : null
+
   return (
     <ServiceCard
       id={service.slug}
       icon={icon}
       title={service.title}
       description={service.description || 'No description available'}
-      tag={getDefaultTag(service.category_type)}
+      tag={getServiceTypeLabel(service.category_type)}
       buttonLabel={buttonLabel}
       onRequestClick={onRequestClick}
+      onDetailsClick={onDetailsClick}
+      feeLabel={feeLabel}
+      timeLabel={timeLabel}
     />
   )
 }
