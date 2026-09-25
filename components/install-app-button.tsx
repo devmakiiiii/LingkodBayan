@@ -71,7 +71,7 @@ export function InstallAppButton() {
       <Button
         size="lg"
         onClick={handleInstall}
-        className="bg-white dark:bg-card text-[#001a4d] hover:bg-gray-100 dark:bg-muted"
+        className="bg-white text-[#001a4d] hover:bg-gray-100"
       >
         Install App
       </Button>
@@ -80,7 +80,7 @@ export function InstallAppButton() {
 
   return (
     <Link href="/auth/sign-up" className="inline-block">
-      <Button size="lg" className="bg-white dark:bg-card text-[#001a4d] hover:bg-gray-100 dark:bg-muted">
+      <Button size="lg" className="bg-white text-[#001a4d] hover:bg-gray-100">
         Get Started
       </Button>
     </Link>

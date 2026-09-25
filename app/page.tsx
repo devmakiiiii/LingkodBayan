@@ -1,15 +1,221 @@
 'use client'
 
+import { useEffect, useState, type ReactNode } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { Button } from '@/components/ui/button'
 import { ThemeToggle } from '@/components/theme-toggle'
-import { Zap, Shield, Sparkles } from 'lucide-react'
+import {
+  AlertTriangle,
+  Calendar,
+  CheckCircle,
+  FileText,
+  Heart,
+  Mail,
+  MapPin,
+  Megaphone,
+  PhilippinePeso,
+  Phone,
+  Scale,
+  Shield,
+  Sparkles,
+  Users,
+  Zap,
+} from 'lucide-react'
 import { InstallAppButton } from '@/components/install-app-button'
+import { createClient, hasSupabaseConfig } from '@/lib/supabase/client'
+import { NOT_SPECIFIED, formatServiceFee, getServiceTypeLabel } from '@/lib/charter-services'
+import { getAnnouncementCategoryColor } from '@/lib/announcement-categories'
+import { formatDate } from '@/lib/format-date'
+
+interface FeaturedService {
+  slug: string
+  title: string
+  description: string | null
+  category_type: string
+  fee_type?: string | null
+  fee_amount_min?: number | null
+  fee_amount_max?: number | null
+  fee_description?: string | null
+}
+
+/**
+ * Static fallback shown until (or unless) service_categories responds.
+ * Titles and descriptions mirror the Citizen's Charter seed data in
+ * scripts/23_seed_charter_data.sql and scripts/07_seed_service_categories.sql.
+ */
+const FALLBACK_FEATURED_SERVICES: FeaturedService[] = [
+  {
+    slug: 'barangay-clearance',
+    title: 'Barangay Clearance',
+    description: 'Official document required for various transactions, confirming local residency in good standing.',
+    category_type: 'document',
+  },
+  {
+    slug: 'certificate-residency',
+    title: 'Certificate of Residency',
+    description: 'Certifies that the applicant is a resident of Barangay Barretto.',
+    category_type: 'document',
+  },
+  {
+    slug: 'indigency',
+    title: 'Certificate of Indigency',
+    description: 'Certifies that the applicant is indigent; for residents of Barangay Barretto.',
+    category_type: 'document',
+  },
+  {
+    slug: 'cedula-community-tax-certificate',
+    title: 'Cedula / Community Tax Certificate',
+    description: 'Community Tax Certificate issued based on declared income.',
+    category_type: 'document',
+  },
+  {
+    slug: 'medical-consultation-medicine',
+    title: 'Medical Consultation and Dispensing of Medicine',
+    description: 'Medical consultation with prescription and dispensing of available medicine.',
+    category_type: 'health',
+  },
+  {
+    slug: 'lupon-dispute-settlement',
+    title: 'Lupong Tagapamayapa Dispute Settlement',
+    description: 'Settles community disputes peacefully and outside court through mediation and conciliation (Katarungang Pambarangay).',
+    category_type: 'justice',
+  },
+  {
+    slug: 'emergency-response-fire-rescue',
+    title: 'Emergency Response (Fire, Rescue, Disaster)',
+    description: 'Fire suppression, rescue operations, and disaster response by the official emergency response team of Barangay Barretto.',
+    category_type: 'emergency',
+  },
+  {
+    slug: 'cdc-enrollment',
+    title: 'Child Development Center (CDC) Enrollment',
+    description: 'Early childhood care and development services addressing health, nutrition, early education, and social development for children aged 0–4 years.',
+    category_type: 'program',
+  },
+]
+
+const categoryIcons: Record<string, ReactNode> = {
+  document: <FileText className="w-6 h-6" />,
+  appointment: <Calendar className="w-6 h-6" />,
+  health: <Heart className="w-6 h-6" />,
+  emergency: <AlertTriangle className="w-6 h-6" />,
+  justice: <Scale className="w-6 h-6" />,
+  program: <Users className="w-6 h-6" />,
+}
+
+interface HomeAnnouncement {
+  id: string
+  title: string
+  content?: string | null
+  excerpt?: string | null
+  category: string
+  published_at?: string | null
+  created_at: string
+  image_url?: string | null
+}
+
+interface PublicContact {
+  name?: string | null
+  address?: string | null
+  phone?: string | null
+  email?: string | null
+}
+
+function stripHtml(html: string): string {
+  return html.replace(/<[^>]*>/g, ' ').replace(/&nbsp;/gi, ' ').replace(/\s+/g, ' ').trim()
+}
 
 export default function Home() {
+  const [featuredServices, setFeaturedServices] = useState<FeaturedService[]>(FALLBACK_FEATURED_SERVICES)
+  const [newsItems, setNewsItems] = useState<HomeAnnouncement[]>([])
+  const [contact, setContact] = useState<PublicContact | null>(null)
+
+  // Upgrade the fallback list to live data when Supabase is reachable.
+  // Any failure (missing config, network, RLS) simply keeps the fallback.
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadFeaturedServices() {
+      if (!hasSupabaseConfig()) return
+
+      try {
+        const supabase = createClient()
+        const { data, error } = await supabase
+          .from('service_categories')
+          .select('*')
+          .eq('is_active', true)
+          .neq('category_type', 'incident')
+          .order('sort_order', { ascending: true })
+          .limit(8)
+
+        if (!cancelled && !error && data && data.length > 0) {
+          setFeaturedServices(data as FeaturedService[])
+        }
+      } catch {
+        // Keep the static fallback list if the fetch fails.
+      }
+    }
+
+    loadFeaturedServices()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  // Latest News: top 3 published announcements from the public API. The
+  // section stays hidden when there is nothing to show (empty database or
+  // fetch error), so the homepage never displays placeholder news.
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadNews() {
+      try {
+        const res = await fetch('/api/public/announcements')
+        if (!res.ok) return
+        const json = await res.json()
+        const announcements: HomeAnnouncement[] = Array.isArray(json.announcements)
+          ? json.announcements
+          : []
+        if (!cancelled) setNewsItems(announcements.slice(0, 3))
+      } catch {
+        // Leave the section hidden if the fetch fails.
+      }
+    }
+
+    loadNews()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  // Footer contact details come from system_settings (admin-only under RLS)
+  // through a whitelisted public endpoint; the contact column stays hidden
+  // when it is unavailable.
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadContact() {
+      try {
+        const res = await fetch('/api/public/settings')
+        if (!res.ok) return
+        const json = await res.json()
+        if (!cancelled && json.contact) setContact(json.contact)
+      } catch {
+        // Keep the footer without the contact column.
+      }
+    }
+
+    loadContact()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const showContact = Boolean(contact && (contact.address || contact.phone || contact.email))
+
   return (
-    <main className="flex flex-col min-h-screen">
+    <main id="main-content" className="flex flex-col min-h-screen">
       {/* Navigation */}
       <nav className="bg-white dark:bg-card border-b border-gray-200 dark:border-border px-4 sm:px-6 py-4 flex justify-between items-center sticky top-0 z-50">
         <div className="flex items-center gap-3">
@@ -54,7 +260,7 @@ export default function Home() {
                 </Button>
               </Link>
               <Link href="/auth/login" className="w-full sm:w-auto">
-                <Button size="lg" variant="outline" className="w-full text-white border-white hover:bg-white/10 hover:text-white">
+                <Button size="lg" variant="outline" className="w-full bg-transparent text-white border-white hover:bg-white/10 hover:text-white">
                   Sign In
                 </Button>
               </Link>
@@ -141,61 +347,93 @@ export default function Home() {
           </div>
 
           <div className="grid sm:grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6">
-            {[
-              { title: 'Barangay Clearance', desc: 'Request official clearance for employment or business.' },
-              { title: 'Resident ID', desc: 'Apply for your digital and physical identification.' },
-              { title: 'Business Permit', desc: 'Streamlined application for local micro and small enterprises.' },
-              { title: 'Health Services', desc: 'Book appointments at your local health center online.' },
-            ].map((service, i) => (
-              <div key={i} className="bg-white dark:bg-card dark:border-border rounded-lg overflow-hidden shadow-sm hover:shadow-md transition">
-                <div className="h-32 sm:h-40 bg-gray-300 dark:bg-muted"></div>
-                <div className="p-4">
-                  <h3 className="font-semibold text-gray-900 dark:text-foreground dark:text-card-foreground mb-2 text-sm sm:text-base">{service.title}</h3>
-                  <p className="text-xs sm:text-sm text-gray-600 dark:text-muted-foreground">{service.desc}</p>
+            {featuredServices.map((service) => {
+              const hasFeeData = Boolean(service.fee_type) && service.fee_type !== 'unspecified'
+              const feeLabel = hasFeeData ? formatServiceFee(service) : null
+              const showFee = feeLabel != null && feeLabel !== NOT_SPECIFIED
+
+              return (
+                <div
+                  key={service.slug}
+                  className="group flex flex-col bg-white dark:bg-card border border-gray-100 dark:border-border rounded-lg p-4 sm:p-5 shadow-sm hover:shadow-md transition"
+                >
+                  <div className="flex items-start justify-between gap-2 mb-4">
+                    <div className="w-11 h-11 shrink-0 rounded-lg bg-linear-to-br from-[#28A745]/10 to-[#28A745]/5 flex items-center justify-center text-[#28A745]">
+                      {categoryIcons[service.category_type] ?? <CheckCircle className="w-6 h-6" />}
+                    </div>
+                    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-[#28A745]/10 text-[#228039] whitespace-nowrap">
+                      {getServiceTypeLabel(service.category_type)}
+                    </span>
+                  </div>
+                  <h3 className="font-semibold text-gray-900 dark:text-foreground dark:text-card-foreground mb-2 text-sm sm:text-base">
+                    {service.title}
+                  </h3>
+                  <p className="text-xs sm:text-sm text-gray-600 dark:text-muted-foreground leading-relaxed grow line-clamp-3">
+                    {service.description || 'No description available'}
+                  </p>
+                  {showFee && (
+                    <span className="mt-4 inline-flex items-center gap-1 self-start rounded-md border border-gray-200 dark:border-border px-2 py-0.5 text-[11px] font-medium text-gray-700 dark:text-muted-foreground">
+                      <PhilippinePeso className="h-3 w-3" aria-hidden="true" />
+                      {feeLabel}
+                    </span>
+                  )}
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         </div>
       </section>
 
-      {/* Latest News */}
-      <section className="py-16 sm:py-24 px-4 sm:px-6 bg-white dark:bg-card dark:bg-background">
-        <div className="max-w-6xl mx-auto">
-          <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 dark:text-foreground mb-12">Latest News & Announcements</h2>
-          
-          <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-6 sm:gap-8">
-            {[
-              { 
-                tag: 'COMMUNITY HEALTH',
-                title: 'Barangay-wide Vaccination Drive Scheduled',
-                date: 'May 15, 2026'
-              },
-              { 
-                tag: 'INFRASTRUCTURE',
-                title: 'Main Avenue Road Repair and Improvement',
-                date: 'May 10, 2026'
-              },
-              { 
-                tag: 'ANNOUNCEMENT',
-                title: 'New Online Permit System Launched',
-                date: 'May 8, 2026'
-              },
-            ].map((news, i) => (
-              <div key={i} className="bg-gray-100 dark:bg-muted dark:bg-card dark:border-border rounded-lg overflow-hidden hover:shadow-lg transition cursor-pointer">
-                <div className="h-32 sm:h-40 bg-gray-300 dark:bg-muted"></div>
-                <div className="p-4">
-                  <span className="inline-block bg-[#28A745] text-white text-xs font-semibold px-3 py-1 rounded mb-3">
-                    {news.tag}
-                  </span>
-                  <h3 className="font-bold text-gray-900 dark:text-foreground dark:text-card-foreground mb-2 text-sm sm:text-base">{news.title}</h3>
-                  <p className="text-xs sm:text-sm text-gray-500 dark:text-muted-foreground">{news.date}</p>
-                </div>
-              </div>
-            ))}
+      {/* Latest News — hidden until real announcements load */}
+      {newsItems.length > 0 && (
+        <section className="py-16 sm:py-24 px-4 sm:px-6 bg-white dark:bg-card dark:bg-background">
+          <div className="max-w-6xl mx-auto">
+            <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 dark:text-foreground mb-12">Latest News & Announcements</h2>
+
+            <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-6 sm:gap-8">
+              {newsItems.map((announcement) => {
+                const preview = announcement.excerpt || stripHtml(announcement.content || '')
+
+                return (
+                  <Link
+                    key={announcement.id}
+                    href={`/citizen/announcements/${announcement.id}`}
+                    className="group block bg-gray-100 dark:bg-muted dark:bg-card dark:border-border rounded-lg overflow-hidden hover:shadow-lg transition"
+                  >
+                    <div className="relative h-32 sm:h-40 bg-linear-to-br from-[#001a4d] to-[#0d2d66]">
+                      <div className="absolute inset-0 flex items-center justify-center" aria-hidden="true">
+                        <Megaphone className="w-8 h-8 text-white/50" />
+                      </div>
+                      {announcement.image_url && (
+                        <img
+                          src={announcement.image_url}
+                          alt=""
+                          className="absolute inset-0 h-full w-full object-cover"
+                          onError={(e) => {
+                            e.currentTarget.style.display = 'none'
+                          }}
+                        />
+                      )}
+                    </div>
+                    <div className="p-4">
+                      <span className={`inline-block border px-3 py-1 rounded text-xs font-semibold mb-3 ${getAnnouncementCategoryColor(announcement.category)}`}>
+                        {announcement.category}
+                      </span>
+                      <h3 className="font-bold text-gray-900 dark:text-foreground dark:text-card-foreground mb-2 text-sm sm:text-base group-hover:text-[#28A745] transition-colors">{announcement.title}</h3>
+                      {preview && (
+                        <p className="text-xs sm:text-sm text-gray-600 dark:text-muted-foreground mb-2 line-clamp-2">{preview}</p>
+                      )}
+                      <p className="text-xs sm:text-sm text-gray-500 dark:text-muted-foreground">
+                        {formatDate(announcement.published_at || announcement.created_at)}
+                      </p>
+                    </div>
+                  </Link>
+                )
+              })}
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
 
       {/* CTA Section */}
       <section className="bg-linear-to-br from-[#001a4d] to-[#0d2d66] text-white py-16 sm:py-24 px-4 sm:px-6">
@@ -203,7 +441,7 @@ export default function Home() {
           <div className="mb-6 text-4xl">📡</div>
           <h2 className="text-3xl sm:text-4xl font-bold mb-4">Stay Connected with Your Community</h2>
           <p className="text-base sm:text-lg mb-8 text-gray-300">
-            Join over 15,000 residents using LingkodBayan to build a more efficient and responsive barangay.
+            Join residents in your community using LingkodBayan to build a more efficient and responsive barangay.
           </p>
           <InstallAppButton />
         </div>
@@ -212,29 +450,44 @@ export default function Home() {
       {/* Footer */}
       <footer className="bg-gray-900 dark:bg-card dark:border-t dark:border-border text-gray-400 dark:text-muted-foreground py-12 px-4 sm:px-6">
         <div className="max-w-6xl mx-auto">
-          <div className="grid sm:grid-cols-2 md:grid-cols-4 gap-8 mb-8">
+          <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-8 mb-8">
             <div>
               <h3 className="text-white font-bold mb-4 text-sm sm:text-base">LingkodBayan</h3>
-              <p className="text-xs sm:text-sm">© 2026 LINGKODBAYAN CITIZEN PORTAL. ALL RIGHTS RESERVED.</p>
+              <p className="text-xs sm:text-sm">© {new Date().getFullYear()} LINGKODBAYAN CITIZEN PORTAL. ALL RIGHTS RESERVED.</p>
             </div>
             <div>
+              <h3 className="text-white font-bold mb-4 text-sm sm:text-base">Quick Links</h3>
               <ul className="space-y-2 text-xs sm:text-sm">
-                <li><a href="#" className="hover:text-white">CONTACT US</a></li>
-                <li><a href="#" className="hover:text-white">PRIVACY POLICY</a></li>
+                <li><Link href="/auth/login" className="hover:text-white">Login</Link></li>
+                <li><Link href="/auth/sign-up" className="hover:text-white">Sign Up</Link></li>
+                <li><Link href="/auth/forgot-password" className="hover:text-white">Forgot Password</Link></li>
               </ul>
             </div>
-            <div>
-              <ul className="space-y-2 text-xs sm:text-sm">
-                <li><a href="#" className="hover:text-white">TERMS OF SERVICE</a></li>
-                <li><a href="#" className="hover:text-white">FAQ</a></li>
-              </ul>
-            </div>
-            <div className="text-left sm:text-right">
-              <div className="flex gap-4">
-                <a href="#" className="text-gray-500 dark:text-muted-foreground hover:text-white">⚙️</a>
-                <a href="#" className="text-gray-500 dark:text-muted-foreground hover:text-white">📱</a>
+            {showContact && (
+              <div>
+                <h3 className="text-white font-bold mb-4 text-sm sm:text-base">Contact Us</h3>
+                <ul className="space-y-2 text-xs sm:text-sm">
+                  {contact?.address && (
+                    <li className="flex items-start gap-2">
+                      <MapPin className="w-3.5 h-3.5 mt-0.5 shrink-0" aria-hidden="true" />
+                      <span>{contact.address}</span>
+                    </li>
+                  )}
+                  {contact?.phone && (
+                    <li className="flex items-center gap-2">
+                      <Phone className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+                      <span>{contact.phone}</span>
+                    </li>
+                  )}
+                  {contact?.email && (
+                    <li className="flex items-center gap-2">
+                      <Mail className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+                      <a href={`mailto:${contact.email}`} className="hover:text-white">{contact.email}</a>
+                    </li>
+                  )}
+                </ul>
               </div>
-            </div>
+            )}
           </div>
           <div className="border-t border-gray-800 pt-8 text-center text-xs sm:text-sm">
             <p>Crafted to empower communities and strengthen civic engagement</p>
