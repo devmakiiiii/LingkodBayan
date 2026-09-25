@@ -5,6 +5,7 @@ import Image from 'next/image'
 import { Button } from '@/components/ui/button'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { Zap, Shield, Sparkles } from 'lucide-react'
+import { InstallAppButton } from '@/components/install-app-button'
 
 export default function Home() {
   return (
@@ -204,11 +205,7 @@ export default function Home() {
           <p className="text-base sm:text-lg mb-8 text-gray-300">
             Join over 15,000 residents using LingkodBayan to build a more efficient and responsive barangay.
           </p>
-          <Link href="/auth/sign-up" className="inline-block">
-            <Button size="lg" className="bg-white dark:bg-card text-[#001a4d] hover:bg-gray-100 dark:bg-muted">
-              Download Mobile App
-            </Button>
-          </Link>
+          <InstallAppButton />
         </div>
       </section>
 
