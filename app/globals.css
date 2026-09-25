@@ -40,27 +40,41 @@
   --sidebar-ring: oklch(0.545 0.183 142.44);
 }
 
+/**
+ * Dark theme — layered surfaces on a navy-slate canvas.
+ *
+ * The palette is deliberately built as a stack of elevation levels so the page
+ * canvas, raised cards, floating surfaces (dialogs/menus) and neutral hover
+ * states never collapse into the same near-black value:
+ *
+ *   background (canvas) -> card (raised) -> popover (floating) -> muted (hover/inset)
+ *
+ * The brand green (--primary / --accent / --ring) is intentionally kept so the
+ * dark theme still reads as LingkodBayan, while text tones stay off pure white
+ * for comfortable contrast (body text ≈15:1, muted text ≈6.9:1 on cards).
+ */
 .dark {
-  --background: oklch(0.141 0.005 240);
-  --foreground: oklch(0.985 0 0);
-  /* Cards/popovers are slightly elevated above the background */
-  --card: oklch(0.185 0.005 240);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.185 0.005 240);
-  --popover-foreground: oklch(0.985 0 0);
+  --background: oklch(0.17 0.012 258);
+  --foreground: oklch(0.955 0.006 258);
+  /* Cards are raised above the page canvas */
+  --card: oklch(0.225 0.014 258);
+  --card-foreground: oklch(0.955 0.006 258);
+  /* Floating surfaces (dialogs, sheets, dropdowns) sit above cards */
+  --popover: oklch(0.26 0.015 258);
+  --popover-foreground: oklch(0.962 0.006 258);
   /* LingkodBayan Green in dark mode */
   --primary: oklch(0.645 0.183 142.44);
   --primary-foreground: oklch(0.145 0 0);
-  --secondary: oklch(0.24 0.005 240);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.24 0.005 240);
-  --muted-foreground: oklch(0.72 0 0);
+  --secondary: oklch(0.275 0.015 258);
+  --secondary-foreground: oklch(0.95 0.006 258);
+  --muted: oklch(0.255 0.014 258);
+  --muted-foreground: oklch(0.72 0.015 258);
   --accent: oklch(0.645 0.183 142.44);
   --accent-foreground: oklch(0.145 0 0);
-  --destructive: oklch(0.5 0.18 25.723);
-  --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(0.28 0.005 240);
-  --input: oklch(0.28 0.005 240);
+  --destructive: oklch(0.63 0.19 25.723);
+  --destructive-foreground: oklch(0.975 0.014 20);
+  --border: oklch(0.295 0.014 258);
+  --input: oklch(0.315 0.014 258);
   --ring: oklch(0.645 0.183 142.44);
   --chart-1: oklch(0.645 0.183 142.44);
   --chart-2: oklch(0.696 0.17 162.48);

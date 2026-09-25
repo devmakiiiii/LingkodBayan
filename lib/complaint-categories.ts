@@ -33,15 +33,31 @@ export const complaintCategoryFallbackPriorities: Record<ComplaintCategory, 'low
   'Other Concerns': 'low',
 }
 
+/**
+ * Category badge recipes.
+ *
+ * Each entry keeps the original light-theme tint and adds a dark-theme
+ * counterpart built from the same hue at low alpha (`/10` fill, `/30` border,
+ * `-300` text) so the colours stay recognisable inside the layered dark
+ * surfaces without glowing or causing eye strain.
+ */
 export const complaintCategoryBadgeClasses: Record<ComplaintCategory, string> = {
-  'Noise Complaint': 'border-emerald-200 bg-emerald-50 text-emerald-700',
-  'Public Disturbance': 'border-amber-200 bg-amber-50 text-amber-700',
-  'Sanitation': 'border-sky-200 bg-sky-50 text-sky-700',
-  'Infrastructure Issue': 'border-violet-200 bg-violet-50 text-violet-700',
-  'Barangay Incident': 'border-rose-200 bg-rose-50 text-rose-700',
-  'Illegal Parking': 'border-orange-200 bg-orange-50 text-orange-700',
-  'Street Light Problem': 'border-yellow-200 bg-yellow-50 text-yellow-800',
-  'Other Concerns': 'border-slate-200 bg-slate-50 text-slate-700',
+  'Noise Complaint':
+    'rounded-full border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-400/30 dark:bg-emerald-400/10 dark:text-emerald-300',
+  'Public Disturbance':
+    'rounded-full border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-400/30 dark:bg-amber-400/10 dark:text-amber-300',
+  'Sanitation':
+    'rounded-full border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-400/30 dark:bg-sky-400/10 dark:text-sky-300',
+  'Infrastructure Issue':
+    'rounded-full border-violet-200 bg-violet-50 text-violet-700 dark:border-violet-400/30 dark:bg-violet-400/10 dark:text-violet-300',
+  'Barangay Incident':
+    'rounded-full border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-400/30 dark:bg-rose-400/10 dark:text-rose-300',
+  'Illegal Parking':
+    'rounded-full border-orange-200 bg-orange-50 text-orange-700 dark:border-orange-400/30 dark:bg-orange-400/10 dark:text-orange-300',
+  'Street Light Problem':
+    'rounded-full border-yellow-200 bg-yellow-50 text-yellow-800 dark:border-yellow-400/30 dark:bg-yellow-400/10 dark:text-yellow-200',
+  'Other Concerns':
+    'rounded-full border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-400/25 dark:bg-slate-400/10 dark:text-slate-300',
 }
 
 const urgencyIndicators = [

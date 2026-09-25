@@ -18,7 +18,6 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { RequestActions } from '@/components/admin/request-actions'
-import { logAdminActionClient } from '@/lib/audit-log'
 import { canTransitionRequest } from '@/lib/status-machine'
 import { toast } from 'sonner'
 import {
@@ -213,10 +212,9 @@ export default function AdminRequestsPage() {
 
   async function updateRequestStatus(requestId: string, newStatus: RequestStatus) {
     try {
-      const supabase = createClient()
       const previousStatus = requests.find((request) => request.id === requestId)?.status ?? null
 
-      // Enforce the request status finite state machine before writing
+      // Enforce the request status finite state machine before sending
       if (!canTransitionRequest(previousStatus, newStatus)) {
         toast.error(
           previousStatus && previousStatus.toLowerCase() === newStatus.toLowerCase()
@@ -226,12 +224,18 @@ export default function AdminRequestsPage() {
         return
       }
 
-      const { error } = await supabase
-        .from('requests')
-        .update({ status: newStatus, updated_at: new Date() })
-        .eq('id', requestId)
+      const res = await fetch('/api/admin/requests', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ requestId, status: newStatus }),
+      })
 
-      if (error) throw error
+      const data = await res.json().catch(() => ({ error: 'Failed to parse response' }))
+
+      if (!res.ok) {
+        toast.error(data.error || 'Failed to update request status')
+        return
+      }
 
       setRequests((currentRequests) =>
         currentRequests.map((request) =>
@@ -245,15 +249,10 @@ export default function AdminRequestsPage() {
           : currentRequest,
       )
 
-      void logAdminActionClient({
-        action: 'request_status_updated',
-        resourceType: 'request',
-        resourceId: requestId,
-        oldValues: previousStatus ? { status: previousStatus } : undefined,
-        newValues: { status: newStatus },
-      })
+      toast.success(`Request status updated to ${newStatus}`)
     } catch (error) {
       console.error('Error updating request:', error)
+      toast.error('An unexpected error occurred while updating request')
     }
   }
 

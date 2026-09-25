@@ -20,11 +20,19 @@ export const complaintStatusLabels: Record<ComplaintLifecycleStatus, string> = {
   dismissed: 'Dismissed',
 }
 
+/**
+ * Status badge recipes. Light-theme tints are paired with dark-theme variants
+ * that reuse the same hue at low alpha so the four lifecycle states remain
+ * instantly recognisable on the layered dark surfaces (AA contrast ~5:1).
+ */
 export const complaintStatusClassNames: Record<ComplaintLifecycleStatus, string> = {
-  open: 'bg-amber-500/10 text-amber-700 border-amber-500/20',
-  under_investigation: 'bg-sky-500/10 text-sky-700 border-sky-500/20',
-  resolved: 'bg-emerald-500/10 text-emerald-700 border-emerald-500/20',
-  dismissed: 'bg-slate-500/10 text-slate-700 border-slate-500/20',
+  open: 'rounded-full border-amber-500/30 bg-amber-500/10 text-amber-700 dark:border-amber-400/30 dark:bg-amber-400/10 dark:text-amber-300',
+  under_investigation:
+    'rounded-full border-sky-500/30 bg-sky-500/10 text-sky-700 dark:border-sky-400/30 dark:bg-sky-400/10 dark:text-sky-300',
+  resolved:
+    'rounded-full border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:border-emerald-400/30 dark:bg-emerald-400/10 dark:text-emerald-300',
+  dismissed:
+    'rounded-full border-slate-500/30 bg-slate-500/10 text-slate-700 dark:border-slate-400/25 dark:bg-slate-400/10 dark:text-slate-300',
 }
 
 /** Options for the complaint status filter controls, in lifecycle order. */

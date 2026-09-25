@@ -48,6 +48,7 @@ import {
   UserPlus,
 } from 'lucide-react'
 import { formatDate } from '@/lib/format-date'
+import { cn } from '@/lib/utils'
 import {
   buildCsv,
   downloadCsvFile,
@@ -57,7 +58,7 @@ import {
   type PrintableColumn,
 } from '@/lib/admin-reporting'
 import { complaintCategories, complaintCategoryKeywords, complaintCategoryBadgeClasses, complaintCategoryFallbackPriorities, type ComplaintCategory, analyzeComplaintPriority } from '@/lib/complaint-categories'
-import { logAdminActionClient } from '@/lib/audit-log'
+import { logAdminActionClient } from '@/lib/audit-log-client'
 import { canTransitionComplaint, getAllowedComplaintTransitions } from '@/lib/status-machine'
 import { computeOfficialWorkloads, planEvenDistribution, suggestAssignee } from '@/lib/workload'
 
@@ -166,48 +167,78 @@ type CategoryDefinition = {
   fallbackPriority: CanonicalPriority
 }
 
+/**
+ * Status badge recipes.
+ *
+ * Light-theme tints are unchanged; every entry now appends a dark-theme
+ * counterpart built from the same hue at low alpha so the four lifecycle
+ * states stay instantly recognisable on the layered dark surfaces.
+ */
 const statusDefinitions: Record<CanonicalStatus, { label: string; badgeClass: string; rawValues: string[] }> = {
   pending: {
     label: 'Pending',
-    badgeClass: 'border-yellow-200 bg-yellow-50 text-yellow-700',
+    badgeClass:
+      'rounded-full border-yellow-200 bg-yellow-50 text-yellow-700 dark:border-amber-400/30 dark:bg-amber-400/10 dark:text-amber-300',
     rawValues: ['pending', 'open'],
   },
   under_review: {
     label: 'Under Review',
-    badgeClass: 'border-blue-200 bg-blue-50 text-blue-700',
+    badgeClass:
+      'rounded-full border-blue-200 bg-blue-50 text-blue-700 dark:border-sky-400/30 dark:bg-sky-400/10 dark:text-sky-300',
     rawValues: ['under_review', 'under-investigation', 'under_investigation', 'processing', 'in-progress'],
   },
   resolved: {
     label: 'Resolved',
-    badgeClass: 'border-emerald-200 dark:border-border bg-emerald-50 text-emerald-700',
+    badgeClass:
+      'rounded-full border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-400/30 dark:bg-emerald-400/10 dark:text-emerald-300',
     rawValues: ['resolved'],
   },
   rejected: {
     label: 'Rejected',
-    badgeClass: 'border-rose-200 bg-rose-50 text-rose-700',
+    badgeClass:
+      'rounded-full border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-400/30 dark:bg-rose-400/10 dark:text-rose-300',
     rawValues: ['rejected', 'dismissed'],
   },
 }
 
+/**
+ * Priority badge recipes — a warm ramp (slate -> orange -> red -> rose) that
+ * keeps escalating urgency legible in both themes.
+ */
 const priorityDefinitions: Record<CanonicalPriority, { label: string; badgeClass: string; icon?: typeof TriangleAlert }> = {
   low: {
     label: 'Low',
-    badgeClass: 'border-slate-200 bg-slate-50 text-slate-700 dark:text-slate-300',
+    badgeClass:
+      'rounded-full border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-400/25 dark:bg-slate-400/10 dark:text-slate-300',
   },
   medium: {
     label: 'Medium',
-    badgeClass: 'border-orange-200 bg-orange-50 text-orange-700',
+    badgeClass:
+      'rounded-full border-orange-200 bg-orange-50 text-orange-700 dark:border-orange-400/30 dark:bg-orange-400/10 dark:text-orange-300',
   },
   high: {
     label: 'High',
-    badgeClass: 'border-red-200 bg-red-50 text-red-700',
+    badgeClass:
+      'rounded-full border-red-200 bg-red-50 text-red-700 dark:border-red-400/35 dark:bg-red-400/10 dark:text-red-300',
   },
   critical: {
     label: 'Critical',
-    badgeClass: 'border-red-900 bg-red-950 text-white',
+    badgeClass:
+      'rounded-full border-red-900 bg-red-950 text-white dark:border-rose-400/50 dark:bg-rose-500/20 dark:text-rose-200',
     icon: TriangleAlert,
   },
 }
+
+/**
+ * Quick-filter chip styling. Active chips use a controlled accent instead of
+ * the hard `--primary` fill so the dark theme never flashes pure white.
+ */
+const activeChipClass =
+  'border border-transparent bg-emerald-600 text-white hover:bg-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-200 dark:border-emerald-400/30 dark:hover:bg-emerald-500/30 dark:hover:text-emerald-100'
+const activeUrgentChipClass =
+  'border border-transparent bg-rose-600 text-white hover:bg-rose-700 dark:bg-rose-500/20 dark:text-rose-200 dark:border-rose-400/35 dark:hover:bg-rose-500/30 dark:hover:text-rose-100'
+const idleChipClass =
+  'border-slate-200 text-slate-600 hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700 dark:border-border dark:bg-transparent dark:text-muted-foreground dark:hover:border-emerald-400/30 dark:hover:bg-emerald-500/10 dark:hover:text-emerald-200'
 
 const statusToDatabaseValue: Record<CanonicalStatus, string> = {
   pending: 'open',
@@ -922,12 +953,12 @@ evidenceUrls: extractEvidenceUrls(row),
   const selectedReportTimeline = selectedReport?.messages || []
 
   return (
-    <div className="space-y-8 bg-linear-to-br from-emerald-50 via-white to-lime-50 min-h-screen p-8">
+    <div className="min-h-screen space-y-6 bg-linear-to-br from-emerald-50 via-white to-lime-50 p-4 sm:space-y-8 sm:p-6 lg:p-8 dark:from-emerald-950/25 dark:via-background dark:to-sky-950/20">
       {loadError && (
-        <Card className="border-amber-200 bg-amber-50 shadow-sm">
+        <Card className="border-amber-200 bg-amber-50 shadow-sm dark:border-amber-500/30 dark:bg-amber-500/10 dark:shadow-none">
           <CardHeader>
-            <CardTitle className="text-amber-900">Resident reports unavailable</CardTitle>
-            <CardDescription className="text-amber-800">{loadError}</CardDescription>
+            <CardTitle className="text-amber-900 dark:text-amber-200">Resident reports unavailable</CardTitle>
+            <CardDescription className="text-amber-800 dark:text-amber-300/90">{loadError}</CardDescription>
           </CardHeader>
         </Card>
       )}
@@ -946,9 +977,12 @@ evidenceUrls: extractEvidenceUrls(row),
               </div>
             ) : (
               notificationAlerts.map((alert) => (
-                <div key={alert.id} className="rounded-xl border border-emerald-100 dark:border-border bg-emerald-50 px-3 py-2 text-sm">
-                  <p className="font-medium text-emerald-900">{alert.message}</p>
-                  <p className="text-xs text-emerald-700">{formatDateTime(alert.createdAt)}</p>
+                <div
+                  key={alert.id}
+                  className="rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-sm dark:border-emerald-400/25 dark:bg-emerald-400/10"
+                >
+                  <p className="font-medium text-emerald-900 dark:text-emerald-200">{alert.message}</p>
+                  <p className="text-xs text-emerald-700 dark:text-emerald-300/80">{formatDateTime(alert.createdAt)}</p>
                 </div>
               ))
             )}
@@ -957,7 +991,7 @@ evidenceUrls: extractEvidenceUrls(row),
       </Dialog>
 
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>
-        <DialogContent className="max-h-[92vh] w-[min(96vw,60rem)] overflow-y-auto sm:max-w-none">
+        <DialogContent className="max-h-[92vh] w-[min(96vw,60rem)] overflow-y-auto dark:border-border dark:bg-popover sm:max-w-none">
           <DialogHeader>
             <DialogTitle className="flex flex-wrap items-center gap-2 text-2xl">
               {selectedReport?.trackingNumber || 'Resident Report'}
@@ -981,10 +1015,10 @@ evidenceUrls: extractEvidenceUrls(row),
 
           {selectedReport && (
             <Tabs value={modalTab} onValueChange={(value) => setModalTab(value as 'overview' | 'actions' | 'activity')}>
-              <TabsList className="grid w-full grid-cols-3">
-                <TabsTrigger value="overview">Overview</TabsTrigger>
-                <TabsTrigger value="actions">Admin Actions</TabsTrigger>
-                <TabsTrigger value="activity">Activity Log</TabsTrigger>
+              <TabsList className="grid h-auto w-full grid-cols-3 gap-1 p-1 dark:bg-background/80 sm:h-9">
+                <TabsTrigger value="overview" className="h-8 px-2 text-xs sm:text-sm">Overview</TabsTrigger>
+                <TabsTrigger value="actions" className="h-8 px-2 text-xs sm:text-sm">Admin Actions</TabsTrigger>
+                <TabsTrigger value="activity" className="h-8 px-2 text-xs sm:text-sm">Activity Log</TabsTrigger>
               </TabsList>
 
               <TabsContent value="overview" className="mt-6 space-y-6">
@@ -1036,12 +1070,12 @@ evidenceUrls: extractEvidenceUrls(row),
                           <p className="font-semibold">{selectedReport.assignedOfficialLabel}</p>
                         </div>
                       </div>
-                      <div className="rounded-2xl border border-dashed border-emerald-200 dark:border-border bg-emerald-50/50 p-4">
+                      <div className="rounded-2xl border border-dashed border-emerald-200 bg-emerald-50/50 p-4 dark:border-emerald-400/25 dark:bg-emerald-400/[0.07]">
                         <p className="text-sm font-semibold text-foreground">Full Complaint Description</p>
                         <p className="mt-2 whitespace-pre-wrap text-sm text-slate-700 dark:text-slate-300">{selectedReport.description}</p>
                       </div>
                       {selectedReport.priorityReasons && selectedReport.priorityReasons.length > 0 && (
-                        <div className="text-xs text-slate-500">
+                        <div className="text-xs text-slate-500 dark:text-muted-foreground">
                           <span className="font-medium">Priority reasons:</span> {selectedReport.priorityReasons.join(', ')}
                         </div>
                       )}
@@ -1055,9 +1089,15 @@ evidenceUrls: extractEvidenceUrls(row),
                         <CardDescription>Preview any attached images or available evidence links.</CardDescription>
                       </CardHeader>
                       <CardContent>
-                        <div className="grid grid-cols-2 gap-3">
+                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                           {selectedReport.evidenceUrls.map((url) => (
-                            <a key={url} href={url} target="_blank" rel="noreferrer" className="group overflow-hidden rounded-2xl border border-slate-200 bg-slate-50">
+                            <a
+                              key={url}
+                              href={url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="group overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 dark:border-border dark:bg-muted/50"
+                            >
                               <img src={url} alt="Evidence preview" className="h-40 w-full object-cover transition-transform group-hover:scale-105" />
                             </a>
                           ))}
@@ -1076,11 +1116,11 @@ evidenceUrls: extractEvidenceUrls(row),
                         <iframe
                           title="Report location preview"
                           src={buildMapEmbedUrl(selectedReport)}
-                          className="h-64 w-full rounded-2xl border border-slate-200"
+                          className="h-64 w-full rounded-2xl border border-slate-200 dark:border-border"
                           loading="lazy"
                         />
                       ) : (
-                        <div className="flex h-64 items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-slate-50 text-sm text-muted-foreground">
+                        <div className="flex h-64 items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-slate-50 text-sm text-muted-foreground dark:border-border dark:bg-muted/40">
                           No map coordinates available for this report.
                         </div>
                       )}
@@ -1121,12 +1161,12 @@ evidenceUrls: extractEvidenceUrls(row),
                         </Select>
                         <div className="flex flex-wrap gap-1 pt-1">
                           {selectedReport.status !== 'resolved' && (
-                            <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => { setStatusDraft('resolved'); updateReport(selectedReport, { status: 'resolved', assignedOfficialId: assignedOfficialDraft || null, adminNotes: adminNotesDraft }, 'Marked as resolved.') }} disabled={savingAction}>
+                            <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800 dark:text-emerald-300 dark:hover:bg-emerald-500/10 dark:hover:text-emerald-200" onClick={() => { setStatusDraft('resolved'); updateReport(selectedReport, { status: 'resolved', assignedOfficialId: assignedOfficialDraft || null, adminNotes: adminNotesDraft }, 'Marked as resolved.') }} disabled={savingAction}>
                               Mark Resolved
                             </Button>
                           )}
                           {selectedReport.status === 'resolved' && (
-                            <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => { setStatusDraft('under_review'); updateReport(selectedReport, { status: 'under_review', assignedOfficialId: assignedOfficialDraft || null, adminNotes: adminNotesDraft }, 'Report reopened.') }} disabled={savingAction}>
+                            <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-slate-600 hover:bg-slate-100 hover:text-slate-800 dark:text-muted-foreground dark:hover:bg-muted dark:hover:text-foreground" onClick={() => { setStatusDraft('under_review'); updateReport(selectedReport, { status: 'under_review', assignedOfficialId: assignedOfficialDraft || null, adminNotes: adminNotesDraft }, 'Report reopened.') }} disabled={savingAction}>
                               Unresolve
                             </Button>
                           )}
@@ -1151,7 +1191,7 @@ evidenceUrls: extractEvidenceUrls(row),
                             ))}
                           </SelectContent>
                         </Select>
-                        <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={autoAssignSelected} disabled={savingAction}>
+                        <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800 dark:text-emerald-300 dark:hover:bg-emerald-500/10 dark:hover:text-emerald-200" onClick={autoAssignSelected} disabled={savingAction}>
                           <Scale className="mr-1 h-3.5 w-3.5" />
                           Auto-assign least loaded
                         </Button>
@@ -1170,11 +1210,11 @@ evidenceUrls: extractEvidenceUrls(row),
                     </div>
 
                     <div className="flex flex-wrap gap-2">
-                      <Button className="bg-emerald-600 text-white hover:bg-emerald-700" onClick={() => updateReport(selectedReport, { status: statusDraft, assignedOfficialId: assignedOfficialDraft || null, adminNotes: adminNotesDraft }, `Admin updated the report status to ${statusDefinitions[statusDraft].label}.`)} disabled={savingAction}>
+                      <Button className="bg-emerald-600 text-white hover:bg-emerald-700 dark:bg-emerald-500 dark:text-emerald-950 dark:hover:bg-emerald-400" onClick={() => updateReport(selectedReport, { status: statusDraft, assignedOfficialId: assignedOfficialDraft || null, adminNotes: adminNotesDraft }, `Admin updated the report status to ${statusDefinitions[statusDraft].label}.`)} disabled={savingAction}>
                         {savingAction ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
                         Save Changes
                       </Button>
-                      <Button variant="outline" onClick={() => updateReport(selectedReport, { archivedAt: new Date().toISOString(), status: 'rejected' }, `Report archived: ${selectedReport.trackingNumber}`)} disabled={savingAction}>
+                      <Button variant="outline" className="dark:border-border dark:text-foreground dark:hover:bg-muted" onClick={() => updateReport(selectedReport, { archivedAt: new Date().toISOString(), status: 'rejected' }, `Report archived: ${selectedReport.trackingNumber}`)} disabled={savingAction}>
                         <Archive className="mr-2 h-4 w-4" />
                         Archive Report
                       </Button>
@@ -1199,10 +1239,10 @@ evidenceUrls: extractEvidenceUrls(row),
                         placeholder="Type your response to the resident..."
                         className="min-h-48"
                       />
-                      <div className="text-xs text-slate-500">{replyDraft.length} characters</div>
+                      <div className="text-xs text-slate-500 dark:text-muted-foreground">{replyDraft.length} characters</div>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      <Button className="bg-blue-600 text-white hover:bg-blue-700" onClick={sendReply} disabled={savingAction || !replyDraft.trim()}>
+                      <Button className="bg-blue-600 text-white hover:bg-blue-700 dark:bg-sky-500 dark:text-sky-950 dark:hover:bg-sky-400" onClick={sendReply} disabled={savingAction || !replyDraft.trim()}>
                         {savingAction ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
                         Send Response
                       </Button>
@@ -1216,28 +1256,37 @@ evidenceUrls: extractEvidenceUrls(row),
 
               <TabsContent value="activity" className="mt-6 space-y-6">
                 <Card className="border-emerald-100 dark:border-border">
-                  <CardHeader className="sticky top-0 bg-white dark:bg-card z-10 border-b border-emerald-100 dark:border-border">
+                  <CardHeader className="sticky top-0 z-10 border-b border-emerald-100 bg-white dark:border-border dark:bg-card">
                     <CardTitle>Timeline / History Logs</CardTitle>
                     <CardDescription>Review every update, reply, and internal action made for this report.</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-3 pt-4">
                     {selectedReportTimeline.length === 0 ? (
-                      <Empty title="No history yet" description="System updates and admin replies will appear here.">
-                        <EmptyMedia variant="icon">
+                      <Empty
+                        title="No history yet"
+                        description="System updates and admin replies will appear here."
+                        className="border border-dashed border-emerald-100/80 dark:border-border/70 dark:bg-muted/20"
+                      >
+                        <EmptyMedia variant="icon" className="dark:bg-muted dark:text-emerald-300">
                           <Clock3 className="h-6 w-6" />
                         </EmptyMedia>
                       </Empty>
                     ) : (
                       selectedReportTimeline.map((message) => (
-                        <div key={message.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                        <div
+                          key={message.id}
+                          className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4 dark:border-border dark:bg-muted/40"
+                        >
                           <div className="flex items-start gap-3">
-                            <div className="rounded-full bg-emerald-100 p-2 text-emerald-700">
+                            <div className="rounded-full bg-emerald-100 p-2 text-emerald-700 dark:bg-emerald-400/15 dark:text-emerald-300">
                               {message.message_type === 'reply' ? <MessageSquareReply className="h-4 w-4" /> : <Clock3 className="h-4 w-4" />}
                             </div>
                             <div className="flex-1">
                               <div className="flex flex-wrap items-center gap-2">
                                 <p className="font-semibold capitalize">{message.message_type || 'system'}</p>
-                                <Badge variant="outline">{formatRelativeTime(message.created_at)}</Badge>
+                                <Badge variant="outline" className="rounded-full dark:border-border dark:bg-muted/50 dark:text-muted-foreground">
+                                  {formatRelativeTime(message.created_at)}
+                                </Badge>
                               </div>
                               <p className="mt-1 text-sm text-slate-700 dark:text-slate-300">{message.message}</p>
                             </div>
@@ -1253,36 +1302,36 @@ evidenceUrls: extractEvidenceUrls(row),
         </DialogContent>
       </Dialog>
 
-      <div className="flex flex-col gap-6 rounded-[28px] border border-white/60 bg-white/80 dark:bg-card/80 p-6 shadow-[0_20px_60px_rgba(16,185,129,0.12)] backdrop-blur xl:flex-row xl:items-start xl:justify-between">
+      <div className="flex flex-col gap-6 rounded-2xl border border-white/60 bg-white/80 p-6 shadow-[0_20px_60px_rgba(16,185,129,0.12)] backdrop-blur dark:border-border dark:bg-card/70 dark:shadow-[0_20px_60px_rgba(0,0,0,0.45)] xl:flex-row xl:items-start xl:justify-between">
         <div className="space-y-3">
-          <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200 dark:border-border bg-emerald-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">
+          <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold tracking-[0.18em] text-emerald-700 uppercase dark:border-emerald-400/30 dark:bg-emerald-400/10 dark:text-emerald-300">
             <FileText className="h-3.5 w-3.5" />
             Resident Reports
           </div>
           <div>
-            <h1 className="text-3xl font-bold text-slate-900">Resident Reports</h1>
-            <p className="mt-2 max-w-2xl text-sm text-slate-600">Monitor and manage resident-submitted reports and complaints.</p>
+            <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl dark:text-foreground">Resident Reports</h1>
+            <p className="mt-2 max-w-2xl text-sm text-slate-600 dark:text-muted-foreground">Monitor and manage resident-submitted reports and complaints.</p>
           </div>
         </div>
 
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-          <div className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm font-medium ${isLive ? 'border-emerald-200 dark:border-border bg-emerald-50 text-emerald-700' : 'border-amber-200 bg-amber-50 text-amber-700'}`}>
+        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+          <div className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm font-medium ${isLive ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-400/30 dark:bg-emerald-400/10 dark:text-emerald-300' : 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-400/30 dark:bg-amber-400/10 dark:text-amber-300'}`}>
             <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
             {refreshing ? 'Refreshing…' : isLive ? 'Realtime connected' : 'Syncing data'}
           </div>
-          <Button variant="outline" className="border-emerald-200 dark:border-border text-emerald-700 hover:bg-emerald-50" onClick={() => loadReports(false)}>
+          <Button variant="outline" className="border-emerald-200 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800 dark:border-border dark:text-emerald-300 dark:hover:bg-emerald-500/10 dark:hover:text-emerald-200" onClick={() => loadReports(false)}>
             <RefreshCcw className="mr-2 h-4 w-4" />
             Refresh
           </Button>
-          <Button variant="outline" className="border-emerald-200 dark:border-border text-emerald-700 hover:bg-emerald-50" onClick={autoAssignUnassigned} disabled={savingAction}>
+          <Button variant="outline" className="border-emerald-200 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800 dark:border-border dark:text-emerald-300 dark:hover:bg-emerald-500/10 dark:hover:text-emerald-200" onClick={autoAssignUnassigned} disabled={savingAction}>
             <Scale className="mr-2 h-4 w-4" />
             Auto-assign Unassigned
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="icon" className="relative border-emerald-200 dark:border-border text-emerald-700 hover:bg-emerald-50">
+              <Button variant="outline" size="icon" className="relative border-emerald-200 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800 dark:border-border dark:text-emerald-300 dark:hover:bg-emerald-500/10 dark:hover:text-emerald-200">
                 <Bell className="h-4 w-4" />
-                {unreadAlerts > 0 && <span className="absolute -right-1 -top-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-rose-600 px-1 text-[10px] font-bold text-white">{unreadAlerts}</span>}
+                {unreadAlerts > 0 && <span className="absolute -top-1 -right-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-rose-600 px-1 text-[10px] font-bold text-white dark:bg-rose-500 dark:text-rose-950">{unreadAlerts}</span>}
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-80">
@@ -1302,9 +1351,9 @@ evidenceUrls: extractEvidenceUrls(row),
           </DropdownMenu>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" className="border-emerald-200 dark:border-border bg-white dark:bg-card text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-muted dark:hover:bg-muted">
+              <Button variant="outline" className="border-emerald-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-border dark:bg-card dark:text-slate-200 dark:hover:bg-muted dark:hover:text-foreground">
                 <Avatar className="h-8 w-8">
-                  <AvatarFallback className="bg-emerald-600 text-white">{(profileUser?.name || 'AD').slice(0, 2).toUpperCase()}</AvatarFallback>
+                  <AvatarFallback className="bg-emerald-600 text-white dark:bg-emerald-500 dark:text-emerald-950">{(profileUser?.name || 'AD').slice(0, 2).toUpperCase()}</AvatarFallback>
                 </Avatar>
                 <div className="hidden text-left sm:block">
                   <div className="text-sm font-semibold">{profileUser?.name || 'Admin Profile'}</div>
@@ -1329,42 +1378,68 @@ evidenceUrls: extractEvidenceUrls(row),
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-2">
-          <Button variant={statusFilter === 'pending' ? 'default' : 'outline'} size="sm" onClick={() => setStatusFilter(statusFilter === 'pending' ? 'all' : 'pending')}>
-            <Clock3 className="mr-1.5 h-3.5 w-3.5" />
-            Pending ({summary.pendingReports})
-          </Button>
-          <Button variant={statusFilter === 'under_review' ? 'default' : 'outline'} size="sm" onClick={() => setStatusFilter(statusFilter === 'under_review' ? 'all' : 'under_review')}>
-            <Eye className="mr-1.5 h-3.5 w-3.5" />
-            Under Review
-          </Button>
-          <Button variant={priorityFilter === 'high' || priorityFilter === 'critical' ? 'default' : 'outline'} size="sm" onClick={() => {
-            if (priorityFilter === 'high') {
-              setPriorityFilter('all')
-            } else {
-              setPriorityFilter('high')
-            }
-          }}>
-            <TriangleAlert className="mr-1.5 h-3.5 w-3.5" />
-            Urgent ({summary.urgentCases})
-          </Button>
-          <Button variant={statusFilter === 'resolved' ? 'default' : 'outline'} size="sm" onClick={() => setStatusFilter(statusFilter === 'resolved' ? 'all' : 'resolved')}>
-            <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" />
-            Resolved ({summary.resolvedReports})
-          </Button>
-        </div>
+      <Card className="border-emerald-100 bg-white/90 p-3 shadow-sm backdrop-blur dark:border-border dark:bg-card/70 dark:shadow-none">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="hidden text-xs font-semibold tracking-[0.14em] text-muted-foreground uppercase sm:inline">Quick filters</span>
+            <Button
+              variant={statusFilter === 'pending' ? 'default' : 'outline'}
+              size="sm"
+              className={cn('rounded-full px-3.5', statusFilter === 'pending' ? activeChipClass : idleChipClass)}
+              onClick={() => setStatusFilter(statusFilter === 'pending' ? 'all' : 'pending')}
+            >
+              <Clock3 className="mr-1.5 h-3.5 w-3.5" />
+              Pending ({summary.pendingReports})
+            </Button>
+            <Button
+              variant={statusFilter === 'under_review' ? 'default' : 'outline'}
+              size="sm"
+              className={cn('rounded-full px-3.5', statusFilter === 'under_review' ? activeChipClass : idleChipClass)}
+              onClick={() => setStatusFilter(statusFilter === 'under_review' ? 'all' : 'under_review')}
+            >
+              <Eye className="mr-1.5 h-3.5 w-3.5" />
+              Under Review
+            </Button>
+            <Button
+              variant={priorityFilter === 'high' || priorityFilter === 'critical' ? 'default' : 'outline'}
+              size="sm"
+              className={cn('rounded-full px-3.5', priorityFilter === 'high' || priorityFilter === 'critical' ? activeUrgentChipClass : idleChipClass)}
+              onClick={() => {
+                if (priorityFilter === 'high') {
+                  setPriorityFilter('all')
+                } else {
+                  setPriorityFilter('high')
+                }
+              }}
+            >
+              <TriangleAlert className="mr-1.5 h-3.5 w-3.5" />
+              Urgent ({summary.urgentCases})
+            </Button>
+            <Button
+              variant={statusFilter === 'resolved' ? 'default' : 'outline'}
+              size="sm"
+              className={cn('rounded-full px-3.5', statusFilter === 'resolved' ? activeChipClass : idleChipClass)}
+              onClick={() => setStatusFilter(statusFilter === 'resolved' ? 'all' : 'resolved')}
+            >
+              <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" />
+              Resolved ({summary.resolvedReports})
+            </Button>
+          </div>
 
-        <Card className="border-emerald-100 dark:border-border bg-white dark:bg-card shadow-sm">
-          <CardContent className="flex items-center gap-3 p-4">
+          <div className="flex items-center gap-3">
             <Sheet>
               <SheetTrigger asChild>
-                <Button variant="outline" size="sm" className="relative">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="relative border-emerald-200 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800 dark:border-border dark:text-emerald-300 dark:hover:bg-emerald-500/10 dark:hover:text-emerald-200"
+                >
                   <Filter className="mr-2 h-4 w-4" />
                   Filters
                   {(statusFilter !== 'all' || categoryFilter !== 'all' || priorityFilter !== 'all' || dateFrom || dateTo) && (
                     <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-primary"></span>
+                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 opacity-75 dark:bg-emerald-400"></span>
+                      <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-600 dark:bg-emerald-400"></span>
                     </span>
                   )}
                 </Button>
@@ -1450,11 +1525,12 @@ evidenceUrls: extractEvidenceUrls(row),
                 </div>
               </SheetContent>
             </Sheet>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
+      </Card>
 
-      <Card className="border-emerald-100 dark:border-border bg-white dark:bg-card shadow-sm">
-        <CardHeader className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+      <Card className="border-emerald-100 bg-white shadow-sm dark:border-border dark:bg-card">
+        <CardHeader className="flex flex-col gap-4 border-b border-emerald-100/80 dark:border-border lg:flex-row lg:items-center lg:justify-between">
           <div>
             <CardTitle>Reports Table</CardTitle>
             <CardDescription>
@@ -1462,15 +1538,26 @@ evidenceUrls: extractEvidenceUrls(row),
             </CardDescription>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button className="bg-emerald-600 text-white hover:bg-emerald-700" onClick={printReports}>
+            <Button
+              className="w-full bg-emerald-600 text-white hover:bg-emerald-700 dark:bg-emerald-500 dark:text-emerald-950 dark:hover:bg-emerald-400 sm:w-auto"
+              onClick={printReports}
+            >
               <Printer className="mr-2 h-4 w-4" />
               Print Reports
             </Button>
-            <Button variant="outline" className="border-emerald-200 dark:border-border text-emerald-700 hover:bg-emerald-50" onClick={exportCsv}>
+            <Button
+              variant="outline"
+              className="w-full border-emerald-200 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800 dark:border-border dark:text-emerald-300 dark:hover:bg-emerald-500/10 dark:hover:text-emerald-200 sm:w-auto"
+              onClick={exportCsv}
+            >
               <Download className="mr-2 h-4 w-4" />
               Export CSV
             </Button>
-            <Button variant="outline" className="border-emerald-200 dark:border-border text-emerald-700 hover:bg-emerald-50" onClick={exportPdf}>
+            <Button
+              variant="outline"
+              className="w-full border-emerald-200 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800 dark:border-border dark:text-emerald-300 dark:hover:bg-emerald-500/10 dark:hover:text-emerald-200 sm:w-auto"
+              onClick={exportPdf}
+            >
               <FileDown className="mr-2 h-4 w-4" />
               Export PDF
             </Button>
@@ -1479,24 +1566,35 @@ evidenceUrls: extractEvidenceUrls(row),
         <CardContent>
           {loading ? (
             <div className="space-y-4">
-              <Skeleton className="h-8 w-64" />
-              <Skeleton className="h-64 w-full" />
+              <Skeleton className="h-8 w-64 dark:bg-muted/80" />
+              <Skeleton className="h-64 w-full dark:bg-muted/80" />
             </div>
           ) : filteredReports.length === 0 ? (
-            <Empty title="No matching reports" description="Try changing the search text, date range, or filter dropdowns.">
-              <EmptyMedia variant="icon">
+            <Empty
+              title="No matching reports"
+              description="Try changing the search text, date range, or filter dropdowns."
+              className="border border-dashed border-emerald-100/80 dark:border-border/70 dark:bg-muted/20"
+            >
+              <EmptyMedia variant="icon" className="dark:bg-muted dark:text-emerald-300">
                 <Search className="h-6 w-6" />
               </EmptyMedia>
             </Empty>
           ) : (
-            <div className="overflow-hidden rounded-2xl border border-emerald-100 dark:border-border">
+            <div className="overflow-hidden rounded-2xl border border-emerald-100 bg-white/60 dark:border-border dark:bg-muted/10">
               <Table>
-                <TableHeader>
-                  <TableRow>
+                <TableHeader className="bg-emerald-50/80 dark:bg-muted/50">
+                  <TableRow className="border-emerald-100 hover:bg-transparent dark:border-border dark:hover:bg-transparent">
                     {tableColumns.map((column) => (
-                      <TableHead key={column.key}>{column.label}</TableHead>
+                      <TableHead
+                        key={column.key}
+                        className="h-11 px-4 text-[11px] font-semibold tracking-[0.08em] text-emerald-900/80 uppercase dark:text-muted-foreground"
+                      >
+                        {column.label}
+                      </TableHead>
                     ))}
-                    <TableHead className="text-right">Actions</TableHead>
+                    <TableHead className="h-11 px-4 text-right text-[11px] font-semibold tracking-[0.08em] text-emerald-900/80 uppercase dark:text-muted-foreground">
+                      Actions
+                    </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -1506,33 +1604,42 @@ evidenceUrls: extractEvidenceUrls(row),
                      const PriorityIcon = priority.icon || GripVertical
 
                      return (
-                       <TableRow key={report.id} className={report.priority === 'critical' ? 'bg-rose-50/40' : ''}>
-                         <TableCell className="font-semibold text-slate-900">
+                       <TableRow
+                         key={report.id}
+                         className={cn(
+                           'border-emerald-100/70 transition-colors hover:bg-emerald-50/70 dark:border-border/70 dark:hover:bg-emerald-500/[0.07]',
+                           report.priority === 'critical' && 'bg-rose-50/50 hover:bg-rose-50 dark:bg-rose-500/[0.08] dark:hover:bg-rose-500/[0.14]',
+                           report.priority === 'high' && 'bg-amber-50/30 dark:bg-amber-400/[0.05]',
+                         )}
+                       >
+                         <TableCell className="px-4 font-semibold text-slate-900 dark:text-foreground">
                            <div className="flex items-center gap-2">
                              {report.trackingNumber}
-                             {report.priority === 'critical' && <TriangleAlert className="h-4 w-4 text-rose-700" />}
+                             {report.priority === 'critical' && <TriangleAlert className="h-4 w-4 text-rose-700 dark:text-rose-400" />}
                            </div>
                          </TableCell>
-                         <TableCell>
-                           <div className="font-medium">{report.residentName}</div>
+                         <TableCell className="px-4">
+                           <div className="font-medium text-slate-900 dark:text-foreground">{report.residentName}</div>
                            <div className="text-xs text-muted-foreground">{report.residentBarangay || report.residentAddress || 'Resident profile'}</div>
                          </TableCell>
-                         <TableCell>
+                         <TableCell className="px-4">
                            <Badge className={report.categoryBadgeClass}>{report.category}</Badge>
                          </TableCell>
-                        <TableCell>
+                        <TableCell className="max-w-[24rem] px-4 whitespace-normal">
                           <span title={report.description} className="flex items-start gap-2">
-                            {truncateText(report.description, 70)}
+                            <span className="line-clamp-2 text-slate-600 dark:text-muted-foreground">{truncateText(report.description, 70)}</span>
                             {report.evidenceUrls.length > 0 && (
-                              <Badge variant="secondary" className="flex items-center gap-1 text-xs">
+                              <Badge variant="secondary" className="flex shrink-0 items-center gap-1 rounded-full text-xs dark:bg-muted dark:text-muted-foreground">
                                 <ImageIcon className="h-3 w-3" />
                                 {report.evidenceUrls.length}
                               </Badge>
                             )}
                           </span>
                         </TableCell>
-                        <TableCell>{getReportDateLabel(report.submittedAt)}</TableCell>
-                        <TableCell>
+                        <TableCell className="px-4 whitespace-nowrap text-slate-600 dark:text-muted-foreground">
+                          {getReportDateLabel(report.submittedAt)}
+                        </TableCell>
+                        <TableCell className="px-4">
                           <div className="flex items-center gap-2">
                             {priority.icon && <PriorityIcon className="h-3.5 w-3.5" />}
                             <Badge className={priority.badgeClass} variant="secondary">
@@ -1543,18 +1650,22 @@ evidenceUrls: extractEvidenceUrls(row),
                             </Badge>
                           </div>
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="px-4">
                           <div className="text-sm font-medium">{report.assignedOfficialLabel}</div>
                         </TableCell>
-                        <TableCell className="text-right">
+                        <TableCell className="px-4 text-right">
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground dark:hover:bg-muted dark:hover:text-foreground"
+                              >
                                 <MoreHorizontal className="h-4 w-4" />
                                 <span className="sr-only">Open actions menu</span>
                               </Button>
                             </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
+                            <DropdownMenuContent align="end" className="w-52 dark:border-border">
                               <DropdownMenuItem onClick={() => openReport(report, 'overview')}>
                                 <Eye className="mr-2 h-4 w-4" />
                                 View Details
@@ -1572,7 +1683,10 @@ evidenceUrls: extractEvidenceUrls(row),
                                 Reply to Resident
                               </DropdownMenuItem>
                               <DropdownMenuSeparator />
-                              <DropdownMenuItem onClick={() => setArchiveTarget(report)} className="text-rose-600 focus:text-rose-600">
+                              <DropdownMenuItem
+                                onClick={() => setArchiveTarget(report)}
+                                className="text-rose-600 focus:bg-rose-50 focus:text-rose-700 dark:text-rose-400 dark:focus:bg-rose-500/15 dark:focus:text-rose-200"
+                              >
                                 <Archive className="mr-2 h-4 w-4" />
                                 Archive Report
                               </DropdownMenuItem>
@@ -1589,19 +1703,31 @@ evidenceUrls: extractEvidenceUrls(row),
         </CardContent>
       </Card>
 
-      <div className="flex flex-col gap-3 rounded-2xl border border-emerald-100 dark:border-border bg-white dark:bg-card px-4 py-3 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-3 rounded-2xl border border-emerald-100 bg-white px-4 py-3 shadow-sm dark:border-border dark:bg-card dark:shadow-none sm:flex-row sm:items-center sm:justify-between">
         <div className="text-sm text-muted-foreground">
           Showing {paginatedReports.length} of {filteredReports.length} filtered reports
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => setCurrentPage((page) => Math.max(1, page - 1))} disabled={currentPage === 1}>
+        <div className="flex w-full items-center gap-2 sm:w-auto">
+          <Button
+            variant="outline"
+            size="sm"
+            className="flex-1 border-emerald-200 text-slate-600 hover:bg-emerald-50 hover:text-emerald-700 dark:border-border dark:text-muted-foreground dark:hover:bg-muted dark:hover:text-foreground sm:flex-none"
+            onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+            disabled={currentPage === 1}
+          >
             <ChevronLeft className="mr-1 h-4 w-4" />
             Previous
           </Button>
-          <div className="rounded-md border border-emerald-100 dark:border-border bg-emerald-50 px-3 py-1 text-sm font-medium text-emerald-700">
+          <div className="rounded-full border border-emerald-100 bg-emerald-50 px-3 py-1 text-sm font-medium whitespace-nowrap text-emerald-700 dark:border-emerald-400/30 dark:bg-emerald-400/10 dark:text-emerald-300">
             Page {currentPage} of {totalPages}
           </div>
-          <Button variant="outline" size="sm" onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))} disabled={currentPage === totalPages}>
+          <Button
+            variant="outline"
+            size="sm"
+            className="flex-1 border-emerald-200 text-slate-600 hover:bg-emerald-50 hover:text-emerald-700 dark:border-border dark:text-muted-foreground dark:hover:bg-muted dark:hover:text-foreground sm:flex-none"
+            onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+            disabled={currentPage === totalPages}
+          >
             Next
             <ChevronRight className="ml-1 h-4 w-4" />
           </Button>
@@ -1612,7 +1738,7 @@ evidenceUrls: extractEvidenceUrls(row),
       </div>
 
       <AlertDialog open={Boolean(archiveTarget)} onOpenChange={(open) => !open && setArchiveTarget(null)}>
-        <AlertDialogContent>
+        <AlertDialogContent className="dark:border-border dark:bg-popover">
           <AlertDialogHeader>
             <AlertDialogTitle>Archive Report</AlertDialogTitle>
             <AlertDialogDescription>
@@ -1620,8 +1746,11 @@ evidenceUrls: extractEvidenceUrls(row),
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmArchive} className="bg-rose-600 text-white hover:bg-rose-700">
+            <AlertDialogCancel className="dark:border-border dark:text-foreground dark:hover:bg-muted">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmArchive}
+              className="bg-rose-600 text-white hover:bg-rose-700 dark:border dark:border-rose-400/40 dark:bg-rose-500/15 dark:text-rose-200 dark:hover:bg-rose-500/25 dark:hover:text-rose-100"
+            >
               Archive
             </AlertDialogAction>
           </AlertDialogFooter>
