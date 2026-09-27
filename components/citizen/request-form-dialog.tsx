@@ -11,6 +11,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { createClient } from '@/lib/supabase/client'
 import { getOrCreateResidentProfile } from '@/lib/residents'
+import { listResidentsWhoAuthorizedMe } from '@/lib/representatives'
 import {
   getRequestSummaryValue,
   getRequestTypeConfigAny,
@@ -109,6 +110,12 @@ export function RequestFormDialog({ open, onOpenChange, requestType, serviceInfo
   const [paymentAmount, setPaymentAmount] = useState('')
   const [paymentReference, setPaymentReference] = useState('')
   const [paymentPages, setPaymentPages] = useState('')
+  // Proxy filing: residents who granted the current user an active
+  // authorization, plus the currently chosen beneficiary (empty = myself).
+  const [authorizedResidents, setAuthorizedResidents] = useState<
+    Array<{ id: string; firstName: string; lastName: string; email: string | null }>
+  >([])
+  const [onBehalfOf, setOnBehalfOf] = useState('')
 
   const isPerPageFee = paymentFee != null && getFeeType(paymentFee) === 'per_page'
   const perPageTotal = paymentFee != null && isPerPageFee ? computePerPageAmount(paymentFee, paymentPages) : null
@@ -189,6 +196,18 @@ export function RequestFormDialog({ open, onOpenChange, requestType, serviceInfo
 
       const resident = await getOrCreateResidentProfile(supabase, user)
       if (!resident) return
+
+      // Load the residents who authorized this user to file for them so the
+      // "file on behalf of" picker can be shown.
+      try {
+        const authorized = await listResidentsWhoAuthorizedMe(supabase, resident.id)
+        setAuthorizedResidents(authorized)
+        setOnBehalfOf('')
+      } catch (proxyError) {
+        // The picker stays hidden if the authorization table is unavailable.
+        console.warn('Failed to load proxy authorizations:', proxyError)
+        setAuthorizedResidents([])
+      }
 
       const residentFullName = `${resident.first_name ?? ''} ${resident.last_name ?? ''}`.trim()
 
@@ -283,7 +302,20 @@ export function RequestFormDialog({ open, onOpenChange, requestType, serviceInfo
         throw new Error('Your resident profile is incomplete. Please finish registration first.')
       }
 
+      // Proxy filing: resolve the beneficiary. The RLS policy on requests
+      // enforces the active authorization server-side as well.
+      const beneficiary = onBehalfOf
+        ? authorizedResidents.find((candidate) => candidate.id === onBehalfOf)
+        : null
+      if (onBehalfOf && !beneficiary) {
+        throw new Error('The authorization for that resident is no longer active. Please refresh and try again.')
+      }
+      const filingResidentId = beneficiary ? beneficiary.id : resident.id
+
       const payload: RequestPayload = {}
+      if (beneficiary) {
+        payload.filed_on_behalf_of = `${beneficiary.firstName} ${beneficiary.lastName}`.trim()
+      }
 
       for (const field of config.fields) {
         if (field.type === 'file') {
@@ -333,11 +365,41 @@ export function RequestFormDialog({ open, onOpenChange, requestType, serviceInfo
         payload.payment = { ...paymentSnapshot }
       }
 
+      // Proxy filings go through the server route, which re-verifies the
+      // authorization, records the payment ledger, and notifies the
+      // beneficiary.
+      if (beneficiary) {
+        const response = await fetch('/api/citizen/proxy-request', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            representedResidentId: beneficiary.id,
+            requestType: config.requestType,
+            title: config.title,
+            description: getRequestSummaryValue(config.requestType, payload, config.title),
+            category: config.category,
+            payload,
+            payment: paymentSnapshot ? toRequestPaymentRow(paymentSnapshot) : undefined,
+          }),
+        })
+        const result = await response.json().catch(() => null)
+        if (!response.ok) {
+          throw new Error(result?.error || 'Failed to file the request on behalf of the resident.')
+        }
+        setSubmittedState({
+          requestId: result.requestId,
+          message: `${config.title} has been submitted on behalf of ${beneficiary.firstName} ${beneficiary.lastName} and is now pending review.${result.paymentLedgerNote ?? ''}`,
+        })
+        setValues(createInitialValues(config))
+        setFiles({})
+        return
+      }
+
       const { data, error } = await supabase
         .from('requests')
         .insert([
           {
-            resident_id: resident.id,
+            resident_id: filingResidentId,
             request_type: config.requestType,
             title: config.title,
             description: getRequestSummaryValue(config.requestType, payload, config.title),
@@ -360,7 +422,7 @@ export function RequestFormDialog({ open, onOpenChange, requestType, serviceInfo
         const { error: paymentInsertError } = await supabase.from('request_payments').insert([
           {
             request_id: data.id,
-            resident_id: resident.id,
+            resident_id: filingResidentId,
             ...toRequestPaymentRow(paymentSnapshot),
           },
         ])
@@ -408,6 +470,30 @@ export function RequestFormDialog({ open, onOpenChange, requestType, serviceInfo
                 <span className="block text-xs text-emerald-600 mt-1">Some fields are auto-filled from your profile.</span>
               </DialogDescription>
             </DialogHeader>
+
+            {authorizedResidents.length > 0 ? (
+              <div className="rounded-xl border border-sky-200 dark:border-border bg-sky-50/60 dark:bg-sky-500/5 px-4 py-3 text-sm space-y-2">
+                <Label htmlFor="on-behalf-of" className="text-sky-900 dark:text-sky-300">
+                  File on behalf of
+                </Label>
+                <Select value={onBehalfOf || 'self'} onValueChange={(value) => setOnBehalfOf(value === 'self' ? '' : value)}>
+                  <SelectTrigger id="on-behalf-of" className="w-full">
+                    <SelectValue placeholder="Choose who this request is for" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="self">Myself</SelectItem>
+                    {authorizedResidents.map((candidate) => (
+                      <SelectItem key={candidate.id} value={candidate.id}>
+                        {`${candidate.firstName} ${candidate.lastName}`.trim()} (authorized)
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-sky-700 dark:text-sky-400">
+                  You may file for residents who granted you proxy authorization. Manage this under Proxy Filing.
+                </p>
+              </div>
+            ) : null}
 
             {/* Auto-filled service details summary */}
             <div className="rounded-xl border border-emerald-200 dark:border-border bg-emerald-50/60 px-4 py-3 text-sm">

@@ -1,13 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
+import fs from 'fs'
+import path from 'path'
+import { createRequire } from 'module'
 import {
   parseOcrExtractedFields,
   calculateMatchScore,
+  calculateDocumentConsistencyScore,
   determineAction,
+  mergeExtractedFields,
+  type MatchResult,
   type SignUpVerificationInput,
-  type PreRegisteredResident,
 } from '@/lib/verification'
-import { getResidentVerification, updateResidentVerification, logVerificationAttempt, searchPreRegisteredResidents } from '@/lib/db'
+import { getResidentVerification, updateResidentVerification, logVerificationAttempt, findPreRegisteredCandidates } from '@/lib/db'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { getOcrJob, setOcrJob } from '@/lib/verification-jobs'
 import { processIdVerificationSchema } from '@/lib/schemas'
 import { verifyRequest } from '@/lib/request-security'
@@ -68,7 +74,11 @@ export async function POST(request: NextRequest) {
     const message = error instanceof Error ? error.message : 'Failed to process ID verification.'
     logger.error('Error in POST /api/verification/process-id', error, { context: 'api/verification' })
     if (error instanceof Error && error.name === 'ZodError') {
-      return NextResponse.json({ error: message }, { status: 400 })
+      const issues = (error as Error & { issues?: { message: string }[] }).issues ?? []
+      return NextResponse.json(
+        { error: issues[0]?.message || 'Invalid verification request.' },
+        { status: 400 },
+      )
     }
     return NextResponse.json({ error: message }, { status: 500 })
   }
@@ -92,8 +102,13 @@ async function processOcrJob(
 ) {
   const ocrResult = await runOcr(signedUrl)
 
-  if (!ocrResult) {
-    return null
+  if (!ocrResult || !ocrResult.text.trim()) {
+    // Fail loudly instead of falling through: without readable OCR text the
+    // match below would score purely on expectedValues, "verifying" an ID
+    // that was never actually read.
+    throw new Error(
+      'We could not read the text on your ID. Please upload a clearer, well-lit photo and try again.',
+    )
   }
 
   const { text: ocrText, confidence } = ocrResult
@@ -103,52 +118,81 @@ async function processOcrJob(
   const resident = await getResidentVerification(userId)
 
   if (!resident) {
-    return null
+    throw new Error('Your resident profile was not found. Please sign out and sign in again, then retry.')
   }
 
-  let matchedCandidate: PreRegisteredResident | null = null
-
-  if (expectedValues.nationalId) {
-    const candidates = await searchPreRegisteredResidents({
-      nationalId: expectedValues.nationalId,
-    })
-    if (candidates.length > 0) {
-      matchedCandidate = candidates[0] as unknown as PreRegisteredResident
-    }
-  } else if (expectedValues.email) {
-    const candidates = await searchPreRegisteredResidents({
-      email: expectedValues.email,
-    })
-    if (candidates.length > 0) {
-      matchedCandidate = candidates[0] as unknown as PreRegisteredResident
-    }
-  }
+  // Values read off the ID take precedence over what the user typed, so the
+  // registry comparison is driven by the document whenever it was legible.
+  const input: SignUpVerificationInput = mergeExtractedFields(expectedValues, extractedFields)
 
   let matchScore = 0
   let breakdown: Record<string, number> = {}
-  let action: 'auto_verify' | 'id_verify' | 'needs_review' | 'no_match' = 'no_match'
+  let comparedFields: string[] = []
+  let registryMatched = false
+  let matchedCandidateId: string | undefined
+  let scoreSource: 'registry_match' | 'document_consistency' = 'document_consistency'
+  let action: MatchResult['action'] = 'needs_review'
 
-  if (matchedCandidate) {
-    const input: SignUpVerificationInput = {
-      firstName: extractedFields.firstName || expectedValues.firstName,
-      lastName: extractedFields.lastName || expectedValues.lastName,
-      middleName: extractedFields.middleName || expectedValues.middleName,
-      email: extractedFields.email || expectedValues.email,
-      phone: extractedFields.phone || expectedValues.phone,
-      address: extractedFields.address || expectedValues.address,
-      barangay: expectedValues.barangay,
-      dateOfBirth: extractedFields.dateOfBirth || expectedValues.dateOfBirth,
-      nationalId: extractedFields.nationalId || expectedValues.nationalId,
+  try {
+    // `pre_registered_residents` is admin-only under RLS: the resident-scoped
+    // client returns zero rows *without* raising an error, which is why every
+    // attempt used to be reported as a 0% match even when the ID genuinely
+    // agreed with the account. Read the registry with the service-role client.
+    const candidates = await findPreRegisteredCandidates(
+      {
+        nationalId: extractedFields.nationalId || expectedValues.nationalId,
+        email: expectedValues.email,
+        phone: expectedValues.phone,
+      },
+      createAdminClient(),
+    )
+
+    // Score every candidate and keep the best one rather than trusting the
+    // first row the lookup happened to return.
+    const best = candidates
+      .map((candidate) => {
+        const { score, breakdown: fieldBreakdown } = calculateMatchScore(input, candidate)
+        return { candidate, score, breakdown: fieldBreakdown }
+      })
+      .sort((a, b) => b.score - a.score)[0]
+
+    if (best) {
+      matchedCandidateId = best.candidate.id
+      matchScore = best.score
+      breakdown = best.breakdown
+      comparedFields = Object.keys(best.breakdown)
+      registryMatched = true
+      scoreSource = 'registry_match'
+      action = determineAction(matchScore)
     }
+  } catch (error) {
+    // A missing service-role key or a transient database error must not fail
+    // the resident's attempt: fall back to the document-consistency score and
+    // let a human review the submission.
+    console.error('[verification/process-id] Pre-registered resident lookup failed:', error)
+  }
 
-    const result = calculateMatchScore(input, matchedCandidate)
-    matchScore = result.score
-    breakdown = result.breakdown
-    action = determineAction(matchScore)
+  let message: string
+
+  if (registryMatched) {
+    message =
+      action === 'auto_verify' || action === 'id_verify'
+        ? `Your ID matched our records (${Math.round(matchScore)}% confidence).`
+        : `We read your ID but it only matched our records at ${Math.round(matchScore)}%. An officer will review it.`
   } else {
-    matchScore = 0
-    breakdown = {}
-    action = 'no_match'
+    // There is nothing in the registry to compare against, so report how
+    // consistently the text read off the ID agrees with the account profile
+    // instead of a misleading 0%. This can never auto-verify: the user supplied
+    // both sides of the comparison, so a human must confirm the document.
+    const consistency = calculateDocumentConsistencyScore(extractedFields, expectedValues)
+    matchScore = consistency.score
+    breakdown = consistency.breakdown
+    comparedFields = consistency.comparedFields
+    action = 'needs_review'
+    message =
+      consistency.evidenceStrength === 0
+        ? 'We could not read enough fields from your ID to compare it with your account. Please upload a clearer, well-lit photo.'
+        : `We read your ID and it matches your account details (${Math.round(consistency.score)}%), but we found no pre-registered record for you. An officer will verify your ID manually.`
   }
 
   try {
@@ -156,45 +200,50 @@ async function processOcrJob(
       residentId: resident.id,
       attemptType: 'id_ocr',
       inputData: expectedValues,
-      matchedPreRegisteredId: matchedCandidate?.id,
+      matchedPreRegisteredId: matchedCandidateId,
       matchScore,
       confidenceBreakdown: breakdown,
       ocrExtractedData: {
         ...extractedFields,
         ocrConfidence: confidence,
         ocrText: ocrText.substring(0, 2000),
+        scoreSource,
+        registryMatched,
+        comparedFields,
       },
-      status: action === 'auto_verify' || action === 'id_verify' ? 'matched' : 'needs_review',
+      status:
+        registryMatched && (action === 'auto_verify' || action === 'id_verify')
+          ? 'matched'
+          : 'needs_review',
     })
   } catch (logError) {
     console.error('[verification/process-id] Failed to log attempt:', logError)
   }
 
-  let verificationStatus: string
-  let verificationMethod = 'id_ocr'
-
-  if (action === 'auto_verify') {
-    verificationStatus = 'auto_verified'
-  } else if (action === 'id_verify') {
-    verificationStatus = 'id_verified'
-  } else {
-    verificationStatus = 'needs_review'
-  }
+  const verificationStatus =
+    action === 'auto_verify' ? 'auto_verified' : action === 'id_verify' ? 'id_verified' : 'needs_review'
 
   try {
     await updateResidentVerification(resident.id, {
       verificationStatus,
-      verificationMethod,
+      verificationMethod: 'id_ocr',
       verificationConfidence: matchScore,
       verificationDetails: {
         matchScore,
         confidenceBreakdown: breakdown,
+        comparedFields,
+        scoreSource,
+        registryMatched,
         ocrExtractedFields: extractedFields,
         ocrConfidence: confidence,
         idType,
+        message,
       },
       idDocumentType: idType,
-      verifiedAt: action === 'auto_verify' || action === 'id_verify' ? new Date().toISOString() : undefined,
+      verifiedAt:
+        verificationStatus === 'auto_verified' || verificationStatus === 'id_verified'
+          ? new Date().toISOString()
+          : undefined,
     })
   } catch (updateError) {
     console.error('[verification/process-id] Failed to update resident verification:', updateError)
@@ -206,11 +255,45 @@ async function processOcrJob(
     matchScore,
     action,
     verificationStatus,
+    scoreSource,
+    registryMatched,
+    comparedFields,
+    message,
   }
+}
+
+function resolveTesseractWorkerPath(): string | null {
+  // tesseract.js computes its default workerPath from `__dirname`, which can
+  // be rewritten to a stale absolute path when this route is bundled (we
+  // observed `C:\ROOT\...` leaking from an old build cache, which made the
+  // worker fail to spawn and the OCR job hang until the client timed out).
+  // Resolve the package's real location ourselves and pass it explicitly.
+  const candidates: string[] = []
+  try {
+    candidates.push(createRequire(import.meta.url).resolve('tesseract.js/package.json'))
+  } catch {
+    // import.meta.url unavailable in some bundler outputs — try cwd below.
+  }
+  candidates.push(path.join(process.cwd(), 'node_modules', 'tesseract.js', 'package.json'))
+
+  for (const pkgJson of candidates) {
+    try {
+      // realpathSync resolves the pnpm junction so the worker's own module
+      // resolution finds sibling packages such as tesseract.js-core.
+      const pkgDir = fs.realpathSync(path.dirname(pkgJson))
+      const workerPath = path.join(pkgDir, 'src', 'worker-script', 'node', 'index.js')
+      if (fs.existsSync(workerPath)) return workerPath
+    } catch {
+      // Try the next candidate.
+    }
+  }
+  return null
 }
 
 async function runOcr(signedUrl: string): Promise<{ text: string; confidence: number } | null> {
   if (process.env.GOOGLE_VISION_API_KEY) {
+    let configError: string | null = null
+
     try {
       const visionPromise = fetch(
         'https://vision.googleapis.com/v1/images:annotate',
@@ -246,31 +329,63 @@ async function runOcr(signedUrl: string): Promise<{ text: string; confidence: nu
             confidence: textAnnotations[0].confidence ? textAnnotations[0].confidence * 100 : 85,
           }
         }
+      } else {
+        const errorBody = await visionResponse.text().catch(() => '')
+        configError = `HTTP ${visionResponse.status}: ${errorBody.slice(0, 300)}`
       }
     } catch (err) {
-      console.error('[verification/process-id] Google Vision error:', err)
+      configError = err instanceof Error ? err.message : String(err)
+    }
+
+    if (configError) {
+      // Most commonly HTTP 403: the Cloud Vision API is not enabled for this
+      // Google Cloud project. The tesseract.js fallback below keeps
+      // verification working either way, but the cause is worth logging.
+      console.error(
+        '[verification/process-id] Google Vision unavailable, using tesseract.js fallback —',
+        configError,
+      )
     }
   }
 
   try {
     const { createWorker } = await import('tesseract.js')
-    const worker: any = await createWorker()
-    await worker.load()
-    await worker.loadLanguage('eng')
-    await worker.initialize('eng')
 
-    const recognizePromise = worker.recognize(signedUrl)
-    const recognizeTimeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error('Tesseract.js recognition timed out')), 30000)
+    const workerPath = resolveTesseractWorkerPath()
+    if (!workerPath) {
+      console.error('[verification/process-id] tesseract.js worker script not found; OCR fallback unavailable')
+      return null
+    }
+
+    // tesseract.js v7 fully initializes the worker (load + language data +
+    // engine) inside createWorker(). That promise never settles when any
+    // step fails — including spawning the worker from a bad `__dirname`
+    // baked into a stale bundle — so race it against a hard timeout instead
+    // of hanging the OCR job until the client gives up.
+    const createWorkerPromise = createWorker('eng', undefined, {
+      workerPath,
+      errorHandler: (err: unknown) =>
+        console.error('[verification/process-id] tesseract worker error:', err),
+    })
+    const startupTimeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('Tesseract worker failed to start within 45 seconds')), 45000)
     )
+    const worker = await Promise.race([createWorkerPromise, startupTimeoutPromise])
 
-    const result: any = await Promise.race([recognizePromise, recognizeTimeoutPromise])
+    try {
+      const recognizePromise = worker.recognize(signedUrl)
+      const recognizeTimeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Tesseract.js recognition timed out')), 30000)
+      )
 
-    await worker.terminate()
+      const result = await Promise.race([recognizePromise, recognizeTimeoutPromise])
 
-    return {
-      text: result.data?.text || result.data?.ocr?.text || '',
-      confidence: result.data?.confidence || 0,
+      return {
+        text: result.data?.text || '',
+        confidence: result.data?.confidence || 0,
+      }
+    } finally {
+      await worker.terminate().catch(() => {})
     }
   } catch (err) {
     console.error('[verification/process-id] Tesseract error:', err)

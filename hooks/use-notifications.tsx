@@ -33,9 +33,25 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     if (error) {
       console.warn('Failed to load unread messages count:', error.message)
       setUnreadCount(0)
-    } else {
-      setUnreadCount(count || 0)
+      return
     }
+
+    // Include verification-decision notifications (migration 29). If the
+    // deployment hasn't run the migration yet, degrade to complaint-only.
+    let verificationUnread = 0
+    const { count: verificationCount, error: verificationError } = await supabase
+      .from('user_notifications')
+      .select('id', { count: 'exact', head: true })
+      .eq('is_read', false)
+      .eq('user_id', user.id)
+
+    if (verificationError) {
+      console.warn('user_notifications unavailable (migration 29 not applied?)')
+    } else {
+      verificationUnread = verificationCount || 0
+    }
+
+    setUnreadCount((count || 0) + verificationUnread)
   }, [])
 
   useEffect(() => {

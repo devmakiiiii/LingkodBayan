@@ -2,9 +2,15 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createServerClient } from '@supabase/ssr'
 import { verifyRequest } from '@/lib/request-security'
+import { getRecentVerificationAttemptCount } from '@/lib/db'
 import { logger } from '@/lib/logger'
 
 const bucketName = 'id-documents'
+// Fair-use cap: limits OCR cost per resident and prevents brute-forcing the
+// matcher. Intentionally generous — a rejected upload can legitimately be
+// retried a few times in a day.
+const MAX_ATTEMPTS_PER_DAY = 5
+const ATTEMPT_WINDOW_HOURS = 24
 
 function buildSafeFileName(originalName: string): string {
   const extensionMatch = originalName.match(/\.[a-z0-9]+$/i)
@@ -48,6 +54,24 @@ export async function POST(request: NextRequest) {
   }
 
   try {
+    // Fair-use limit before touching storage or OCR: count attempts in the
+    // window. Fail open on lookup errors so a transient DB hiccup never
+    // blocks a legitimate resident.
+    try {
+      const recentAttempts = await getRecentVerificationAttemptCount(user.id, ATTEMPT_WINDOW_HOURS)
+      if (recentAttempts >= MAX_ATTEMPTS_PER_DAY) {
+        return NextResponse.json(
+          {
+            error: `You've reached the limit of ${MAX_ATTEMPTS_PER_DAY} ID uploads in ${ATTEMPT_WINDOW_HOURS} hours. Please try again tomorrow, or contact the barangay office for assistance.`,
+            code: 'attempt_limit_reached',
+          },
+          { status: 429 },
+        )
+      }
+    } catch (limitError) {
+      logger.warn('[verification/upload-id] Attempt-limit check failed; allowing upload', { context: 'api/verification/upload-id' }, limitError)
+    }
+
     const formData = await request.formData()
     const file = formData.get('file')
     const idType = formData.get('idType')?.toString() || 'philsys'

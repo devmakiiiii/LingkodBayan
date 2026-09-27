@@ -8,8 +8,17 @@ function hasSupabaseConfig() {
   )
 }
 
+function hasSupabaseAuthCookies(request: NextRequest) {
+  // @supabase/ssr stores the session in cookies named `sb-<project-ref>-auth-token`
+  // (chunked versions use `sb-<project-ref>-auth-token.<n>`). If none are present,
+  // there is no session and we can skip the getUser() network round-trip entirely.
+  return request.cookies
+    .getAll()
+    .some((cookie) => cookie.name.startsWith('sb-') && cookie.name.includes('auth-token'))
+}
+
 export async function updateSession(request: NextRequest) {
-  if (!hasSupabaseConfig()) {
+  if (!hasSupabaseConfig() || !hasSupabaseAuthCookies(request)) {
     return { response: NextResponse.next({ request }), user: null }
   }
 

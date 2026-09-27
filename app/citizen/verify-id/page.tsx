@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { getOrCreateResidentProfile } from '@/lib/residents'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -10,7 +11,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
-import { Upload, FileText, CheckCircle2, AlertCircle, Clock, X, Loader2 } from 'lucide-react'
+import { Upload, FileText, CheckCircle2, AlertCircle, Clock, X, Loader2, Info } from 'lucide-react'
 import { toast } from 'sonner'
 
 const ID_TYPE_OPTIONS = [
@@ -22,6 +23,17 @@ const ID_TYPE_OPTIONS = [
   { value: 'sss', label: 'SSS ID' },
   { value: 'tin', label: 'TIN ID' },
 ]
+
+// Must mirror REJECTION_REASONS in app/admin/verification/page.tsx.
+const REJECTION_REASON_LABELS: Record<string, string> = {
+  unreadable_photo: 'The photo is blurry, dark, or unreadable. Please retake it in good lighting.',
+  name_mismatch: 'The name on your ID does not match your account. Update your profile or contact the barangay office.',
+  expired_id: 'The ID you uploaded is expired or no longer valid. Please upload a current one.',
+  unsupported_id: 'This ID type is not accepted. Please upload a PhilSys ID, driver\u2019s license, passport, or UMID.',
+  data_mismatch: 'Some details on your ID do not match our records. Please contact the barangay office.',
+  suspected_fraud: 'The document could not be validated. Please visit the barangay office with your original ID.',
+  incomplete: 'Required details on your ID are cut off or unreadable. Please upload the full ID face.',
+}
 
 export default function VerifyIdPage() {
   const router = useRouter()
@@ -35,11 +47,20 @@ export default function VerifyIdPage() {
     matchScore: number
     action: string
     verificationStatus: string
+    scoreSource?: 'registry_match' | 'document_consistency'
+    registryMatched?: boolean
+    comparedFields?: string[]
+    message?: string
   } | null>(null)
   const [verificationStatus, setVerificationStatus] = useState<
     'unverified' | 'auto_verified' | 'id_verified' | 'needs_review' | 'rejected'
   >('unverified')
   const [appealNote, setAppealNote] = useState('')
+  // Structured reason the admin selected when rejecting (mapped to plain
+  // language), plus any free-form notes. Shown so the citizen can fix the
+  // actual problem instead of guessing on resubmission.
+  const [rejectionReason, setRejectionReason] = useState<string | null>(null)
+  const [adminNotes, setAdminNotes] = useState<string | null>(null)
   const [isAppealing, setIsAppealing] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -54,12 +75,22 @@ export default function VerifyIdPage() {
         const data = await res.json()
         if (data.verificationStatus) {
           setVerificationStatus(data.verificationStatus)
+          setRejectionReason(
+            REJECTION_REASON_LABELS[data.verificationDetails?.rejectionReason as string] ??
+              data.verificationDetails?.rejectionReason ??
+              null,
+          )
+          setAdminNotes(data.verificationDetails?.adminNotes || null)
           if (data.verificationStatus !== 'unverified') {
             setOcrResult({
               extractedFields: data.verificationDetails?.ocrExtractedFields || {},
               matchScore: data.verificationConfidence || 0,
               action: data.verificationMethod || 'unknown',
               verificationStatus: data.verificationStatus,
+              scoreSource: data.verificationDetails?.scoreSource,
+              registryMatched: data.verificationDetails?.registryMatched,
+              comparedFields: data.verificationDetails?.comparedFields,
+              message: data.verificationDetails?.message,
             })
           }
         }
@@ -96,6 +127,8 @@ export default function VerifyIdPage() {
 
     setIsUploading(true)
 
+    let uploadTimeoutId: ReturnType<typeof setTimeout> | undefined
+
     try {
       const formData = new FormData()
       formData.append('file', selectedFile)
@@ -106,9 +139,12 @@ export default function VerifyIdPage() {
         body: formData,
       })
 
-      const timeoutPromise = new Promise<Response>((_, reject) =>
-        setTimeout(() => reject(new Error('Upload timed out. Please try again.')), 30000)
-      )
+      const timeoutPromise = new Promise<Response>((_, reject) => {
+        uploadTimeoutId = setTimeout(
+          () => reject(new Error('Upload timed out. Please try again.')),
+          90000,
+        )
+      })
 
       const res = await Promise.race([uploadPromise, timeoutPromise])
 
@@ -118,11 +154,15 @@ export default function VerifyIdPage() {
       }
 
       const data = await res.json()
+      // Upload is done — hand off to the OCR phase so the button switches to
+      // "Processing ID (OCR)..." instead of staying on "Uploading...".
+      setIsUploading(false)
       await processId(data.signedUrl, data.idType)
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Upload failed'
       toast.error(message)
     } finally {
+      if (uploadTimeoutId) clearTimeout(uploadTimeoutId)
       setIsUploading(false)
     }
   }
@@ -134,25 +174,34 @@ export default function VerifyIdPage() {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
 
-      const expectedValues: Record<string, string> = {}
-      if (user) {
-        const { data: resident } = await supabase
-          .from('residents')
-          .select('first_name, last_name, middle_name, email, phone, address, barangay')
-          .eq('user_id', user.id)
-          .single()
+      if (!user) {
+        throw new Error('You must be signed in to verify your ID. Please sign in again.')
+      }
 
-        if (resident) {
-          Object.assign(expectedValues, {
-            firstName: resident.first_name,
-            lastName: resident.last_name,
-            middleName: resident.middle_name || '',
-            email: resident.email,
-            phone: resident.phone || '',
-            address: resident.address || '',
-            barangay: resident.barangay,
-          })
-        }
+      const resident = await getOrCreateResidentProfile(supabase, user)
+
+      const metadata = user.user_metadata as Record<string, unknown> | undefined
+      const metaValue = (key: string): string => {
+        const value = metadata?.[key]
+        return typeof value === 'string' ? value.trim() : ''
+      }
+
+      const expectedValues: Record<string, string> = {
+        firstName: resident?.first_name || metaValue('first_name'),
+        lastName: resident?.last_name || metaValue('last_name'),
+        middleName: metaValue('middle_name'),
+        email: resident?.email || user.email || metaValue('email'),
+        phone: resident?.phone || metaValue('phone'),
+        dateOfBirth: resident?.date_of_birth || metaValue('date_of_birth'),
+        nationalId: metaValue('national_id'),
+        barangay: resident?.barangay || metaValue('barangay'),
+        address: resident?.address || metaValue('address'),
+      }
+
+      if (!expectedValues.firstName || !expectedValues.lastName || !expectedValues.email) {
+        throw new Error(
+          'Your account is missing your name or email, so we cannot verify your ID. Please complete your profile first.',
+        )
       }
 
       const processPromise = fetch('/api/verification/process-id', {
@@ -188,6 +237,10 @@ export default function VerifyIdPage() {
         matchScore: data.matchScore,
         action: data.action,
         verificationStatus: data.verificationStatus,
+        scoreSource: data.scoreSource,
+        registryMatched: data.registryMatched,
+        comparedFields: data.comparedFields,
+        message: data.message,
       })
       setVerificationStatus(data.verificationStatus)
 
@@ -208,7 +261,10 @@ export default function VerifyIdPage() {
   }
 
   async function pollForOcrResult(jobId: string) {
-    const maxAttempts = 20
+    // Generous window: Google Vision usually finishes in a few seconds, but
+    // the tesseract.js fallback may need to download language data on first
+    // run (startup timeout 45s + recognition 30s + polling granularity).
+    const maxAttempts = 40
     const interval = 3000
 
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
@@ -217,6 +273,10 @@ export default function VerifyIdPage() {
       const statusRes = await fetch(`/api/verification/process-id/status?jobId=${jobId}`)
 
       if (!statusRes.ok) {
+        // The job may not be visible immediately after it was created (e.g.
+        // right after a dev-server recompile) — keep polling instead of
+        // failing the whole verification on the first 404.
+        if (statusRes.status === 404) continue
         const data = await statusRes.json()
         throw new Error(data.error || 'Failed to check processing status')
       }
@@ -230,6 +290,10 @@ export default function VerifyIdPage() {
           matchScore: result.matchScore,
           action: result.action,
           verificationStatus: result.verificationStatus,
+          scoreSource: result.scoreSource,
+          registryMatched: result.registryMatched,
+          comparedFields: result.comparedFields,
+          message: result.message,
         })
         setVerificationStatus(result.verificationStatus)
 
@@ -345,6 +409,15 @@ export default function VerifyIdPage() {
               request a manual review by an administrator.
             </CardDescription>
           </CardHeader>
+          {rejectionReason && (
+            <CardContent className="pb-0">
+              <div className="rounded-md border border-red-200 bg-white p-3">
+                <p className="text-sm font-medium text-red-900">Reason from the reviewer:</p>
+                <p className="mt-1 text-sm text-red-800">{rejectionReason}</p>
+                {adminNotes && <p className="mt-2 text-sm text-red-700 italic">Reviewer note: {adminNotes}</p>}
+              </div>
+            </CardContent>
+          )}
           <CardContent className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="appeal-note" className="text-sm font-medium text-red-900">
@@ -497,11 +570,24 @@ export default function VerifyIdPage() {
 
                 <div className="pt-4 border-t">
                   <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium">Match Score</span>
+                    <span className="text-sm font-medium">
+                      {ocrResult.scoreSource === 'document_consistency'
+                        ? 'ID vs. account match'
+                        : 'Match Score'}
+                    </span>
                     <Badge variant={ocrResult.matchScore >= 75 ? 'default' : 'secondary'}>
                       {Math.round(ocrResult.matchScore)}%
                     </Badge>
                   </div>
+                  {ocrResult.scoreSource === 'document_consistency' && (
+                    <p className="text-xs text-gray-500 dark:text-muted-foreground mt-1">
+                      Compared against your account details
+                      {ocrResult.comparedFields && ocrResult.comparedFields.length > 0
+                        ? ` (${ocrResult.comparedFields.join(', ')})`
+                        : ''}
+                      . No pre-registered barangay record was found for you.
+                    </p>
+                  )}
                   <div className="flex items-center justify-between mt-2">
                     <span className="text-sm font-medium">Result</span>
                     <span className="text-sm">
@@ -512,6 +598,13 @@ export default function VerifyIdPage() {
                     </span>
                   </div>
                 </div>
+
+                {ocrResult.message && (
+                  <div className="bg-blue-50 border border-blue-200 text-blue-700 dark:bg-blue-950 dark:border-blue-900 dark:text-blue-200 px-4 py-3 rounded-lg text-sm">
+                    <Info className="h-4 w-4 inline mr-2" />
+                    {ocrResult.message}
+                  </div>
+                )}
 
                 {ocrResult.action === 'needs_review' && (
                   <div className="bg-yellow-50 border border-yellow-200 text-yellow-700 px-4 py-3 rounded-lg text-sm">

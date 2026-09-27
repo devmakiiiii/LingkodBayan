@@ -193,13 +193,94 @@ export function addressMatch(addrA: string, addrB: string): number {
   return levenshteinSimilarity(na, nb)
 }
 
+const MONTH_NAMES = [
+  'january',
+  'february',
+  'march',
+  'april',
+  'may',
+  'june',
+  'july',
+  'august',
+  'september',
+  'october',
+  'november',
+  'december',
+]
+
+function monthFromName(token: string): number | null {
+  const cleaned = normalizeString(token)
+  if (cleaned.length < 3) return null
+  const prefix = cleaned.slice(0, 3)
+  const index = MONTH_NAMES.findIndex((month) => month.startsWith(prefix))
+  return index === -1 ? null : index + 1
+}
+
+function toIsoDate(year: number, month: number, day: number): string | null {
+  if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) return null
+  if (month < 1 || month > 12) return null
+  if (day < 1 || day > 31) return null
+  const pad = (value: number) => String(value).padStart(2, '0')
+  return `${year}-${pad(month)}-${pad(day)}`
+}
+
+/**
+ * Normalizes the date formats that show up on Philippine IDs and in the
+ * pre-registered registry (a SQL `DATE` column) into ISO `YYYY-MM-DD`.
+ *
+ * PhilSys, UMID and driver's licenses print dates as `MM/DD/YYYY`, so numeric
+ * dates are read month-first. Unrecognized values return `null` so callers can
+ * fall back to a digits-only comparison.
+ */
+export function normalizeDateOfBirth(value: string | null | undefined): string | null {
+  if (!value) return null
+  const raw = value.trim()
+  if (!raw) return null
+
+  // ISO (including `1990-05-12T00:00:00.000Z` from a DATE column)
+  const isoMatch = raw.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/)
+  if (isoMatch) {
+    return toIsoDate(Number(isoMatch[1]), Number(isoMatch[2]), Number(isoMatch[3]))
+  }
+
+  // MM/DD/YYYY and MM/DD/YY
+  const numericMatch = raw.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2,4})/)
+  if (numericMatch) {
+    let year = Number(numericMatch[3])
+    if (year < 100) year += year > 30 ? 1900 : 2000
+    return toIsoDate(year, Number(numericMatch[1]), Number(numericMatch[2]))
+  }
+
+  // "MAY 12, 1990" / "MAY 12 1990"
+  const monthFirstMatch = raw.match(/^([A-Za-z]{3,})\.?\s+(\d{1,2}),?\s+(\d{4})$/)
+  if (monthFirstMatch) {
+    const month = monthFromName(monthFirstMatch[1])
+    if (month) return toIsoDate(Number(monthFirstMatch[3]), month, Number(monthFirstMatch[2]))
+  }
+
+  // "12 MAY 1990" / "12 MAY, 1990"
+  const dayFirstMatch = raw.match(/^(\d{1,2})\s+([A-Za-z]{3,})\.?,?\s+(\d{4})$/)
+  if (dayFirstMatch) {
+    const month = monthFromName(dayFirstMatch[2])
+    if (month) return toIsoDate(Number(dayFirstMatch[3]), month, Number(dayFirstMatch[1]))
+  }
+
+  return null
+}
+
 export function dobMatch(dobA: string, dobB: string): number {
-  const normalizeDob = (d: string): string =>
-    d.replace(/[-\/\.]/g, '')
-  const na = normalizeDob(dobA)
-  const nb = normalizeDob(dobB)
-  if (na === nb) return 1
-  return 0
+  // Compare canonical dates first: the registry stores `YYYY-MM-DD` while OCR
+  // reads `MM/DD/YYYY` off most Philippine IDs, so a raw string comparison made
+  // this signal fail for every real ID.
+  const isoA = normalizeDateOfBirth(dobA)
+  const isoB = normalizeDateOfBirth(dobB)
+  if (isoA && isoB) return isoA === isoB ? 1 : 0
+
+  // Fall back to a digits-only comparison for formats we do not recognize.
+  const na = dobA.replace(/\D/g, '')
+  const nb = dobB.replace(/\D/g, '')
+  if (!na || !nb) return 0
+  return na === nb ? 1 : 0
 }
 
 export function nationalIdMatch(idA: string, idB: string): number {
@@ -301,6 +382,131 @@ export function determineAction(
   if (score >= thresholds.idVerifyThreshold) return 'id_verify'
   if (score >= thresholds.manualReviewThreshold) return 'needs_review'
   return 'no_match'
+}
+
+/**
+ * Fields read off an ID document by OCR. Everything is optional because a real
+ * photo rarely yields every field.
+ */
+export interface OcrIdentityFields {
+  firstName?: string | null
+  lastName?: string | null
+  middleName?: string | null
+  email?: string | null
+  phone?: string | null
+  address?: string | null
+  dateOfBirth?: string | null
+  nationalId?: string | null
+}
+
+export interface DocumentConsistencyResult {
+  score: number
+  breakdown: Record<string, number>
+  /** Field keys that produced a real comparison (both sides had a value). */
+  comparedFields: string[]
+  /** Share of the total signal weight actually compared (0 - 1). */
+  evidenceStrength: number
+}
+
+/**
+ * Relative importance of each identity signal when a registry
+ * (`pre_registered_residents`) record is unavailable and we can only check the
+ * document against what the user typed into their own account.
+ */
+const DOCUMENT_SIGNAL_WEIGHTS = {
+  nationalId: 0.35,
+  dateOfBirth: 0.25,
+  name: 0.25,
+  address: 0.15,
+} as const
+
+/**
+ * Weighted average of the identity fields taken from the ID that are also
+ * present on the account.
+ *
+ * This is deliberately NOT an authorization signal: the same person supplies
+ * both sides of the comparison, so a high score only proves the document is
+ * legible and self-consistent. Thresholds are not applied to it and it must
+ * never drive `auto_verify`; it exists so the UI can report something truthful
+ * instead of a hard-coded 0%.
+ */
+export function calculateDocumentConsistencyScore(
+  extracted: OcrIdentityFields,
+  account: SignUpVerificationInput,
+): DocumentConsistencyResult {
+  const breakdown: Record<string, number> = {}
+  const comparedFields: string[] = []
+  let weightedSum = 0
+  let appliedWeight = 0
+
+  const include = (field: keyof typeof DOCUMENT_SIGNAL_WEIGHTS, score: number) => {
+    const weight = DOCUMENT_SIGNAL_WEIGHTS[field]
+    breakdown[field] = score
+    comparedFields.push(field)
+    weightedSum += score * weight
+    appliedWeight += weight
+  }
+
+  const nationalId = (extracted.nationalId || '').trim()
+  if (nationalId && account.nationalId) {
+    include('nationalId', nationalIdMatch(nationalId, account.nationalId))
+  }
+
+  const dateOfBirth = (extracted.dateOfBirth || '').trim()
+  if (dateOfBirth && account.dateOfBirth) {
+    include('dateOfBirth', dobMatch(dateOfBirth, account.dateOfBirth))
+  }
+
+  const extractedFirstName = (extracted.firstName || '').trim()
+  const extractedLastName = (extracted.lastName || '').trim()
+  if ((extractedFirstName || extractedLastName) && (account.firstName || account.lastName)) {
+    include(
+      'name',
+      nameMatchScore(extractedFirstName, extractedLastName, account.firstName, account.lastName),
+    )
+  }
+
+  const address = (extracted.address || '').trim()
+  if (address && account.address) {
+    include('address', addressMatch(address, account.address))
+  }
+
+  if (appliedWeight === 0) {
+    return { score: 0, breakdown, comparedFields, evidenceStrength: 0 }
+  }
+
+  return {
+    score: Math.round((weightedSum / appliedWeight) * 100 * 100) / 100,
+    breakdown,
+    comparedFields,
+    evidenceStrength: Math.round(appliedWeight * 100) / 100,
+  }
+}
+
+/**
+ * Prefers values read off the ID over the values the user typed, so registry
+ * comparisons are driven by the document whenever it was legible.
+ */
+export function mergeExtractedFields(
+  expected: SignUpVerificationInput,
+  extracted: OcrIdentityFields,
+): SignUpVerificationInput {
+  const pick = (primary: string | null | undefined, fallback?: string) => {
+    const value = (primary || '').trim()
+    return value || fallback || ''
+  }
+
+  return {
+    firstName: pick(extracted.firstName, expected.firstName),
+    lastName: pick(extracted.lastName, expected.lastName),
+    middleName: pick(extracted.middleName, expected.middleName),
+    email: pick(extracted.email, expected.email),
+    phone: pick(extracted.phone, expected.phone),
+    address: pick(extracted.address, expected.address),
+    barangay: expected.barangay,
+    dateOfBirth: pick(extracted.dateOfBirth, expected.dateOfBirth),
+    nationalId: pick(extracted.nationalId, expected.nationalId),
+  }
 }
 
 export function parseOcrExtractedFields(

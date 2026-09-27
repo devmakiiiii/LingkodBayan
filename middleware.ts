@@ -67,7 +67,9 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
+  // Skip middleware for Next.js internals and all static assets — these never
+  // need auth/CSRF handling, so they shouldn't pay the middleware cost.
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico).*)',
+    '/((?!_next/static|_next/image|favicon.ico|_next/webpack-hmr|.*\\.(?:svg|png|jpg|jpeg|gif|webp|avif|ico|txt|xml|json|webmanifest|woff|woff2|ttf|otf|map)$).*)',
   ],
 }

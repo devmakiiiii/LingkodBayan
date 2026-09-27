@@ -22,7 +22,9 @@ export async function GET(request: NextRequest) {
   }
 
   if (job.status === 'completed') {
-    return NextResponse.json({ result: job.result })
+    // `status` must be included: the verify-id page polls for
+    // `statusData.status === 'completed'` before reading `result`.
+    return NextResponse.json({ status: 'completed', result: job.result })
   }
 
   return NextResponse.json({ status: job.status })

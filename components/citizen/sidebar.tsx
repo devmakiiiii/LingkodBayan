@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { LogOut, Menu, X, Home, FileText, AlertCircle, Megaphone, Plus, Bell, Loader2, ShieldCheck, Sun, Moon, MessageSquare, Building2 } from 'lucide-react'
+import { LogOut, Menu, X, Home, FileText, AlertCircle, Megaphone, Plus, Bell, Loader2, ShieldCheck, Sun, Moon, MessageSquare, Building2, Users, PackageCheck } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -25,6 +25,8 @@ const navItems = [
   { href: '/citizen/verify-id', label: 'Identity Verification', icon: ShieldCheck },
   { href: '/citizen/my-requests', label: 'My Requests', icon: FileText },
   { href: '/citizen/request-service', label: 'Request Service', icon: Plus },
+  { href: '/citizen/proxy-filing', label: 'Proxy Filing', icon: Users },
+  { href: '/citizen/document-pickups', label: 'Document Pickups', icon: PackageCheck },
   { href: '/citizen/my-complaints', label: 'My Complaints', icon: AlertCircle },
   { href: '/citizen/feedback', label: 'Feedback', icon: MessageSquare },
   { href: '/citizen/offices', label: 'Offices & Contacts', icon: Building2 },

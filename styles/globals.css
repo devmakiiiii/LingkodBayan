@@ -123,3 +123,67 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Print-only claim stub for the public tracking page */
+.print-stub {
+  display: none;
+}
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .print-stub,
+  .print-stub * {
+    visibility: visible;
+  }
+  .print-stub {
+    display: block;
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    padding: 16px;
+    color: #000;
+    background: #fff;
+  }
+  .screen-only {
+    display: none !important;
+  }
+}
+
+
+/* Print-only purok pickup manifest (admin) */
+.print-manifest {
+  display: none;
+}
+@media print {
+  .print-manifest,
+  .print-manifest * {
+    visibility: visible;
+  }
+  .print-manifest {
+    display: block;
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    padding: 16px;
+    color: #000;
+    background: #fff;
+  }
+  .print-manifest table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 11px;
+  }
+  .print-manifest th,
+  .print-manifest td {
+    border: 1px solid #000;
+    padding: 6px 4px;
+    text-align: left;
+    vertical-align: top;
+  }
+  .print-manifest thead th {
+    background: #eee;
+  }
+}

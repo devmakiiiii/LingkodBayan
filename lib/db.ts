@@ -1,4 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
+import type { SupabaseClient } from '@supabase/supabase-js'
+import type { PreRegisteredResident } from './verification'
 import { RequestInput, ComplaintInput, DesignationInput, OfficialInput, BarangayInfoInput, MissionVisionInput, SignatureUploadInput, ServiceCategoryInput } from './schemas'
 import { logger } from './logger'
 import { isAnnouncementColumnError } from './announcements'
@@ -789,42 +792,74 @@ export async function createPreRegisteredResident(data: PreRegisteredResidentDat
   return result
 }
 
-export async function searchPreRegisteredResidents(filters: {
-  email?: string
-  phone?: string
-  nationalId?: string
-  firstName?: string
-  lastName?: string
-  barangay?: string
-}) {
-  const supabase = await createClient()
+export interface PreRegisteredCandidateFilters {
+  email?: string | null
+  phone?: string | null
+  nationalId?: string | null
+  firstName?: string | null
+  lastName?: string | null
+}
 
-  let query = supabase.from('pre_registered_residents').select('*')
+/**
+ * Candidate lookup for identity verification.
+ *
+ * IMPORTANT: `pre_registered_residents` is admin-only under RLS, so callers
+ * MUST pass a service-role client from `createAdminClient()`. Reading this
+ * table with the resident-scoped client returns zero rows *without* raising
+ * an error, which silently made every ID verification report a 0% match.
+ *
+ * Identity filters are OR-ed together because a single ID photo may only
+ * expose one of them; the name prefix search is a last resort for records
+ * that have no email, phone, or national ID on file.
+ */
+export async function findPreRegisteredCandidates(
+  filters: PreRegisteredCandidateFilters,
+  client: SupabaseClient,
+): Promise<PreRegisteredResident[]> {
+  const orFilters: string[] = []
 
-  if (filters.email) {
-    query = query.ilike('email', filters.email.trim().toLowerCase())
-  }
-  if (filters.phone) {
-    const cleanPhone = filters.phone.replace(/\D/g, '')
-    query = query.ilike('phone', `%${cleanPhone}%`)
-  }
-  if (filters.nationalId) {
-    const cleanId = filters.nationalId.replace(/\D/g, '')
-    if (cleanId) query = query.ilike('national_id', `%${cleanId}%`)
-  }
-  if (filters.firstName && filters.lastName) {
-    query = query
-      .ilike('first_name', `${filters.firstName.trim().toLowerCase()}%`)
-      .ilike('last_name', `${filters.lastName.trim().toLowerCase()}%`)
-  }
-  if (filters.barangay) {
-    query = query.ilike('barangay', `%${filters.barangay.trim().toLowerCase()}%`)
+  const email = filters.email?.trim().toLowerCase()
+  if (email) {
+    orFilters.push(`email.eq.${email}`)
   }
 
-  const { data, error } = await query.limit(50)
+  const phone = filters.phone?.replace(/\D/g, '')
+  if (phone) {
+    orFilters.push(`phone.like.*${phone}*`)
+  }
 
-  if (error) throw new Error(`Failed to search pre-registered residents: ${error.message}`)
-  return data || []
+  const nationalId = filters.nationalId?.replace(/\D/g, '')
+  if (nationalId) {
+    orFilters.push(`national_id.like.*${nationalId}*`)
+  }
+
+  if (orFilters.length > 0) {
+    const { data, error } = await client
+      .from('pre_registered_residents')
+      .select('*')
+      .or(orFilters.join(','))
+      .limit(50)
+
+    if (error) throw new Error(`Failed to search pre-registered residents: ${error.message}`)
+    return (data ?? []) as PreRegisteredResident[]
+  }
+
+  const firstName = filters.firstName?.trim().toLowerCase()
+  const lastName = filters.lastName?.trim().toLowerCase()
+
+  if (firstName && lastName) {
+    const { data, error } = await client
+      .from('pre_registered_residents')
+      .select('*')
+      .ilike('first_name', `${firstName}%`)
+      .ilike('last_name', `${lastName}%`)
+      .limit(50)
+
+    if (error) throw new Error(`Failed to search pre-registered residents: ${error.message}`)
+    return (data ?? []) as PreRegisteredResident[]
+  }
+
+  return []
 }
 
 export async function getPreRegisteredResidentById(id: string) {
@@ -968,7 +1003,7 @@ export async function getVerificationAttemptById(id: string) {
     .from('verification_attempts')
     .select(`
       *,
-      residents!inner(id, first_name, last_name, email, verification_status),
+      residents!inner(id, user_id, first_name, last_name, email, verification_status),
       pre_registered_residents!left(id, first_name, last_name, email, national_id)
     `)
     .eq('id', id)
@@ -1002,4 +1037,67 @@ export async function updateVerificationAttempt(
 
   if (error) throw new Error(`Failed to update verification attempt: ${error.message}`)
   return data
+}
+
+/**
+ * Fair-use cap for ID uploads: counts the resident's OCR attempts in the last
+ * `hours` hours. Uses the service-role client because the count must work
+ * before/at upload time regardless of the resident's verification RLS state.
+ * Returns -1 when the profile can't be resolved so callers fail open (an
+ * anonymous edge case should not lock anyone out of verification).
+ */
+export async function getRecentVerificationAttemptCount(
+  userId: string,
+  hours = 24,
+): Promise<number> {
+  const adminClient = createAdminClient()
+
+  const { data: resident, error: residentError } = await adminClient
+    .from('residents')
+    .select('id')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (residentError) throw new Error(`Failed to resolve resident: ${residentError.message}`)
+  if (!resident) return -1
+
+  const cutoff = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString()
+
+  const { count, error } = await adminClient
+    .from('verification_attempts')
+    .select('id', { count: 'exact', head: true })
+    .eq('resident_id', resident.id)
+    .gte('created_at', cutoff)
+
+  if (error) throw new Error(`Failed to count verification attempts: ${error.message}`)
+  return count ?? 0
+}
+
+export interface UserNotificationData {
+  userId: string
+  type: string
+  title: string
+  body?: string
+  link?: string
+}
+
+/**
+ * Inserts an in-app notification for a citizen. Intentionally uses the
+ * service-role client: the user_notifications table has no INSERT policy, so
+ * only server code can create notifications.
+ */
+export async function createUserNotification(data: UserNotificationData) {
+  const adminClient = createAdminClient()
+
+  const { error } = await adminClient.from('user_notifications').insert({
+    user_id: data.userId,
+    type: data.type,
+    title: data.title,
+    body: data.body ?? null,
+    link: data.link ?? null,
+  })
+
+  if (error) throw new Error(`Failed to create user notification: ${error.message}`)
 }

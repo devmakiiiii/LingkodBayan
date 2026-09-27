@@ -103,6 +103,8 @@ The app relies on the following environment variables:
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY` - Supabase anonymous key
 - `SUPABASE_SERVICE_ROLE_KEY` - Server-side admin access for privileged operations
 - `POSTGRES_URL` - Database connection string used by the Supabase stack
+- `SEMAPHORE_API_KEY` - (optional) Semaphore SMS gateway key; when set, resident events are also sent as SMS to the registered mobile number
+- `SEMAPHORE_SENDERNAME` - (optional) SMS sender name, defaults to "LingkodBayan"
 
 If you deploy on Vercel, add the same values in the project environment settings.
 

@@ -109,6 +109,15 @@ const sql = readMigrationScript()
   + '--- Migration 28: Retire Inactive Officials Status ---\n'
   + readMigrationFile('28_retire_inactive_officials_status.sql')
   + '\n'
+  + '--- Migration 29: User Notifications ---\n'
+  + readMigrationFile('29_add_user_notifications.sql')
+  + '\n'
+  + '--- Migration 30: Representative Authorizations (proxy filing) ---\n'
+  + readMigrationFile('30_add_representative_authorizations.sql')
+  + '\n'
+  + '--- Migration 31: Document Pickups (clearance claiming) ---\n'
+  + readMigrationFile('31_add_document_pickups.sql')
+  + '\n'
   + '--- Finalize Complaints Schema ---\n'
   + readMigrationFile('finalize_complaints_schema.sql');
 console.log(sql);

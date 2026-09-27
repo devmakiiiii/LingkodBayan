@@ -10,14 +10,17 @@ import assert from 'node:assert/strict'
 import {
   DEFAULT_THRESHOLDS,
   addressMatch,
+  calculateDocumentConsistencyScore,
   calculateMatchScore,
   determineAction,
   dobMatch,
   emailMatch,
   levenshteinSimilarity,
+  mergeExtractedFields,
   nameMatchScore,
   nationalIdMatch,
   normalizeAddress,
+  normalizeDateOfBirth,
   normalizeString,
   parseOcrExtractedFields,
   phoneMatch,
@@ -203,5 +206,95 @@ describe('parseOcrExtractedFields (PhilSys)', () => {
   it('returns an empty object when no known patterns are present', () => {
     const fields = parseOcrExtractedFields('garbage text with no structure', 'philsys')
     assert.deepEqual(fields, {})
+  })
+})
+
+describe('date-of-birth normalization', () => {
+  it('matches ISO registry dates against the MM/DD/YYYY printed on IDs', () => {
+    assert.equal(dobMatch('05/12/1990', '1990-05-12'), 1)
+    assert.equal(dobMatch('1990-05-12T00:00:00.000Z', '05/12/1990'), 1)
+    assert.equal(dobMatch('MAY 12, 1990', '1990-05-12'), 1)
+  })
+
+  it('keeps genuinely different dates apart', () => {
+    assert.equal(dobMatch('05/12/1990', '1990-12-05'), 0)
+    assert.equal(dobMatch('JUNE 12, 1990', '1990-05-12'), 0)
+  })
+
+  it('normalizes the formats found on Philippine IDs to ISO', () => {
+    assert.equal(normalizeDateOfBirth('05/12/1990'), '1990-05-12')
+    assert.equal(normalizeDateOfBirth('12 MAY 1990'), '1990-05-12')
+    assert.equal(normalizeDateOfBirth('1990-05-12'), '1990-05-12')
+    assert.equal(normalizeDateOfBirth('not a date'), null)
+    assert.equal(normalizeDateOfBirth(''), null)
+  })
+})
+
+describe('calculateDocumentConsistencyScore', () => {
+  const account = buildInput({
+    dateOfBirth: '1990-05-12',
+    nationalId: '123456789012',
+    address: '123 P. Burgos St, Barangay 1',
+  })
+
+  it('scores a fully consistent ID at 100', () => {
+    const result = calculateDocumentConsistencyScore(
+      {
+        firstName: 'JUAN',
+        lastName: 'DELA CRUZ',
+        dateOfBirth: '05/12/1990',
+        nationalId: '1234-5678-9012',
+        address: '123 P BURGOS ST BARANGAY 1',
+      },
+      account,
+    )
+    assert.equal(result.score, 100)
+    assert.deepEqual(result.comparedFields.sort(), ['address', 'dateOfBirth', 'name', 'nationalId'])
+    assert.equal(result.evidenceStrength, 1)
+  })
+
+  it('ignores fields OCR did not return instead of scoring them as zero', () => {
+    const result = calculateDocumentConsistencyScore(
+      { firstName: 'Juan', lastName: 'Dela Cruz' },
+      account,
+    )
+    assert.equal(result.score, 100)
+    assert.deepEqual(result.comparedFields, ['name'])
+    assert.equal(result.evidenceStrength, 0.25)
+  })
+
+  it('flags a document whose details disagree with the account', () => {
+    const result = calculateDocumentConsistencyScore(
+      {
+        firstName: 'Pedro',
+        lastName: 'Bagong',
+        dateOfBirth: '01/01/1975',
+        nationalId: '999999999999',
+        address: 'Somewhere Else',
+      },
+      account,
+    )
+    assert.ok(result.score < 40, `expected < 40, got ${result.score}`)
+    assert.equal(result.evidenceStrength, 1)
+  })
+
+  it('reports zero evidence when nothing comparable could be read', () => {
+    const result = calculateDocumentConsistencyScore({}, account)
+    assert.equal(result.score, 0)
+    assert.equal(result.evidenceStrength, 0)
+    assert.deepEqual(result.comparedFields, [])
+  })
+})
+
+describe('mergeExtractedFields', () => {
+  it('prefers what the ID says and falls back to typed values', () => {
+    const merged = mergeExtractedFields(
+      buildInput({ address: 'typed address', dateOfBirth: '1990-05-12' }),
+      { firstName: 'JUAN', lastName: '' },
+    )
+    assert.equal(merged.firstName, 'JUAN')
+    assert.equal(merged.lastName, 'Dela Cruz')
+    assert.equal(merged.address, 'typed address')
+    assert.equal(merged.dateOfBirth, '1990-05-12')
   })
 })

@@ -231,6 +231,9 @@ export default function Home() {
         </div>
         <div className="flex items-center gap-2">
           <ThemeToggle className="text-gray-600 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-300 dark:hover:text-white dark:hover:bg-white/10" />
+          <Link href="/track">
+            <Button variant="outline" className="border-gray-300 dark:border-input dark:border-border">Track a Submission</Button>
+          </Link>
           <Link href="/auth/login">
             <Button variant="outline" className="border-gray-300 dark:border-input dark:border-border">Login</Button>
           </Link>
@@ -461,6 +464,7 @@ export default function Home() {
                 <li><Link href="/auth/login" className="hover:text-white">Login</Link></li>
                 <li><Link href="/auth/sign-up" className="hover:text-white">Sign Up</Link></li>
                 <li><Link href="/auth/forgot-password" className="hover:text-white">Forgot Password</Link></li>
+                <li><Link href="/track" className="hover:text-white">Track a Submission</Link></li>
               </ul>
             </div>
             {showContact && (

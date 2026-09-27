@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
-import { LogOut, Menu, X, Home, Users, BarChart3, List, AlertCircle, Settings, ChevronDown, Loader2, Megaphone, ShieldCheck, Sun, Moon, MessageSquare } from 'lucide-react'
+import { LogOut, Menu, X, Home, Users, BarChart3, List, AlertCircle, Settings, ChevronDown, Loader2, Megaphone, ShieldCheck, Sun, Moon, MessageSquare, PackageCheck } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -37,6 +37,7 @@ const navItems = [
       { label: 'All Residents', href: '/admin/residents' },
       { label: 'Pre-Registered Data', href: '/admin/pre-registered-residents' },
       { label: 'Resident Reports', href: '/admin/resident-reports' },
+      { label: 'Proxy Authorizations', href: '/admin/proxy-authorizations' },
     ]
   },
   { 
@@ -46,9 +47,11 @@ const navItems = [
     items: [
       { label: 'Analytics', href: '/admin/analytics' },
       { label: 'Generated Reports', href: '/admin/generated-reports' },
+      { label: 'Purok Pickup Manifest', href: '/admin/purok-manifest' },
     ]
   },
   { label: 'Request List', href: '/admin/requests', icon: List },
+  { label: 'Document Pickups', href: '/admin/document-pickups', icon: PackageCheck },
   { label: 'Complaints List', href: '/admin/complaints', icon: AlertCircle },
   { label: 'Feedback', href: '/admin/feedback', icon: MessageSquare },
   { label: 'Identity Verification', href: '/admin/verification', icon: ShieldCheck },

@@ -14,6 +14,13 @@ import {
 } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { AlertCircle, CheckCircle2, Clock, User, FileText, ExternalLink } from 'lucide-react'
 import { toast } from 'sonner'
 import {
@@ -31,6 +38,19 @@ const ATTEMPT_TYPE_LABELS: Record<string, string> = {
   id_ocr: 'ID Upload (OCR)',
   manual_review: 'Manual Review',
 }
+
+// Structured rejection reasons: stored on the resident's verification details
+// and shown verbatim to the citizen, so they know exactly what to fix before
+// resubmitting.
+const REJECTION_REASONS = [
+  { value: 'unreadable_photo', label: 'Photo is blurry, dark, or unreadable' },
+  { value: 'name_mismatch', label: 'Name on ID does not match the account' },
+  { value: 'expired_id', label: 'ID is expired or no longer valid' },
+  { value: 'unsupported_id', label: 'ID type is not accepted' },
+  { value: 'data_mismatch', label: 'Details on ID do not match our records' },
+  { value: 'suspected_fraud', label: 'Possible fraudulent or altered document' },
+  { value: 'incomplete', label: 'Required ID details are cut off or missing' },
+] as const
 
 interface VerificationAttempt {
   id: string
@@ -66,6 +86,7 @@ export default function AdminVerificationPage() {
   const [loading, setLoading] = useState(true)
   const [selectedAttempt, setSelectedAttempt] = useState<VerificationAttempt | null>(null)
   const [reviewNotes, setReviewNotes] = useState('')
+  const [rejectionReason, setRejectionReason] = useState('')
   const [isUpdating, setIsUpdating] = useState(false)
 
   useEffect(() => {
@@ -286,6 +307,24 @@ export default function AdminVerificationPage() {
                               )}
 
                               <div>
+                                <Label className="text-xs font-medium text-muted-foreground">
+                                  Rejection reason <span className="text-red-500">(required when rejecting)</span>
+                                </Label>
+                                <Select value={rejectionReason} onValueChange={setRejectionReason}>
+                                  <SelectTrigger className="mt-1">
+                                    <SelectValue placeholder="Select a reason to show the resident..." />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {REJECTION_REASONS.map((reason) => (
+                                      <SelectItem key={reason.value} value={reason.value}>
+                                        {reason.label}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+
+                              <div>
                                 <Label className="text-xs font-medium text-muted-foreground">Review Notes</Label>
                                 <Textarea
                                   value={reviewNotes}
@@ -298,15 +337,17 @@ export default function AdminVerificationPage() {
                             </div>
 
                             <DialogFooter>
-                              <Button variant="outline" onClick={() => { setSelectedAttempt(null); setReviewNotes('') }}>
+                              <Button variant="outline" onClick={() => { setSelectedAttempt(null); setReviewNotes(''); setRejectionReason('') }}>
                                 Cancel
                               </Button>
                               <Button
                                 variant="destructive"
+                                disabled={!!selectedAttempt && !rejectionReason}
                                 onClick={async () => {
                                   await handleReviewSubmit('rejected')
                                   setSelectedAttempt(null)
                                   setReviewNotes('')
+                                  setRejectionReason('')
                                 }}
                               >
                                 Reject
@@ -317,6 +358,7 @@ export default function AdminVerificationPage() {
                                   await handleReviewSubmit('matched')
                                   setSelectedAttempt(null)
                                   setReviewNotes('')
+                                  setRejectionReason('')
                                 }}
                               >
                                 Approve
@@ -358,6 +400,7 @@ export default function AdminVerificationPage() {
           verificationMethod: 'manual',
           verificationConfidence: selectedAttempt.match_score || 0,
           notes: reviewNotes,
+          rejectionReason: status === 'rejected' ? rejectionReason : undefined,
         }),
       })
 

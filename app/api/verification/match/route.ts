@@ -4,11 +4,11 @@ import { verificationMatchSchema, type VerificationMatchInput } from '@/lib/sche
 import {
   calculateMatchScore,
   determineAction,
-  normalizeString,
   type SignUpVerificationInput,
   type PreRegisteredResident,
   type MatchResult,
 } from '@/lib/verification'
+import { findPreRegisteredCandidates } from '@/lib/db'
 import { verifyRequest } from '@/lib/request-security'
 import { logger } from '@/lib/logger'
 
@@ -33,7 +33,18 @@ export async function POST(request: NextRequest) {
 
     const input: SignUpVerificationInput = parseResult.data as VerificationMatchInput
 
-    const candidates = await findCandidateResidents(supabase, input)
+    // `pre_registered_residents` is admin-only under RLS, so the lookup needs
+    // the service-role client (see findPreRegisteredCandidates).
+    const candidates = await findPreRegisteredCandidates(
+      {
+        email: input.email,
+        phone: input.phone,
+        nationalId: input.nationalId,
+        firstName: input.firstName,
+        lastName: input.lastName,
+      },
+      supabase,
+    )
 
     if (candidates.length === 0) {
       return NextResponse.json({
@@ -77,62 +88,4 @@ export async function POST(request: NextRequest) {
       error instanceof Error ? error.message : 'Failed to process verification match'
     return NextResponse.json({ error: message }, { status: 500 })
   }
-}
-
-async function findCandidateResidents(
-  supabase: ReturnType<typeof createAdminClient>,
-  input: SignUpVerificationInput,
-) {
-  const orFilters: string[] = []
-
-  if (input.email) {
-    orFilters.push(`email.eq.${input.email.trim().toLowerCase()}`)
-  }
-  if (input.phone) {
-    const cleanPhone = input.phone.replace(/\D/g, '')
-    if (cleanPhone) {
-      orFilters.push(`phone.like.*${cleanPhone}*`)
-    }
-  }
-  if (input.nationalId) {
-    const cleanId = input.nationalId.replace(/\D/g, '')
-    if (cleanId) {
-      orFilters.push(`national_id.like.*${cleanId}*`)
-    }
-  }
-
-  if (orFilters.length > 0) {
-    const orClause = orFilters.join(',')
-    const { data, error } = await supabase
-      .from('pre_registered_residents')
-      .select('*')
-      .or(orClause)
-      .limit(50)
-
-    if (error) {
-      logger.error('[verification/match] Supabase error', error, { context: 'api/verification/match' })
-      return []
-    }
-    return data || []
-  }
-
-  const firstNameNorm = normalizeString(input.firstName)
-  const lastNameNorm = normalizeString(input.lastName)
-
-  if (firstNameNorm && lastNameNorm) {
-    const { data, error } = await supabase
-      .from('pre_registered_residents')
-      .select('*')
-      .ilike('first_name', `${firstNameNorm}%`)
-      .ilike('last_name', `${lastNameNorm}%`)
-      .limit(50)
-
-    if (error) {
-      logger.error('[verification/match] Supabase error', error, { context: 'api/verification/match' })
-      return []
-    }
-    return data || []
-  }
-
-  return []
 }

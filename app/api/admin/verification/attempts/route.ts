@@ -7,6 +7,7 @@ import {
   updateVerificationAttempt,
   updateResidentVerification,
 } from '@/lib/db'
+import { notifyResidentByUserId } from '@/lib/notify'
 import { verifyRequest } from '@/lib/request-security'
 import { logAuditAction } from '@/lib/audit-log'
 import { logger } from '@/lib/logger'
@@ -94,7 +95,7 @@ export async function PATCH(request: NextRequest) {
 
   try {
     const body = await request.json()
-    const { attemptId, status, residentId, verificationStatus, verificationMethod, verificationConfidence, notes } = body
+    const { attemptId, status, residentId, verificationStatus, verificationMethod, verificationConfidence, notes, rejectionReason } = body
 
     if (!attemptId) {
       return NextResponse.json({ error: 'attemptId is required.' }, { status: 400 })
@@ -106,6 +107,15 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'Verification attempt not found.' }, { status: 404 })
     }
 
+    // Require a structured reason on rejection so the resident is told what
+    // to fix instead of guessing on resubmission.
+    if (status === 'rejected' && !rejectionReason) {
+      return NextResponse.json(
+        { error: 'A rejection reason is required when rejecting a verification.' },
+        { status: 400 },
+      )
+    }
+
     // Update the attempt record
     await updateVerificationAttempt(attemptId, {
       status: status || attempt.status,
@@ -114,16 +124,45 @@ export async function PATCH(request: NextRequest) {
 
     // Update the resident's verification status if provided
     if (residentId && verificationStatus) {
+      const details = {
+        ...(rejectionReason ? { rejectionReason } : {}),
+        ...(notes ? { adminNotes: notes } : {}),
+        ...attempt.verification_details,
+      }
       await updateResidentVerification(residentId, {
         verificationStatus,
         verificationMethod: verificationMethod || 'manual',
         verificationConfidence: verificationConfidence !== undefined ? verificationConfidence : undefined,
-        verificationDetails: notes ? { adminNotes: notes, ...attempt.verification_details } : attempt.verification_details,
+        verificationDetails: details,
         verifiedAt: verificationStatus === 'auto_verified' || verificationStatus === 'id_verified'
           ? new Date().toISOString()
           : undefined,
         verifiedBy: user.id,
       })
+    }
+
+    // In-app notification so the resident doesn't have to poll the page.
+    if (attempt.residents?.user_id) {
+      try {
+        if (verificationStatus === 'auto_verified' || verificationStatus === 'id_verified') {
+          await notifyResidentByUserId(attempt.residents.user_id, {
+            type: 'verification_approved',
+            title: 'Identity verification approved',
+            body: 'Your ID has been verified. You now have full access to barangay services.',
+            link: '/citizen/verify-id',
+          })
+        } else if (verificationStatus === 'rejected') {
+          await notifyResidentByUserId(attempt.residents.user_id, {
+            type: 'verification_rejected',
+            title: 'Identity verification rejected',
+            body: `${rejectionReason ?? 'Your ID submission was rejected.'}${notes ? ` — ${notes}` : ''} You can upload a clearer ID or message the reviewer from the verification page.`,
+            link: '/citizen/verify-id',
+          })
+        }
+      } catch (notifyError) {
+        // A failed notification must never fail the admin's decision itself.
+        logger.warn('[admin/verification/attempts] Failed to create user notification', { context: 'api/admin/verification/attempts' }, notifyError)
+      }
     }
 
     await logAuditAction({
