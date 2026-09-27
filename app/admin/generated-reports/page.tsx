@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { toast } from 'sonner'
 import { Download, FileText, FileUp, Printer, Table2 } from 'lucide-react'
 import {
   adminReportTypeLabels,
@@ -19,6 +20,7 @@ import {
   complaintCategoryLabels,
   complaintStatuses,
   downloadCsvFile,
+  downloadXlsxFile,
   getComplaintStatusLabel,
   getOfficialCategoryShortLabel,
   getOfficialDesignationLabel,
@@ -233,6 +235,7 @@ export default function AdminGeneratedReportsPage() {
   const [actionFilter, setActionFilter] = useState<ReportStatusOption>('all')
   const [resourceTypeFilter, setResourceTypeFilter] = useState('all')
   const [loading, setLoading] = useState(true)
+  const [exportingExcel, setExportingExcel] = useState(false)
   const [configError, setConfigError] = useState<string | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
 
@@ -242,6 +245,7 @@ export default function AdminGeneratedReportsPage() {
     async function loadData() {
       setConfigError(null)
       setLoadError(null)
+      setLoading(true)
 
       if (!hasSupabaseConfig()) {
         if (!cancelled) {
@@ -253,59 +257,73 @@ export default function AdminGeneratedReportsPage() {
 
       try {
         const supabase = createClient()
+        const sourceErrors: string[] = []
 
-        const [{ data: requestsData, error: requestsError }, { data: complaintsData, error: complaintsError }, { data: officialsData, error: officialsError }] = await Promise.all([
-          supabase
-            .from('requests')
-            .select('id, resident_id, request_type, title, description, category, status, created_at')
-            .order('created_at', { ascending: false }),
-          supabase
-            .from('complaints')
-            .select('id, resident_id, title, description, category, status, created_at')
-            .order('created_at', { ascending: false }),
-          supabase
-            .from('officials')
-            .select('id, full_name, designation_id, term_start, term_end, status, created_at')
-            .order('created_at', { ascending: false }),
-        ])
-
-        const sourceErrors = [requestsError, complaintsError, officialsError]
-          .filter((error): error is NonNullable<typeof requestsError> => Boolean(error))
-          .map((error) => error.message)
-
-        const residentIds = [
-          ...(requestsData || []).map((row: RawReportRow) => stringValue(row.resident_id)).filter(Boolean),
-          ...(complaintsData || []).map((row: RawReportRow) => stringValue(row.resident_id)).filter(Boolean),
-        ]
-        const designationIds = (officialsData || []).map((row: RawReportRow) => stringValue(row.designation_id)).filter(Boolean)
-
-        const residentResult = residentIds.length
-          ? await supabase.from('residents').select('id, first_name, last_name, email, barangay').in('id', residentIds)
-          : null
-        const designationResult = designationIds.length
-          ? await supabase.from('designations').select('id, name, category, priority_order, badge_color').in('id', designationIds)
-          : null
-
-        if (residentResult?.error) sourceErrors.push(residentResult.error.message)
-        if (designationResult?.error) sourceErrors.push(designationResult.error.message)
-
+        let requestData: RawReportRow[] | null = null
+        let complaintData: RawReportRow[] | null = null
+        let officialData: RawReportRow[] | null = null
         let auditLogRows: AuditLogReportRow[] = []
 
-        try {
-          const auditResponse = await fetch('/api/admin/audit-logs?limit=1000')
-          if (auditResponse.ok) {
-            const auditBody = await auditResponse.json()
-            auditLogRows = Array.isArray(auditBody?.logs) ? (auditBody.logs as AuditLogReportRow[]) : []
-          } else {
-            const auditBody = await auditResponse.json().catch(() => null)
-            sourceErrors.push(auditBody?.error || 'Failed to load audit logs')
+        // Only fetch the dataset needed for the selected report type.
+        if (reportType === 'requests') {
+          const { data, error } = await supabase
+            .from('requests')
+            .select('id, resident_id, request_type, title, description, category, status, created_at')
+            .order('created_at', { ascending: false })
+          if (error) sourceErrors.push(error.message)
+          requestData = (data as RawReportRow[] | null) ?? []
+        } else if (reportType === 'residents') {
+          const { data, error } = await supabase
+            .from('complaints')
+            .select('id, resident_id, title, description, category, status, created_at')
+            .order('created_at', { ascending: false })
+          if (error) sourceErrors.push(error.message)
+          complaintData = (data as RawReportRow[] | null) ?? []
+        } else if (reportType === 'officials') {
+          const { data, error } = await supabase
+            .from('officials')
+            .select('id, full_name, designation_id, term_start, term_end, status, created_at')
+            .order('created_at', { ascending: false })
+          if (error) sourceErrors.push(error.message)
+          officialData = (data as RawReportRow[] | null) ?? []
+        } else {
+          try {
+            const auditResponse = await fetch('/api/admin/audit-logs?limit=1000')
+            if (auditResponse.ok) {
+              const auditBody = await auditResponse.json()
+              auditLogRows = Array.isArray(auditBody?.logs) ? (auditBody.logs as AuditLogReportRow[]) : []
+            } else {
+              const auditBody = await auditResponse.json().catch(() => null)
+              sourceErrors.push(auditBody?.error || 'Failed to load audit logs')
+            }
+          } catch {
+            sourceErrors.push('Failed to load audit logs')
           }
-        } catch {
-          sourceErrors.push('Failed to load audit logs')
         }
 
-        const residentRows = (residentResult?.data as ResidentRecord[] | undefined) ?? []
-        const designationRows = (designationResult?.data as DesignationRecord[] | undefined) ?? []
+        const residentRows: ResidentRecord[] = []
+        if (requestData || complaintData) {
+          const residentIds = [
+            ...(requestData || []).map((row: RawReportRow) => stringValue(row.resident_id)).filter(Boolean),
+            ...(complaintData || []).map((row: RawReportRow) => stringValue(row.resident_id)).filter(Boolean),
+          ]
+          if (residentIds.length) {
+            const residentResult = await supabase.from('residents').select('id, first_name, last_name, email, barangay').in('id', residentIds)
+            if (residentResult.error) sourceErrors.push(residentResult.error.message)
+            residentRows.push(...((residentResult.data as ResidentRecord[] | undefined) ?? []))
+          }
+        }
+
+        const designationRows: DesignationRecord[] = []
+        if (officialData) {
+          const designationIds = officialData.map((row: RawReportRow) => stringValue(row.designation_id)).filter(Boolean)
+          if (designationIds.length) {
+            const designationResult = await supabase.from('designations').select('id, name, category, priority_order, badge_color').in('id', designationIds)
+            if (designationResult.error) sourceErrors.push(designationResult.error.message)
+            designationRows.push(...((designationResult.data as DesignationRecord[] | undefined) ?? []))
+          }
+        }
+
         const residentsById = new Map<string, ResidentRecord>(residentRows.map((resident) => [resident.id, resident]))
         const designationsById = new Map<string, DesignationRecord>(designationRows.map((designation) => [designation.id, designation]))
 
@@ -315,9 +333,9 @@ export default function AdminGeneratedReportsPage() {
           } else {
             setLoadError(null)
           }
-          setRequests((requestsData || []).map((row: RawReportRow) => mapRequestWithResident(row, residentsById)))
-          setComplaints((complaintsData || []).map((row: RawReportRow) => mapComplaintWithResident(row, residentsById)))
-          setOfficials((officialsData || []).map((row: RawReportRow) => mapOfficialWithDesignation(row, designationsById)))
+          setRequests((requestData || []).map((row: RawReportRow) => mapRequestWithResident(row, residentsById)))
+          setComplaints((complaintData || []).map((row: RawReportRow) => mapComplaintWithResident(row, residentsById)))
+          setOfficials((officialData || []).map((row: RawReportRow) => mapOfficialWithDesignation(row, designationsById)))
           setAuditLogs(auditLogRows)
           setLoading(false)
         }
@@ -334,7 +352,7 @@ export default function AdminGeneratedReportsPage() {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [reportType])
 
 
   useEffect(() => {
@@ -492,8 +510,10 @@ export default function AdminGeneratedReportsPage() {
     }
   }, [actionFilter, auditLogs, categoryFilter, complaints, dateFrom, dateTo, officials, requestTypeFilter, reportType, requests, resourceTypeFilter, statusFilter])
 
+  const previewRowLimit = 200
+
   function handlePrint() {
-    openPrintableReport({
+    const opened = openPrintableReport({
       barangayName: 'Lingkod Bayan Barangay',
       reportTitle: mapReportTypeToLabel(reportType),
       dateRangeLabel: buildPrintableDateRange(dateFrom, dateTo),
@@ -501,12 +521,33 @@ export default function AdminGeneratedReportsPage() {
       rows: preview.rows,
       subtitle: `Filtered by ${reportType === 'requests' ? 'request type / status / category' : reportType === 'audit' ? 'action / resource type' : 'status / category'}`,
     })
+
+    if (!opened) {
+      toast.error('Pop-up blocked', {
+        description: 'Allow pop-ups for this site to print the report or save it as PDF.',
+      })
+    }
   }
 
   function handleExportCsv() {
     const fileName = `${reportType}-report-${new Date().toISOString().slice(0, 10)}.csv`
     const csv = buildCsv(preview.csvRows, preview.columns)
     downloadCsvFile(fileName, csv)
+  }
+
+  async function handleExportExcel() {
+    setExportingExcel(true)
+    try {
+      const fileName = `${reportType}-report-${new Date().toISOString().slice(0, 10)}.xlsx`
+      await downloadXlsxFile(fileName, adminReportTypeLabels[reportType], preview.columns, preview.rows)
+      toast.success('Excel file downloaded')
+    } catch (error) {
+      toast.error('Failed to export Excel file', {
+        description: error instanceof Error ? error.message : 'Please try again.',
+      })
+    } finally {
+      setExportingExcel(false)
+    }
   }
 
   const requestTypeFilterEnabled = reportType === 'requests'
@@ -721,7 +762,7 @@ export default function AdminGeneratedReportsPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {preview.rows.map((row, rowIndex) => (
+                      {preview.rows.slice(0, previewRowLimit).map((row, rowIndex) => (
                         <TableRow key={rowIndex}>
                           {row.map((cell, cellIndex) => (
                             <TableCell key={`${rowIndex}-${cellIndex}`}>{cell}</TableCell>
@@ -730,6 +771,11 @@ export default function AdminGeneratedReportsPage() {
                       ))}
                     </TableBody>
                   </Table>
+                  {preview.total > previewRowLimit && (
+                    <p className="border-t border-emerald-100 dark:border-border px-4 py-3 text-xs text-muted-foreground">
+                      Showing first {previewRowLimit} of {preview.total} matching records in the preview. Print and CSV export include all matching records.
+                    </p>
+                  )}
                 </div>
               )}
             </CardContent>
@@ -751,11 +797,11 @@ export default function AdminGeneratedReportsPage() {
               </Button>
               <Button variant="outline" className="border-emerald-200 dark:border-border text-emerald-700 hover:bg-emerald-50" onClick={handlePrint}>
                 <FileUp className="mr-2 h-4 w-4" />
-                Export PDF
+                Print / Save as PDF
               </Button>
-              <Button variant="outline" disabled className="border-slate-200 text-slate-400">
+              <Button variant="outline" className="border-emerald-200 dark:border-border text-emerald-700 hover:bg-emerald-50" onClick={handleExportExcel} disabled={exportingExcel}>
                 <Table2 className="mr-2 h-4 w-4" />
-                Export Excel
+                {exportingExcel ? 'Preparing Excel…' : 'Export Excel'}
               </Button>
             </CardContent>
           </Card>

@@ -862,6 +862,98 @@ export async function findPreRegisteredCandidates(
   return []
 }
 
+export interface DuplicateResidentFilters {
+  email?: string | null
+  phone?: string | null
+  nationalId?: string | null
+  firstName?: string | null
+  lastName?: string | null
+  dateOfBirth?: string | null
+}
+
+export interface DuplicateResidentMatch {
+  id: string
+  email: string
+  first_name: string
+  last_name: string
+  /** Which identity signals matched: 'national_id' | 'phone' | 'name_dob' */
+  matchedOn: string[]
+}
+
+/**
+ * Detects already-registered resident accounts that belong to the same person
+ * as a new sign-up, so one resident cannot create multiple accounts with
+ * different emails. Checks are additive: a single sign-up may trip several.
+ *
+ * MUST be called with a service-role client (`createAdminClient()`) because
+ * `residents` is RLS-scoped to the signed-in user — an anonymous request
+ * client would silently return zero rows and skip the check.
+ *
+ * Phone and national ID comparisons use digits-only normalization to tolerate
+ * formatting differences (spaces, dashes, +63 vs 09 prefixes are NOT
+ * equated for phone — only separators are stripped).
+ */
+export async function findDuplicateResidentAccounts(
+  filters: DuplicateResidentFilters,
+  client: SupabaseClient,
+): Promise<DuplicateResidentMatch[]> {
+  const matches = new Map<string, DuplicateResidentMatch>()
+
+  const record = (row: DuplicateResidentMatchBase, reason: string) => {
+    const existing = matches.get(row.id)
+    if (existing) {
+      if (!existing.matchedOn.includes(reason)) existing.matchedOn.push(reason)
+    } else {
+      matches.set(row.id, { ...row, matchedOn: [reason] })
+    }
+  }
+
+  type DuplicateResidentMatchBase = Pick<DuplicateResidentMatch, 'id' | 'email' | 'first_name' | 'last_name'>
+  const columns = 'id, email, first_name, last_name'
+
+  // 1. National ID — strongest signal. Normalize both sides to digits.
+  const nationalId = filters.nationalId?.replace(/\D/g, '')
+  if (nationalId) {
+    const { data, error } = await client
+      .from('residents')
+      .select(columns)
+      .like('national_id', `*${nationalId}*`)
+      .limit(10)
+    if (error) throw new Error(`Failed to check duplicate national ID: ${error.message}`)
+    for (const row of (data ?? []) as DuplicateResidentMatchBase[]) record(row, 'national_id')
+  }
+
+  // 2. Phone number — normalized to digits before comparing.
+  const phone = filters.phone?.replace(/\D/g, '')
+  if (phone) {
+    const { data, error } = await client
+      .from('residents')
+      .select(columns)
+      .like('phone', `*${phone}*`)
+      .limit(10)
+    if (error) throw new Error(`Failed to check duplicate phone: ${error.message}`)
+    for (const row of (data ?? []) as DuplicateResidentMatchBase[]) record(row, 'phone')
+  }
+
+  // 3. Full name + exact date of birth.
+  const firstName = filters.firstName?.trim()
+  const lastName = filters.lastName?.trim()
+  const dateOfBirth = filters.dateOfBirth?.trim()
+  if (firstName && lastName && dateOfBirth) {
+    const { data, error } = await client
+      .from('residents')
+      .select(columns)
+      .ilike('first_name', firstName)
+      .ilike('last_name', lastName)
+      .eq('date_of_birth', dateOfBirth)
+      .limit(10)
+    if (error) throw new Error(`Failed to check duplicate name/DOB: ${error.message}`)
+    for (const row of (data ?? []) as DuplicateResidentMatchBase[]) record(row, 'name_dob')
+  }
+
+  return Array.from(matches.values())
+}
+
 export async function getPreRegisteredResidentById(id: string) {
   const supabase = await createClient()
 

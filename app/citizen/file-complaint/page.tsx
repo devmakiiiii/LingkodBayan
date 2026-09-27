@@ -65,10 +65,6 @@ export default function FileComplaintPage() {
     category ? complaintCategoryFallbackPriorities[category as ComplaintCategory] : 'low'
   ).priority
 
-  useEffect(() => {
-    loadIncidentCategories()
-  }, [])
-
   async function loadIncidentCategories() {
     try {
       setLoadingCategories(true)
@@ -94,6 +90,10 @@ export default function FileComplaintPage() {
       setLoadingCategories(false)
     }
   }
+
+  useEffect(() => {
+    loadIncidentCategories()
+  }, [])
 
   // Initialize category with first available or preselected from URL
   useEffect(() => {

@@ -46,10 +46,6 @@ export default function RequestServicePage() {
   const [loadError, setLoadError] = useState<string | null>(null)
   const router = useRouter()
 
-  useEffect(() => {
-    loadServices()
-  }, [])
-
   async function loadServices() {
     try {
       setLoading(true)
@@ -86,6 +82,10 @@ export default function RequestServicePage() {
       setLoading(false)
     }
   }
+
+  useEffect(() => {
+    loadServices()
+  }, [])
 
   // Use dynamic services from database, fallback to static for development
   const staticDefaults = {

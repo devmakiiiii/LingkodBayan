@@ -44,11 +44,11 @@ const iconMap: Record<string, React.ReactNode> = {
 }
 
 const defaultIcons = [
-  <FileText className="w-4 h-4" />,
-  <CheckCircle className="w-4 h-4" />,
-  <Briefcase className="w-4 h-4" />,
-  <Award className="w-4 h-4" />,
-  <Heart className="w-4 h-4" />,
+  <FileText key="file-text" className="w-4 h-4" />,
+  <CheckCircle key="check-circle" className="w-4 h-4" />,
+  <Briefcase key="briefcase" className="w-4 h-4" />,
+  <Award key="award" className="w-4 h-4" />,
+  <Heart key="heart" className="w-4 h-4" />,
 ]
 
 export function ServiceCard({

@@ -508,12 +508,16 @@ export function ResidentReportsPage() {
         const categoryDefinition = normalizeCategory(row, currentCategories)
         const status = normalizeStatus(row.status)
         const explicitPriority = String(row.priority_level || row.priority || '').toLowerCase().trim()
-        const analysis = explicitPriority && ['low', 'medium', 'high', 'critical'].includes(explicitPriority)
-          ? null
-          : analyzeComplaintPriority(row.title || '', row.description || '', categoryDefinition.fallbackPriority)
-        const priority = analysis?.priority || (explicitPriority as CanonicalPriority) || categoryDefinition.fallbackPriority
-        const priorityConfidence = analysis?.confidence ?? 1.0
-        const priorityReasons = analysis?.reasons ?? ['Explicit priority set']
+        // Priority is fully automated: always recompute from the report content so
+        // legacy rows (which default to 'medium' in the DB) are classified correctly.
+        const analysis = analyzeComplaintPriority(row.title || '', row.description || '', categoryDefinition.fallbackPriority)
+        const priority = analysis.priority
+        const priorityConfidence = analysis.confidence
+        const priorityReasons = analysis.reasons.length > 0
+          ? analysis.reasons
+          : explicitPriority
+            ? [`Stored priority "${explicitPriority}" matched the automated assessment`]
+            : ['Using category-based default priority']
         const assignedOfficial = row.assigned_official_id ? officialOptions.find((official: OfficialOption) => official.id === row.assigned_official_id) || null : null
 
         return {
@@ -1136,7 +1140,7 @@ evidenceUrls: extractEvidenceUrls(row),
                     <CardDescription>Change the report status, assign an official, and save internal notes.</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    <div className="grid gap-4 md:grid-cols-2">
+                    <div className="grid gap-4 md:grid-cols-3">
                       <div className="space-y-2">
                         <Label>Status</Label>
                         <Select value={statusDraft} onValueChange={(value) => setStatusDraft(value as CanonicalStatus)}>
@@ -1195,6 +1199,21 @@ evidenceUrls: extractEvidenceUrls(row),
                           <Scale className="mr-1 h-3.5 w-3.5" />
                           Auto-assign least loaded
                         </Button>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label>Priority Level</Label>
+                        <div className="flex h-9 items-center gap-2 rounded-md border border-input bg-muted/40 px-3">
+                          <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${priorityDefinitions[selectedReport.priority].badgeClass}`}>
+                            {priorityDefinitions[selectedReport.priority].label}
+                          </span>
+                          <span className="text-xs text-muted-foreground">Auto-detected · {Math.round(selectedReport.priorityConfidence * 100)}% confidence</span>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          {selectedReport.priorityReasons.length > 0
+                            ? selectedReport.priorityReasons.slice(0, 3).join(' · ')
+                            : 'Derived from the report content and category.'}
+                        </p>
                       </div>
                     </div>
 

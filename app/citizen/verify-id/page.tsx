@@ -64,10 +64,6 @@ export default function VerifyIdPage() {
   const [isAppealing, setIsAppealing] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  useEffect(() => {
-    checkExistingStatus()
-  }, [])
-
   async function checkExistingStatus() {
     try {
       const res = await fetch('/api/verification/status')
@@ -99,6 +95,10 @@ export default function VerifyIdPage() {
       console.error('Failed to check verification status:', err)
     }
   }
+
+  useEffect(() => {
+    checkExistingStatus()
+  }, [])
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -394,7 +394,7 @@ export default function VerifyIdPage() {
           <CardHeader>
             <CardTitle className="text-yellow-800">Under Manual Review</CardTitle>
             <CardDescription className="text-yellow-700">
-              Your verification is being reviewed by an administrator. You will be notified once it's approved.
+              Your verification is being reviewed by an administrator. You will be notified once it&apos;s approved.
             </CardDescription>
           </CardHeader>
         </Card>

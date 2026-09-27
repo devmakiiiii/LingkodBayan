@@ -18,6 +18,8 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { useNotifications } from '@/hooks/use-notifications'
 import { ThemeToggle } from '@/components/theme-toggle'
+import { LocaleToggle } from '@/components/citizen/locale-toggle'
+import { useLocale } from '@/hooks/use-locale'
 import { Button } from '@/components/ui/button'
 
 const navItems = [
@@ -39,6 +41,7 @@ export function Sidebar() {
   const [isLoggingOut, setIsLoggingOut] = useState(false)
   const [showLogoutDialog, setShowLogoutDialog] = useState(false)
   const { unreadCount } = useNotifications()
+  const { t } = useLocale()
   const pathname = usePathname()
   const router = useRouter()
 
@@ -147,7 +150,7 @@ export function Sidebar() {
                   }`}
                 >
                   <Icon size={20} />
-                  <span className="font-medium">{item.label}</span>
+                  <span className="font-medium">{t(item.label)}</span>
                 </button>
               </Link>
             )
@@ -156,14 +159,17 @@ export function Sidebar() {
 
         {/* Sign Out Button */}
         <div className="p-4 border-t border-sidebar-border space-y-2">
-          <ThemeToggle />
+          <div className="flex items-center gap-2">
+            <ThemeToggle />
+            <LocaleToggle />
+          </div>
           <Dialog open={showLogoutDialog} onOpenChange={setShowLogoutDialog}>
             <DialogTrigger asChild>
               <button
                 className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg bg-[#e8dcc8] text-gray-900 font-semibold hover:bg-[#d9cdb8] transition-colors"
               >
                 <LogOut size={20} />
-                Sign Out
+                {t('Sign Out')}
               </button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-md text-center p-6" showCloseButton={false}>

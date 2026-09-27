@@ -15,6 +15,7 @@ import {
 import { Empty } from '@/components/ui/empty'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatRelativeDate } from '@/lib/format-date'
+import { getSlaBadgeClassName, getSlaStatus } from '@/lib/sla'
 import {
   getRequestStatusClassName,
   getRequestStatusLabel,
@@ -78,21 +79,44 @@ export function RecentRequestsCard({ requests, loading }: RecentRequestsCardProp
                 key={request.id}
                 className="space-y-2 border-b py-2 last:border-0"
               >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium">
-                      {getRequestTypeTitle(request.request_type, request.title)}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {request.category} · {formatRelativeDate(request.created_at)}
-                    </p>
-                  </div>
-                  <Badge
-                    className={`shrink-0 text-xs ${getRequestStatusClassName(request.status)}`}
-                  >
-                    {getRequestStatusLabel(request.status)}
-                  </Badge>
-                </div>
+                {(() => {
+                  const sla = getSlaStatus(request)
+
+                  return (
+                    <>
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-medium">
+                            {getRequestTypeTitle(request.request_type, request.title)}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {request.category} · {formatRelativeDate(request.created_at)}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            Expected completion:{' '}
+                            {sla.dueDate
+                              ? sla.dueDate.toLocaleDateString('en-PH', {
+                                  month: 'short',
+                                  day: 'numeric',
+                                  year: 'numeric',
+                                })
+                              : '—'}
+                          </p>
+                        </div>
+                        <div className="flex shrink-0 flex-col items-end gap-1">
+                          <Badge
+                            className={`text-xs ${getRequestStatusClassName(request.status)}`}
+                          >
+                            {getRequestStatusLabel(request.status)}
+                          </Badge>
+                          <Badge variant="outline" className={`text-xs ${getSlaBadgeClassName(sla.tone)}`}>
+                            {sla.label}
+                          </Badge>
+                        </div>
+                      </div>
+                    </>
+                  )
+                })()}
                 <StatusTracker kind="request" status={request.status} />
               </div>
             ))}

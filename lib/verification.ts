@@ -126,7 +126,7 @@ const ABBREVIATION_MAP: Record<string, string> = {
 
 export function normalizeAddress(str: string | null | undefined): string {
   if (!str) return ''
-  let normalized = normalizeString(str)
+  const normalized = normalizeString(str)
   const tokens = normalized.split(/\s+/)
   const expanded = tokens.map((t) => ABBREVIATION_MAP[t] || t)
   return expanded.join(' ')

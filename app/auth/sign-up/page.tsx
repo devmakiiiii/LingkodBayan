@@ -128,6 +128,9 @@ function friendlySignUpError(message: string): string {
   if (normalized.includes('already registered') || normalized.includes('already exists')) {
     return 'An account with this email already exists. Try signing in instead.'
   }
+  if (normalized.includes('one account per resident') || normalized.includes('personal details')) {
+    return message
+  }
   if (normalized.includes('invalid email') || normalized.includes('valid email')) {
     return 'Please enter a valid email address.'
   }

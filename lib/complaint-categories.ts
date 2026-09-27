@@ -63,6 +63,10 @@ export const complaintCategoryBadgeClasses: Record<ComplaintCategory, string> = 
 const urgencyIndicators = [
   'urgent', 'immediate', 'emergency', 'asap', 'now', 'today', 'tonight',
   'happening', 'happening now', 'currently', 'ongoing', 'right now',
+  // Filipino / Tagalog urgency cues
+  'tulong', 'saklolo', 'tabang', 'kailangan ngayon', 'kailangan na',
+  'ngayon na', 'agad-agad', 'agad agad', 'kagad', 'nangyayari',
+  'nangyayari ngayon', 'grabe na', 'tumatawag ngayon',
 ]
 
 const severityIndicators = [
@@ -71,15 +75,24 @@ const severityIndicators = [
   'accident', 'injured', 'injury', 'casualty', 'casualties',
   'violence', 'violent', 'attack', 'threat', 'threatening',
   'illegal', 'unauthorized', 'trespassing', 'damage', 'damaged',
+  // Filipino / Tagalog severity cues
+  'nasaktan', 'nasugatan', 'sugatan', 'namatay', 'patay', 'binugbog',
+  'sinaksak', 'barilan', 'nanlaban', 'nakakatakot', 'katakot-takot',
+  'panganib', 'mapanganib', 'delikado', 'pang-aabuso', 'hinaharas',
+  'harassment', 'nakawan', 'nanakawan', 'ninakaw', 'pagnanakaw',
+  'sunog', 'nasunugan', 'banta',
 ]
 
 const timeSensitiveIndicators = [
   'daily', 'weekly', 'every day', 'every night', 'frequent', 'repeated',
   'recurring', 'constant', 'continuous', 'persistent',
   'need immediate', 'requires immediate', 'required today', 'needed now',
+  // Filipino / Tagalog recurrence cues
+  'araw-araw', 'gabi-gabi', 'tuwing gabi', 'tuwing umaga', 'palaging',
+  'paulit-ulit', 'tuloy-tuloy', 'lagi na lang', 'linggo-linggo',
 ]
 
-const negationWords = ['not', 'no', 'none', 'never', 'without', 'unless', 'however']
+const negationWords = ['not', 'no', 'none', 'never', 'without', 'unless', 'however', 'hindi', 'wala', 'walang']
 
 function checkNegation(text: string, keyword: string): boolean {
   const keywordIndex = text.indexOf(keyword)
@@ -130,6 +143,12 @@ export function analyzeComplaintPriority(
   severityIndicators.forEach((kw) => {
     if (title.toLowerCase().includes(kw) || description.toLowerCase().includes(kw)) {
       reasons.push(`Severity indicator: "${kw}"`)
+    }
+  })
+
+  timeSensitiveIndicators.forEach((kw) => {
+    if (title.toLowerCase().includes(kw) || description.toLowerCase().includes(kw)) {
+      reasons.push(`Recurrence indicator: "${kw}"`)
     }
   })
 

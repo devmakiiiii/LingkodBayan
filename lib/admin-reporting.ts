@@ -241,14 +241,66 @@ export function getOfficialBadgeColor(row: OfficialReportRow) {
 }
 
 export function buildCsv(rows: PrintableRow[], columns: PrintableColumn[]) {
-  const escapeCsv = (value: string) => `"${value.replace(/"/g, '""')}"`
+  // Neutralize spreadsheet formula injection (OWASP): a cell starting with
+  // =, +, @, tab, or CR would otherwise execute as a formula in Excel/Sheets.
+  const escapeCsv = (value: string) => {
+    const safe = /^[=+@\t\r]/.test(value) ? `'${value}` : value
+    return `"${safe.replace(/"/g, '""')}"`
+  }
   const header = columns.map((column) => escapeCsv(column.label)).join(',')
   const body = rows.map((row) => row.map((cell) => escapeCsv(cell)).join(',')).join('\n')
   return [header, body].filter(Boolean).join('\n')
 }
 
 export function downloadCsvFile(fileName: string, csvContent: string) {
-  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+  // UTF-8 BOM so Excel renders Filipino characters (ñ, é, etc.) correctly.
+  const blob = new Blob([`\uFEFF${csvContent}`], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = fileName
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  setTimeout(() => URL.revokeObjectURL(url), 0)
+}
+
+export async function downloadXlsxFile(
+  fileName: string,
+  sheetName: string,
+  columns: PrintableColumn[],
+  rows: PrintableRow[],
+) {
+  const { Workbook } = await import('exceljs')
+  const workbook = new Workbook()
+  const sheet = workbook.addWorksheet(sheetName.slice(0, 31))
+
+  sheet.columns = columns.map((column) => ({
+    header: column.label,
+    key: column.key,
+    width: Math.max(14, Math.min(48, column.label.length + 8)),
+  }))
+
+  sheet.getRow(1).font = { bold: true, color: { argb: 'FF14532D' } }
+  sheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFDCFCE7' } }
+  sheet.getRow(1).height = 22
+
+  for (const row of rows) {
+    sheet.addRow(row)
+  }
+
+  for (let rowIndex = 2; rowIndex <= rows.length + 1; rowIndex += 1) {
+    for (let columnIndex = 1; columnIndex <= columns.length; columnIndex += 1) {
+      const cell = sheet.getCell(rowIndex, columnIndex)
+      // Render as text so leading =, +, @ cannot execute as formulas.
+      cell.value = String(cell.value ?? '')
+    }
+  }
+
+  sheet.views = [{ state: 'frozen', ySplit: 1 }]
+
+  const buffer = await workbook.xlsx.writeBuffer()
+  const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
   const url = URL.createObjectURL(blob)
   const link = document.createElement('a')
   link.href = url
@@ -347,8 +399,21 @@ export function openPrintableReport(options: {
     </html>
   `)
   popup.document.close()
-  popup.focus()
-  setTimeout(() => popup.print(), 250)
+
+  // Print once the document (including the logo) has loaded; fall back to a
+  // short timeout in case the load event already fired or never does.
+  let hasPrinted = false
+  const printWhenReady = () => {
+    if (hasPrinted || popup.closed) return
+    hasPrinted = true
+    popup.focus()
+    popup.print()
+  }
+  popup.addEventListener('load', printWhenReady, { once: true })
+  setTimeout(() => {
+    popup.removeEventListener('load', printWhenReady)
+    printWhenReady()
+  }, 800)
   return true
 }
 

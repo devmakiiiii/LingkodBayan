@@ -7,6 +7,7 @@ import { PasswordInput } from '@/components/ui/password-input'
 import { Label } from '@/components/ui/label'
 import { ArrowLeft, CheckCircle2, Loader2 } from 'lucide-react'
 import Image from 'next/image'
+import { LocaleToggle } from '@/components/citizen/locale-toggle'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Suspense, useState } from 'react'
@@ -98,13 +99,16 @@ function SignInForm() {
       <div className="w-full max-w-95">
         <div className="bg-white dark:bg-card border border-transparent dark:border-border rounded-[12px] shadow-2xl overflow-hidden">
           <div className="p-8">
-            <Link
-              href="/"
-              className="mb-4 inline-flex items-center gap-1.5 text-sm font-medium text-gray-500 transition-colors hover:text-gray-800 dark:text-muted-foreground dark:hover:text-card-foreground"
-            >
-              <ArrowLeft className="h-4 w-4" />
-              Back to home
-            </Link>
+            <div className="mb-4 flex items-center justify-between">
+              <Link
+                href="/"
+                className="inline-flex items-center gap-1.5 text-sm font-medium text-gray-500 transition-colors hover:text-gray-800 dark:text-muted-foreground dark:hover:text-card-foreground"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                Back to home
+              </Link>
+              <LocaleToggle />
+            </div>
 
             {/* Logo Section */}
             <div className="mb-8 text-center">

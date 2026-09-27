@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react'
 import { createClient, hasSupabaseConfig } from '@/lib/supabase/client'
 import { countComplaintsByStatus, countRequestsByStatus } from '@/lib/citizen-stats'
 import { computeOfficialWorkloads, type OfficialWorkload } from '@/lib/workload'
+import { buildBacklogDigest, type BacklogDigest, type DigestRequest, type DigestComplaint } from '@/lib/digest'
+import { BacklogDigestCard } from '@/components/admin/backlog-digest-card'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
@@ -37,6 +39,75 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true)
   const [configError, setConfigError] = useState<string | null>(null)
   const [officialWorkloads, setOfficialWorkloads] = useState<OfficialWorkload[]>([])
+  const [backlogDigest, setBacklogDigest] = useState<BacklogDigest | null>(null)
+  const [digestError, setDigestError] = useState<string | null>(null)
+
+  useEffect(() => {
+    async function loadDigest() {
+      try {
+        if (!hasSupabaseConfig()) return
+
+        const supabase = createClient()
+
+        // Only the minimal columns the digest needs — the requests table's
+        // JSONB payload (base64 attachments) must not be pulled.
+        const requestQuery = () =>
+          supabase
+            .from('requests')
+            .select('id, status, created_at, assigned_official_id, title')
+            .limit(STATUS_ROW_LIMIT)
+        const complaintQuery = () =>
+          supabase.from('complaints').select('id, status, created_at, title').limit(STATUS_ROW_LIMIT)
+
+        let [requestResult, complaintResult] = await Promise.all([requestQuery(), complaintQuery()])
+
+        // Deployments that predate migration 21 (assigned_official_id) or that
+        // lack the title column should not break the digest — retry without
+        // the missing columns instead of failing the whole dashboard card.
+        const missingColumn = (error: { message?: string } | null, column: string) =>
+          !!error && new RegExp(column, 'i').test(error.message ?? '')
+        if (missingColumn(requestResult.error, 'assigned_official_id|title')) {
+          requestResult = await supabase
+            .from('requests')
+            .select('id, status, created_at')
+            .limit(STATUS_ROW_LIMIT)
+        }
+        if (missingColumn(complaintResult.error, 'title')) {
+          complaintResult = await supabase
+            .from('complaints')
+            .select('id, status, created_at')
+            .limit(STATUS_ROW_LIMIT)
+        }
+
+        if (requestResult.error) throw requestResult.error
+        if (complaintResult.error) throw complaintResult.error
+
+        const requestRows = (requestResult.data ?? []) as unknown as DigestRequest[]
+        const complaintRows = (complaintResult.data ?? []) as unknown as DigestComplaint[]
+
+        setBacklogDigest(
+          buildBacklogDigest({
+            requests: requestRows.map((row) => ({
+              id: row.id,
+              status: row.status,
+              created_at: row.created_at,
+              assigned_official: (row as { assigned_official_id?: string | null }).assigned_official_id ?? null,
+              title: row.title,
+            })),
+            complaints: complaintRows,
+          }),
+        )
+        setDigestError(null)
+      } catch (error) {
+        console.error('Error loading weekly backlog digest:', error)
+        // The digest is advisory: render the card with an error note rather
+        // than letting a query failure break the dashboard.
+        setDigestError('Could not load the weekly backlog digest. Please try again later.')
+      }
+    }
+
+    loadDigest()
+  }, [])
 
   useEffect(() => {
     async function loadStats() {
@@ -255,6 +326,9 @@ export default function AdminDashboard() {
           )}
         </CardContent>
       </Card>
+
+      {/* Weekly Backlog Digest */}
+      <BacklogDigestCard digest={backlogDigest} error={digestError} />
 
       {/* Quick Actions */}
       <Card>

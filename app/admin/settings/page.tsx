@@ -66,10 +66,6 @@ export default function AdminSettingsPage() {
 
   const [newCoreValue, setNewCoreValue] = useState('')
 
-  useEffect(() => {
-    loadSettings()
-  }, [])
-
   async function loadSettings() {
     try {
       setLoadError(null)
@@ -105,6 +101,10 @@ export default function AdminSettingsPage() {
       setLoading(false)
     }
   }
+
+  useEffect(() => {
+    loadSettings()
+  }, [])
 
   async function handleSaveBarangayInfo() {
     try {

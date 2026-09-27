@@ -19,6 +19,7 @@ import {
 } from '@/components/ui/table'
 import { RequestActions } from '@/components/admin/request-actions'
 import { canTransitionRequest } from '@/lib/status-machine'
+import { getSlaBadgeClassName, getSlaStatus } from '@/lib/sla'
 import { toast } from 'sonner'
 import {
   getRequestStatusClassName,
@@ -132,6 +133,18 @@ const RequestRow = React.memo(function RequestRow({
           <Eye className="mr-2 h-4 w-4" />
           View
         </Button>
+      </TableCell>
+      <TableCell>
+        {(() => {
+          const sla = getSlaStatus(request)
+
+          return (
+            <Badge variant="outline" className={getSlaBadgeClassName(sla.tone)}>
+              <span className="sr-only">SLA: </span>
+              {sla.label}
+            </Badge>
+          )
+        })()}
       </TableCell>
     </TableRow>
   )
@@ -331,6 +344,7 @@ export default function AdminRequestsPage() {
                 <TableHead>Request Type</TableHead>
                 <TableHead>Date Submitted</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead>SLA</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>

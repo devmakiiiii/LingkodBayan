@@ -89,10 +89,6 @@ export default function AdminVerificationPage() {
   const [rejectionReason, setRejectionReason] = useState('')
   const [isUpdating, setIsUpdating] = useState(false)
 
-  useEffect(() => {
-    fetchAttempts()
-  }, [])
-
   async function fetchAttempts() {
     try {
       const res = await fetch('/api/admin/verification/attempts?status=needs_review')
@@ -106,6 +102,10 @@ export default function AdminVerificationPage() {
       setLoading(false)
     }
   }
+
+  useEffect(() => {
+    fetchAttempts()
+  }, [])
 
   function getStatusIcon(status: string) {
     switch (status) {

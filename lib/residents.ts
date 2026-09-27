@@ -11,12 +11,14 @@ type ResidentProfile = {
   address?: string | null
   barangay: string
   date_of_birth?: string | null
+  national_id?: string | null
+  id_type?: string | null
   verification_status?: string | null
   verification_confidence?: number | null
 }
 
 const RESIDENT_PROFILE_COLUMNS =
-  'id, user_id, first_name, last_name, email, phone, address, barangay, date_of_birth, verification_status, verification_confidence'
+  'id, user_id, first_name, last_name, email, phone, address, barangay, date_of_birth, national_id, id_type, verification_status, verification_confidence'
 
 function getUserField(user: User, key: string) {
   return typeof user.user_metadata?.[key] === 'string'
@@ -120,6 +122,8 @@ export async function getOrCreateResidentProfile(
   const phone = getUserPhone(user)
   const address = getUserAddress(user)
   const dateOfBirth = getUserField(user, 'date_of_birth') || null
+  const nationalId = getUserField(user, 'national_id') || null
+  const idType = getUserField(user, 'id_type') || null
 
   const missingFields: string[] = []
   if (!firstName) missingFields.push('first_name')
@@ -144,6 +148,8 @@ export async function getOrCreateResidentProfile(
         address,
         barangay,
         date_of_birth: dateOfBirth,
+        national_id: nationalId,
+        id_type: idType,
       },
     ])
     .select(RESIDENT_PROFILE_COLUMNS)

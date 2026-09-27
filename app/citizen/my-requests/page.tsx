@@ -20,6 +20,7 @@ import {
   getRequestTypeTitle,
   type RequestPayload,
 } from '@/lib/request-types'
+import { getSlaBadgeClassName, getSlaStatus } from '@/lib/sla'
 
 interface Request {
   id: string
@@ -171,10 +172,30 @@ return (
                   <Badge variant="secondary">
                     Priority: {request.priority.charAt(0).toUpperCase() + request.priority.slice(1)}
                   </Badge>
+                  {(() => {
+                    const sla = getSlaStatus(request)
+
+                    return (
+                      <Badge variant="outline" className={getSlaBadgeClassName(sla.tone)}>
+                        {sla.label}
+                      </Badge>
+                    )
+                  })()}
                 </div>
                 <div className="mt-4 flex items-center justify-between gap-3">
                   <span className="text-xs text-muted-foreground">
                     Submitted {new Date(request.created_at).toLocaleDateString()}
+                    {(() => {
+                      const sla = getSlaStatus(request)
+
+                      return sla.dueDate
+                        ? ` · Expected completion ${sla.dueDate.toLocaleDateString('en-PH', {
+                            month: 'short',
+                            day: 'numeric',
+                            year: 'numeric',
+                          })}`
+                        : null
+                    })()}
                   </span>
                   <Button
                     variant="outline"

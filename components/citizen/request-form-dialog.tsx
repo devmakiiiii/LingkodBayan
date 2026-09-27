@@ -167,8 +167,8 @@ export function RequestFormDialog({ open, onOpenChange, requestType, serviceInfo
       }
     }
 
-    // Auto-input the selected service's details into the form (dynamic services only)
-    if (serviceInfo && !requestType) {
+    // Auto-input the selected service's details into the form (all services)
+    if (serviceInfo) {
       const purposeSeed = serviceInfo.description
         ? `${serviceInfo.title} - ${serviceInfo.description}`
         : ''

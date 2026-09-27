@@ -5,9 +5,11 @@ import { createClient } from '@/lib/supabase/server'
 import { getOrCreateResidentProfile } from '@/lib/residents'
 import { redirect } from 'next/navigation'
 import { forgotPasswordSchema, resetPasswordSchema } from '@/lib/schemas'
-import { rateLimit } from '@/lib/rate-limit'
+import { durableRateLimit } from '@/lib/rate-limit-durable'
 import { headers } from 'next/headers'
 import { logger } from '@/lib/logger'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { findDuplicateResidentAccounts } from '@/lib/db'
 
 const SIGNUP_COOKIE = 'signup_temp_data'
 const COOKIE_MAX_AGE = 300
@@ -69,7 +71,58 @@ export async function requestSignUpOtp(formData: FormData) {
   const idType = formData.get('idType') as string
   const verificationAction = formData.get('verificationAction') as string
 
+  // Durable limit: cap OTP emails per address so this endpoint cannot be used
+  // to spam residents or exhaust the Supabase auth email quota. Enforced in
+  // Postgres (falls back to in-memory if the migration is not applied yet).
+  const otpRateLimit = await durableRateLimit(`signup-otp:${email.toLowerCase()}`, {
+    intervalMs: 10 * 60 * 1000,
+    limit: 5,
+  })
+  if (!otpRateLimit.allowed) {
+    return {
+      error:
+        'Too many verification codes were requested for this email. Please wait 10 minutes before trying again, or contact the barangay office for help.',
+    }
+  }
+
   const supabase = await createClient()
+
+  // Duplicate-identity gate: block sign-up when the same person already has a
+  // registered resident account (same national ID, phone, or name + DOB),
+  // even if they use a different email address. The residents table is
+  // RLS-scoped, so this lookup requires the service-role client. A failed
+  // check must never hard-block registration, so errors are logged and the
+  // sign-up continues.
+  try {
+    const adminClient = createAdminClient()
+    const duplicates = await findDuplicateResidentAccounts(
+      {
+        email,
+        phone,
+        nationalId,
+        firstName,
+        lastName,
+        dateOfBirth,
+      },
+      adminClient,
+    )
+
+    if (duplicates.length > 0) {
+      const matchedOn = duplicates[0].matchedOn.join(', ')
+      logger.warn('Sign-up blocked: duplicate resident identity detected', {
+        context: 'auth',
+        email,
+        matchedOn,
+        duplicateCount: duplicates.length,
+      })
+      return {
+        error:
+          'Our records show an account already exists with these personal details (matching your national ID, phone number, or name and date of birth). Only one account per resident is allowed. Please sign in to your existing account instead, or contact the barangay office if you believe this is a mistake.',
+      }
+    }
+  } catch (duplicateCheckError: unknown) {
+    logger.error('Duplicate resident check failed', duplicateCheckError, { context: 'auth', email })
+  }
 
   const { error } = await supabase.auth.signInWithOtp({
     email,
@@ -178,10 +231,13 @@ export async function requestPasswordReset(formData: FormData) {
   try {
     const validated = forgotPasswordSchema.parse({ email })
 
+    // Durable limit: enforced in Postgres so the cap holds across serverless
+    // instances (keyed by email AND client IP; either tripping it blocks).
     const headersList = await headers()
-    const rateLimitResult = rateLimit({ interval: 60 * 1000, limit: 3 })({
-      ip: headersList.get('x-forwarded-for') || undefined,
-      headers: headersList as unknown as Headers,
+    const clientIp = headersList.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
+    const rateLimitResult = await durableRateLimit(`pwreset:${validated.email.toLowerCase()}:${clientIp}`, {
+      intervalMs: 60 * 1000,
+      limit: 3,
     })
 
     if (!rateLimitResult.allowed) {

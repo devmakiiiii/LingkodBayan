@@ -15,6 +15,10 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 
+// QR codes encode a deep link back to this page (?code=...) so a scanned stub
+// re-opens the status lookup. The library is imported lazily inside the search
+// handler so it never affects the initial page load.
+
 /**
  * Public "Track my submission" page — no login required. Designed so a
  * resident, a family member, or barangay staff at a kiosk can check the
@@ -82,6 +86,7 @@ export default function TrackPage() {
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<TrackResult | null>(null)
   const [contact, setContact] = useState<BarangayContact | null>(null)
+  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null)
 
   // Barangay contact details come from the same public settings endpoint the
   // landing page footer uses, so the printed stub shows accurate info.
@@ -100,12 +105,11 @@ export default function TrackPage() {
     }
   }, [])
 
-  async function handleSearch(event: React.FormEvent) {
-    event.preventDefault()
+  async function runSearch(trimmed: string) {
     setError(null)
     setResult(null)
+    setQrDataUrl(null)
 
-    const trimmed = code.trim()
     if (!trimmed) {
       setError('Please enter a tracking code.')
       return
@@ -120,12 +124,39 @@ export default function TrackPage() {
         return
       }
       setResult(data.result as TrackResult)
+
+      // Generate the QR deep link only after a successful lookup so the stub
+      // always points at a code that exists.
+      try {
+        const QRCode = await import('qrcode')
+        const trackUrl = `${window.location.origin}/track?code=${encodeURIComponent(data.result.code)}`
+        const dataUrl = await QRCode.toDataURL(trackUrl, { width: 160, margin: 1 })
+        setQrDataUrl(dataUrl)
+      } catch {
+        // The stub prints fine without the QR; never block the lookup on it.
+      }
     } catch {
       setError('Could not reach the tracking service. Please try again.')
     } finally {
       setLoading(false)
     }
   }
+
+  async function handleSearch(event: React.FormEvent) {
+    event.preventDefault()
+    await runSearch(code.trim())
+  }
+
+  // Deep link support: /track?code=REQ-... (e.g. scanned from a claim stub QR)
+  // auto-runs the lookup instead of asking the citizen to type the code again.
+  useEffect(() => {
+    const urlCode = new URLSearchParams(window.location.search).get('code')
+    if (urlCode) {
+      setCode(urlCode)
+      void runSearch(urlCode.trim())
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const tone = result
     ? (STATUS_TONES[result.statusLabel] ?? 'bg-slate-500/10 text-slate-700 border-slate-500/20')
@@ -236,6 +267,13 @@ export default function TrackPage() {
                   ) : null}
                 </div>
               ) : null}
+              {qrDataUrl ? (
+                <div className="screen-only flex flex-col items-center gap-1 pt-2">
+                  {/* eslint-disable-next-line @next/next/no-img-element -- QR is a locally generated data URL, no optimization needed */}
+                  <img src={qrDataUrl} alt={`QR code linking to the status of ${result.code}`} className="h-28 w-28" />
+                  <p className="text-xs text-muted-foreground">Scan to check this status anytime</p>
+                </div>
+              ) : null}
               <div className="screen-only pt-2">
                 <Button type="button" variant="outline" className="w-full" onClick={() => window.print()}>
                   <Printer className="mr-2 h-4 w-4" />
@@ -257,6 +295,12 @@ export default function TrackPage() {
             </div>
             <h2 style={{ fontSize: 13, margin: '12px 0 4px' }}>CLAIM / TRACKING STUB</h2>
             <p style={{ fontSize: 22, fontWeight: 700, letterSpacing: 2, margin: 0 }}>{result.code}</p>
+            {qrDataUrl ? (
+              <div style={{ display: 'flex', justifyContent: 'center', margin: '6px 0' }}>
+                {/* eslint-disable-next-line @next/next/no-img-element -- QR is a locally generated data URL, no optimization needed */}
+                <img src={qrDataUrl} alt={`QR code linking to the status of ${result.code}`} style={{ width: 80, height: 80 }} />
+              </div>
+            ) : null}
             <table style={{ fontSize: 12, marginTop: 8, width: '100%', borderCollapse: 'collapse' }}>
               <tbody>
                 <tr>
