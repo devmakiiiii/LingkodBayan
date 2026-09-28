@@ -16,10 +16,11 @@ jobs:
           version: 11
 
       # Node 20 is EOL and too old for this repo's toolchain: pnpm 11 needs
-      # >= 22.13 (it crashes on Node 20 with ERR_UNKNOWN_BUILTIN_MODULE:
-      # node:sqlite, which made `cache: pnpm` fail during setup-node), and
-      # `node --test "lib/**/*.test.ts"` needs Node >= 22.18 to run the .ts
-      # test files without a transpiler.
+      # >= 22.13 and crashes on Node 20 with ERR_UNKNOWN_BUILTIN_MODULE:
+      # node:sqlite, which made `cache: pnpm` fail inside setup-node and
+      # skipped every subsequent check. Node 22 also runs the
+      # `node --test "lib/**/*.test.ts"` suite natively (type stripping),
+      # so no transpiler step is needed before it.
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -35,18 +36,7 @@ jobs:
         run: pnpm lint
 
       - name: Unit tests
-        run: |
-          LOG=/tmp/unit-tests.log
-          echo "node $(node --version)"
-          if pnpm test > "$LOG" 2>&1; then
-            tail -n 12 "$LOG"
-            exit 0
-          fi
-          # TODO(ci-diagnostic): temporary — surface the failure in a public
-          # annotation so it can be read without workflow:read permission.
-          tail -c 2000 "$LOG" | tr '\r\n' '  ' | sed 's/%/%25/g' > /tmp/tail.txt
-          echo "::error::unit tests failed on node $(node --version) :: $(cat /tmp/tail.txt)"
-          exit 1
+        run: pnpm test
 
       - name: Production build
         run: pnpm build

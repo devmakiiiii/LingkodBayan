@@ -87,7 +87,21 @@ describe('computeOfficialWorkloads', () => {
     assert.equal(o1.activeTotal, 3)
     assert.equal(o1.weightedLoad, 1 + 3 + 1)
     assert.equal(o1.completedTotal, 1)
+    assert.equal(o2.activeTotal, 0)
+    assert.equal(o2.completedTotal, 1)
+  })
 
+  it('normalizes legacy status aliases and tolerates empty input', () => {
+    const workloads = computeOfficialWorkloads(OFFICIALS, [
+      { assignedOfficialId: 'o1', status: 'in-progress', priority: 'medium' },
+    ])
+    assert.equal(workloads.find((w) => w.officialId === 'o1')!.activeComplaints, 1)
+
+    assert.deepEqual(computeOfficialWorkloads([], null).length, 0)
+    const nobodyBusy = computeOfficialWorkloads(OFFICIALS, [], [])
+    assert.ok(nobodyBusy.every((w) => w.loadShare === 0))
+  })
+})
 
 describe('suggestAssignee', () => {
   it('picks the least-loaded active official deterministically', () => {
@@ -171,21 +185,5 @@ describe('planEvenDistribution', () => {
     assert.deepEqual(planEvenDistribution([{ id: 'a' }], []), [])
     const allArchived = computeOfficialWorkloads([{ id: 'x', name: 'X', status: 'archived' }], [])
     assert.deepEqual(planEvenDistribution([{ id: 'a' }], allArchived), [])
-  })
-})
-
-    assert.equal(o2.activeTotal, 0)
-    assert.equal(o2.completedTotal, 1)
-  })
-
-  it('normalizes legacy status aliases and tolerates empty input', () => {
-    const workloads = computeOfficialWorkloads(OFFICIALS, [
-      { assignedOfficialId: 'o1', status: 'in-progress', priority: 'medium' },
-    ])
-    assert.equal(workloads.find((w) => w.officialId === 'o1')!.activeComplaints, 1)
-
-    assert.deepEqual(computeOfficialWorkloads([], null).length, 0)
-    const nobodyBusy = computeOfficialWorkloads(OFFICIALS, [], [])
-    assert.ok(nobodyBusy.every((w) => w.loadShare === 0))
   })
 })
