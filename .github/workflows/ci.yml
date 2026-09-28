@@ -15,9 +15,14 @@ jobs:
         with:
           version: 11
 
+      # Node 20 is EOL and too old for this repo's toolchain: pnpm 11 needs
+      # >= 22.13 (it crashes on Node 20 with ERR_UNKNOWN_BUILTIN_MODULE:
+      # node:sqlite, which made `cache: pnpm` fail during setup-node), and
+      # `node --test "lib/**/*.test.ts"` needs Node >= 22.18 to run the .ts
+      # test files without a transpiler.
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: pnpm
 
       - name: Install dependencies
