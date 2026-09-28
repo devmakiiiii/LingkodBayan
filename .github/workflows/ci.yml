@@ -35,7 +35,18 @@ jobs:
         run: pnpm lint
 
       - name: Unit tests
-        run: pnpm test
+        run: |
+          LOG=/tmp/unit-tests.log
+          echo "node $(node --version)"
+          if pnpm test > "$LOG" 2>&1; then
+            tail -n 12 "$LOG"
+            exit 0
+          fi
+          # TODO(ci-diagnostic): temporary — surface the failure in a public
+          # annotation so it can be read without workflow:read permission.
+          tail -c 2000 "$LOG" | tr '\r\n' '  ' | sed 's/%/%25/g' > /tmp/tail.txt
+          echo "::error::unit tests failed on node $(node --version) :: $(cat /tmp/tail.txt)"
+          exit 1
 
       - name: Production build
         run: pnpm build
