@@ -5,6 +5,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { verifyRequest } from '@/lib/request-security'
 import { logAuditAction } from '@/lib/audit-log'
 import { logger } from '@/lib/logger'
+import { BARANGAY_CITY, BARANGAY_DISPLAY_NAME, BARANGAY_PROVINCE, canonicalBarangayName } from '@/lib/schemas'
 
 function stripBom(text: string): string {
   if (text.charCodeAt(0) === 0xfeff) {
@@ -91,7 +92,10 @@ const EXPECTED_COLUMNS = [
   'id_type',
 ] as const
 
-const REQUIRED_COLUMNS = ['first_name', 'last_name', 'email', 'barangay'] as const
+// `barangay` is optional: LingkodBayan only serves Barangay Barretto, so a
+// missing/blank value is filled in with the system's barangay instead of
+// forcing the admin to repeat it on every imported row.
+const REQUIRED_COLUMNS = ['first_name', 'last_name', 'email'] as const
 
 const ALLOWED_ID_TYPES = [
   'philsys',
@@ -120,7 +124,7 @@ const csvRowSchema = z.object({
   email: z.string().min(1, 'Email is required').email('Invalid email format'),
   phone: z.string().optional().or(z.literal('')),
   street_address: z.string().optional().or(z.literal('')),
-  barangay: z.string().min(1, 'Barangay is required'),
+  barangay: z.string().optional().or(z.literal('')),
   city_municipality: z.string().optional().or(z.literal('')),
   province: z.string().optional().or(z.literal('')),
   postal_code: z.string().optional().or(z.literal('')),
@@ -278,6 +282,17 @@ export async function POST(request: NextRequest) {
 
         const record = result.data
 
+        const barangayName = canonicalBarangayName(record.barangay)
+        if (!barangayName) {
+          failedRows.push({
+            row: i + 1,
+            errors: [
+              `Row lists "${record.barangay}", but this system only serves ${BARANGAY_DISPLAY_NAME}.`,
+            ],
+          })
+          continue
+        }
+
         const phone = record.phone ? normalizePhone(record.phone) : null
 
         validRecords.push({
@@ -288,9 +303,9 @@ export async function POST(request: NextRequest) {
           email: record.email,
           phone,
           street_address: record.street_address || null,
-          barangay: record.barangay,
-          city_municipality: record.city_municipality || null,
-          province: record.province || 'Metro Manila',
+          barangay: barangayName,
+          city_municipality: record.city_municipality || BARANGAY_CITY,
+          province: record.province || BARANGAY_PROVINCE,
           postal_code: record.postal_code || null,
           national_id: record.national_id || null,
           id_type: record.id_type || null,
@@ -365,7 +380,7 @@ export async function POST(request: NextRequest) {
         street_address: r.streetAddress || r.street_address || '',
         barangay: r.barangay,
         city_municipality: r.cityMunicipality || r.city_municipality || '',
-        province: r.province || 'Metro Manila',
+        province: r.province || '',
         postal_code: r.postalCode || r.postal_code || '',
         national_id: r.nationalId || r.national_id || '',
         id_type: r.idType || r.id_type || '',
@@ -382,6 +397,18 @@ export async function POST(request: NextRequest) {
       }
 
       const record = result.data
+
+      const barangayName = canonicalBarangayName(record.barangay)
+      if (!barangayName) {
+        failedRows.push({
+          row: i + 1,
+          errors: [
+            `Record lists "${record.barangay}", but this system only serves ${BARANGAY_DISPLAY_NAME}.`,
+          ],
+        })
+        continue
+      }
+
       const phone = record.phone ? normalizePhone(record.phone) : null
 
       validRecords.push({
@@ -392,9 +419,9 @@ export async function POST(request: NextRequest) {
         email: record.email,
         phone,
         street_address: record.street_address || null,
-        barangay: record.barangay,
-        city_municipality: record.city_municipality || null,
-        province: record.province || 'Metro Manila',
+        barangay: barangayName,
+        city_municipality: record.city_municipality || BARANGAY_CITY,
+        province: record.province || BARANGAY_PROVINCE,
         postal_code: record.postal_code || null,
         national_id: record.national_id || null,
         id_type: record.id_type || null,

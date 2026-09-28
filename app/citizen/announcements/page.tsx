@@ -7,6 +7,7 @@ import { Megaphone, Calendar, Pin } from 'lucide-react'
 import Link from 'next/link'
 import { getPublishedAnnouncements } from '@/lib/db'
 import { getAnnouncementCategoryColor } from '@/lib/announcement-categories'
+import { BARANGAY_DISPLAY_NAME } from '@/lib/barangay'
 
 interface Announcement {
   id: string
@@ -64,14 +65,14 @@ if (dbAnnouncements.length === 0) {
             </div>
             <div>
               <h1 className="text-3xl font-bold">Announcements</h1>
-              <p className="text-muted-foreground mt-1">Latest news and updates from your barangay</p>
+              <p className="text-muted-foreground mt-1">Latest news and updates from {BARANGAY_DISPLAY_NAME}</p>
             </div>
           </div>
         </div>
 
         <Empty
           title="No announcements yet"
-          description="Check back later for updates from your barangay"
+          description={`Check back later for updates from ${BARANGAY_DISPLAY_NAME}`}
         >
           <EmptyMedia variant="icon">
             <Megaphone className="h-5 w-5" />
@@ -90,7 +91,7 @@ if (dbAnnouncements.length === 0) {
           </div>
           <div>
             <h1 className="text-3xl font-bold">Announcements</h1>
-            <p className="text-muted-foreground mt-1">Latest news and updates from your barangay</p>
+            <p className="text-muted-foreground mt-1">Latest news and updates from {BARANGAY_DISPLAY_NAME}</p>
           </div>
         </div>
       </div>

@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { PreRegisteredResident } from './verification'
-import { RequestInput, ComplaintInput, DesignationInput, OfficialInput, BarangayInfoInput, MissionVisionInput, SignatureUploadInput, ServiceCategoryInput } from './schemas'
+import { RequestInput, ComplaintInput, DesignationInput, OfficialInput, BarangayInfoInput, MissionVisionInput, SignatureUploadInput, ServiceCategoryInput, BARANGAY_CITY, BARANGAY_DISPLAY_NAME, BARANGAY_PROVINCE, canonicalBarangayName, isInServiceArea } from './schemas'
 import { logger } from './logger'
 import { isAnnouncementColumnError } from './announcements'
 import { assertRequestTransition, assertComplaintTransition } from './status-machine'
@@ -764,6 +764,15 @@ export interface PreRegisteredResidentData {
 export async function createPreRegisteredResident(data: PreRegisteredResidentData) {
   const supabase = await createClient()
 
+  // The registry only feeds identity verification for this deployment's single
+  // barangay, so a record for anywhere else is a configuration error.
+  const barangayName = canonicalBarangayName(data.barangay)
+  if (!barangayName) {
+    throw new Error(
+      `Barangay "${data.barangay}" is outside this system's service area (${BARANGAY_DISPLAY_NAME} only).`,
+    )
+  }
+
   const { data: result, error } = await supabase
     .from('pre_registered_residents')
     .insert([
@@ -775,9 +784,9 @@ export async function createPreRegisteredResident(data: PreRegisteredResidentDat
         email: data.email,
         phone: data.phone || null,
         street_address: data.streetAddress || null,
-        barangay: data.barangay,
-        city_municipality: data.cityMunicipality || null,
-        province: data.province || 'Metro Manila',
+        barangay: barangayName,
+        city_municipality: data.cityMunicipality || BARANGAY_CITY,
+        province: data.province || BARANGAY_PROVINCE,
         postal_code: data.postalCode || null,
         national_id: data.nationalId || null,
         id_type: data.idType || null,
@@ -811,6 +820,11 @@ export interface PreRegisteredCandidateFilters {
  * Identity filters are OR-ed together because a single ID photo may only
  * expose one of them; the name prefix search is a last resort for records
  * that have no email, phone, or national ID on file.
+ *
+ * Rows outside the service area are dropped: the registry may still hold
+ * records imported while the system served every Olongapo barangay, and an
+ * exact email / phone / national-ID hit on such a row would otherwise
+ * auto-verify a Barangay Barretto resident against another area's data.
  */
 export async function findPreRegisteredCandidates(
   filters: PreRegisteredCandidateFilters,
@@ -841,7 +855,7 @@ export async function findPreRegisteredCandidates(
       .limit(50)
 
     if (error) throw new Error(`Failed to search pre-registered residents: ${error.message}`)
-    return (data ?? []) as PreRegisteredResident[]
+    return ((data ?? []) as PreRegisteredResident[]).filter((row) => isInServiceArea(row.barangay))
   }
 
   const firstName = filters.firstName?.trim().toLowerCase()
@@ -856,7 +870,7 @@ export async function findPreRegisteredCandidates(
       .limit(50)
 
     if (error) throw new Error(`Failed to search pre-registered residents: ${error.message}`)
-    return (data ?? []) as PreRegisteredResident[]
+    return ((data ?? []) as PreRegisteredResident[]).filter((row) => isInServiceArea(row.barangay))
   }
 
   return []

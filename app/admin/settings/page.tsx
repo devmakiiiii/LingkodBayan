@@ -11,7 +11,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { AlertCircle, CheckCircle, Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
-import { barangayInfoSchema, missionVisionSchema, signatureUploadSchema } from '@/lib/schemas'
+import { barangayInfoSchema, missionVisionSchema, signatureUploadSchema, BARANGAY_DISPLAY_NAME } from '@/lib/schemas'
 import * as z from 'zod'
 
 interface BarangayInfo {
@@ -44,9 +44,10 @@ export default function AdminSettingsPage() {
   const [settings, setSettings] = useState<SystemSettings>({})
   const [loadError, setLoadError] = useState<string | null>(null)
 
-  // Form states
+  // Form states — the barangay name is a fixed system constant, so the form is
+  // pre-filled with it instead of starting from an empty, guessable placeholder.
   const [barangayInfo, setBarangayInfo] = useState<BarangayInfo>({
-    barangay_name: '',
+    barangay_name: BARANGAY_DISPLAY_NAME,
     address: '',
     contact_number: '',
     email: '',
@@ -89,7 +90,11 @@ export default function AdminSettingsPage() {
 
       // Populate forms
       if (settingsMap.barangay_info) {
-        setBarangayInfo(settingsMap.barangay_info)
+        const stored = settingsMap.barangay_info as BarangayInfo
+        setBarangayInfo({
+          ...stored,
+          barangay_name: stored.barangay_name || BARANGAY_DISPLAY_NAME,
+        })
       }
       if (settingsMap.mission_vision) {
         setMissionVision(settingsMap.mission_vision)
@@ -251,7 +256,7 @@ export default function AdminSettingsPage() {
                 id="barangay_name"
                 value={barangayInfo.barangay_name}
                 onChange={(e) => setBarangayInfo({ ...barangayInfo, barangay_name: e.target.value })}
-                placeholder="e.g., Barangay Sampaguita"
+                placeholder="Barangay Barretto"
               />
             </div>
             <div>

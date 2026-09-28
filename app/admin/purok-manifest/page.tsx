@@ -137,7 +137,7 @@ export default function PurokManifestPage() {
             <Label htmlFor="manifest-search">Search (name, address, document, code)</Label>
             <Input
               id="manifest-search"
-              placeholder="e.g., Kalaklan, Barangay Clearance, Juan"
+              placeholder="e.g., Ilo-Ilo Street, Barangay Clearance, Juan"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
             />

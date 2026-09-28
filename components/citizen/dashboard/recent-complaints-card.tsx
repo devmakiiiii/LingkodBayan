@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { toast } from 'sonner'
 
 import { StatusTracker } from '@/components/citizen/status-tracker'
+import { BARANGAY_DISPLAY_NAME } from '@/lib/barangay'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -93,7 +94,7 @@ export function RecentComplaintsCard({
           <Empty
             className="p-6 md:p-6"
             title="No complaints filed"
-            description="Report an issue in your barangay and track how it is resolved."
+            description={`Report an issue in ${BARANGAY_DISPLAY_NAME} and track how it is resolved.`}
             action={
               <Link href="/citizen/file-complaint">
                 <Button size="sm" variant="outline">

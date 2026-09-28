@@ -38,6 +38,7 @@ import {
   type RequestPayload,
   type RequestStatus,
 } from '@/lib/request-types'
+import { BARANGAY_DISPLAY_NAME, BARANGAY_NAME } from '@/lib/schemas'
 import {
   canTransitionRequest,
   getAllowedRequestTransitions,
@@ -106,7 +107,9 @@ function getRequestFieldValue(request: RequestRecord, fieldName: string) {
 }
 
 function getPrintableStatement(request: RequestRecord) {
-  const barangayName = request.residents?.barangay ?? 'Barangay [Barangay Name]'
+  // Printed certificates always carry the system's own barangay; a resident
+  // record without a barangay value must not leak a placeholder onto the paper.
+  const barangayName = request.residents?.barangay || BARANGAY_DISPLAY_NAME
   const requesterName = `${request.residents?.first_name ?? ''} ${request.residents?.last_name ?? ''}`.trim() || '[Full Name]'
   const fullName = getRequestFieldValue(request, 'fullName') || requesterName
   const purpose = getRequestFieldValue(request, 'purpose') || '[Purpose]'
@@ -152,7 +155,9 @@ function getPrintableStatement(request: RequestRecord) {
 function buildPrintMarkup(request: RequestRecord) {
   const requestTypeTitle = getRequestTypeTitle(request.request_type, request.title)
   const requesterName = `${request.residents?.first_name ?? ''} ${request.residents?.last_name ?? ''}`.trim() || 'N/A'
-  const requesterBarangay = request.residents?.barangay ?? 'N/A'
+  // Single-barangay system: fall back to the system's barangay instead of "N/A"
+  // so printed certificates never show a placeholder location.
+  const requesterBarangay = request.residents?.barangay || BARANGAY_NAME
   const submittedDate = request.created_at ? new Date(request.created_at).toLocaleString('en-PH') : 'N/A'
   const footerDate = request.created_at ? formatDate(request.created_at) : 'Date'
 

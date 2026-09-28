@@ -48,6 +48,7 @@ import {
   UserPlus,
 } from 'lucide-react'
 import { formatDate } from '@/lib/format-date'
+import { BARANGAY_DISPLAY_NAME } from '@/lib/schemas'
 import { cn } from '@/lib/utils'
 import {
   buildCsv,
@@ -933,7 +934,7 @@ evidenceUrls: extractEvidenceUrls(row),
 
   function exportPdf() {
     openPrintableReport({
-      barangayName: 'LingkodBayan Barangay',
+      barangayName: BARANGAY_DISPLAY_NAME,
       reportTitle: 'Resident Reports',
       dateRangeLabel: dateFrom || dateTo ? `${dateFrom || '...'} to ${dateTo || '...'}` : 'All dates',
       columns: tableColumns,

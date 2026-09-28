@@ -27,6 +27,7 @@ import { createClient, hasSupabaseConfig } from '@/lib/supabase/client'
 import { NOT_SPECIFIED, formatServiceFee, getServiceTypeLabel } from '@/lib/charter-services'
 import { getAnnouncementCategoryColor } from '@/lib/announcement-categories'
 import { formatDate } from '@/lib/format-date'
+import { BARANGAY_DISPLAY_NAME, BARANGAY_NAME } from '@/lib/barangay'
 
 interface FeaturedService {
   slug: string
@@ -442,9 +443,9 @@ export default function Home() {
       <section className="bg-linear-to-br from-[#001a4d] to-[#0d2d66] text-white py-16 sm:py-24 px-4 sm:px-6">
         <div className="max-w-4xl mx-auto text-center">
           <div className="mb-6 text-4xl">📡</div>
-          <h2 className="text-3xl sm:text-4xl font-bold mb-4">Stay Connected with Your Community</h2>
+          <h2 className="text-3xl sm:text-4xl font-bold mb-4">Stay Connected with {BARANGAY_DISPLAY_NAME}</h2>
           <p className="text-base sm:text-lg mb-8 text-gray-300">
-            Join residents in your community using LingkodBayan to build a more efficient and responsive barangay.
+            Join fellow {BARANGAY_NAME} residents using LingkodBayan to build a more efficient and responsive barangay.
           </p>
           <InstallAppButton />
         </div>

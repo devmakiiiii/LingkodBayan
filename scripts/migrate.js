@@ -118,6 +118,15 @@ const sql = readMigrationScript()
   + '--- Migration 31: Document Pickups (clearance claiming) ---\n'
   + readMigrationFile('31_add_document_pickups.sql')
   + '\n'
+  + '--- Migration 32: Duplicate Resident Prevention ---\n'
+  + readMigrationFile('32_add_duplicate_prevention.sql')
+  + '\n'
+  + '--- Migration 33: Durable Rate Limiting ---\n'
+  + readMigrationFile('33_rate_limits.sql')
+  + '\n'
+  + '--- Migration 34: Single-Barangay Deployment (Barangay Barretto) ---\n'
+  + readMigrationFile('34_single_barangay_barretto.sql')
+  + '\n'
   + '--- Finalize Complaints Schema ---\n'
   + readMigrationFile('finalize_complaints_schema.sql');
 console.log(sql);

@@ -172,6 +172,49 @@ describe('calculateMatchScore', () => {
   })
 })
 
+describe('calculateMatchScore in the single-barangay deployment', () => {
+  it('ignores the (constant) barangay when scoring an address', () => {
+    const withBarangay = calculateMatchScore(
+      buildInput({ email: 'other@example.com', address: '123 P. Burgos St', barangay: 'Barretto' }),
+      candidate,
+    )
+    const withoutBarangay = calculateMatchScore(
+      buildInput({ email: 'other@example.com', address: '123 P. Burgos St' }),
+      candidate,
+    )
+
+    assert.equal(withBarangay.breakdown.address, withoutBarangay.breakdown.address)
+    assert.equal(withBarangay.score, withoutBarangay.score)
+  })
+
+  it('still scores a street-level address match', () => {
+    const { breakdown } = calculateMatchScore(
+      buildInput({ email: 'other@example.com', address: '123 P. Burgos St' }),
+      candidate,
+    )
+
+    assert.equal(breakdown.address, 1)
+  })
+
+  it('gives no address credit when only the shared barangay is known', () => {
+    const { breakdown } = calculateMatchScore(
+      buildInput({ email: 'other@example.com', barangay: 'Barretto' }),
+      { ...candidate, street_address: null, barangay: 'Barretto' },
+    )
+
+    assert.equal(breakdown.address, 0)
+  })
+
+  it('cannot be gamed by a candidate that lists another barangay', () => {
+    const { breakdown } = calculateMatchScore(
+      buildInput({ email: 'other@example.com', address: '123 P. Burgos St', barangay: 'Barretto' }),
+      { ...candidate, barangay: 'New Cabalan' },
+    )
+
+    assert.equal(breakdown.address, 1)
+  })
+})
+
 describe('determineAction thresholds', () => {
   it('maps scores to the hybrid flow actions', () => {
     assert.equal(determineAction(100), 'auto_verify')

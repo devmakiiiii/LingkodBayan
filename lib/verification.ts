@@ -71,6 +71,11 @@ export interface SignUpVerificationInput {
   email: string
   phone?: string
   address?: string
+  /**
+   * Accepted for backwards compatibility only. LingkodBayan serves a single
+   * barangay, so this value is identical on both sides of every comparison and
+   * is intentionally ignored when scoring (see `calculateMatchScore`).
+   */
   barangay?: string
   dateOfBirth?: string
   nationalId?: string
@@ -317,9 +322,14 @@ export function calculateMatchScore(
       : 0
   breakdown.phone = phoneScore
 
-  const addressParts = [input.address, input.barangay].filter(Boolean).join(', ')
-  const candidateAddress = [candidate.street_address, candidate.barangay].filter(Boolean).join(', ')
-  const addressScore = addressParts && candidateAddress ? addressMatch(addressParts, candidateAddress) : 0
+  // Only street-level address evidence is scored: this deployment serves one
+  // barangay (Barangay Barretto), so both sides of a comparison always carry the
+  // same barangay and including it would hand the same free credit to every
+  // candidate. `input.barangay` is therefore deliberately unused here.
+  const addressScore =
+    input.address && candidate.street_address
+      ? addressMatch(input.address, candidate.street_address)
+      : 0
   breakdown.address = addressScore
 
   const dobScore =

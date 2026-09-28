@@ -9,6 +9,7 @@ import { Empty } from '@/components/ui/empty'
 import { Users, Mail, MapPin, CheckCircle2, Clock, ShieldAlert } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { formatDate } from '@/lib/format-date'
+import { BARANGAY_DISPLAY_NAME } from '@/lib/barangay'
 
 interface Resident {
   id: string
@@ -132,7 +133,7 @@ export default function AdminResidentsPage() {
           </div>
           <div>
             <h1 className="text-3xl font-bold">Residents Management</h1>
-            <p className="text-muted-foreground mt-1">View all registered citizens in your barangay</p>
+            <p className="text-muted-foreground mt-1">View all registered citizens of {BARANGAY_DISPLAY_NAME}</p>
           </div>
         </div>
       </div>

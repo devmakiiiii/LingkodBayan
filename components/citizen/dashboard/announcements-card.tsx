@@ -12,6 +12,7 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
+import { BARANGAY_DISPLAY_NAME } from '@/lib/barangay'
 import { formatRelativeDate } from '@/lib/format-date'
 import { getAnnouncementCategoryColor } from '@/lib/announcement-categories'
 import { Megaphone } from 'lucide-react'
@@ -43,7 +44,7 @@ export function AnnouncementsCard({
           </span>
           <div>
             <CardTitle className="text-base">Announcements</CardTitle>
-            <CardDescription>Latest news from your barangay</CardDescription>
+            <CardDescription>Latest news from {BARANGAY_DISPLAY_NAME}</CardDescription>
           </div>
         </div>
         <Link href="/citizen/announcements">

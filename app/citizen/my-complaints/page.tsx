@@ -15,6 +15,7 @@ import Link from 'next/link'
 import { ChevronRight, Search, X } from 'lucide-react'
 import { getOrCreateResidentProfile } from '@/lib/residents'
 import { formatDate } from '@/lib/format-date'
+import { BARANGAY_DISPLAY_NAME } from '@/lib/barangay'
 import {
   complaintStatusFilterOptions,
   getComplaintStatus,
@@ -97,7 +98,7 @@ export default function MyComplaintsPage() {
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold">My Complaints</h1>
-          <p className="text-muted-foreground text-sm mt-1">Track all complaints you&apos;ve filed with your barangay</p>
+          <p className="text-muted-foreground text-sm mt-1">Track all complaints you&apos;ve filed with {BARANGAY_DISPLAY_NAME}</p>
         </div>
         <Link href="/citizen/file-complaint">
           <Button size="sm">File Complaint</Button>

@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { AlertTriangle, BarChart3, CalendarRange, FileText, Users } from 'lucide-react'
 import { AnalyticsCharts } from '@/components/admin/analytics-charts'
+import { BARANGAY_DISPLAY_NAME } from '@/lib/barangay'
 
 /** Upper bound for analytics fetches (summary cards count array lengths). */
 const ANALYTICS_ROW_LIMIT = 10000
@@ -162,7 +163,7 @@ export default function AdminAnalyticsPage() {
           Admin Analytics
         </div>
         <h1 className="text-3xl font-bold text-slate-900">Analytics Dashboard</h1>
-        <p className="max-w-2xl text-sm text-slate-600">Track request volume, complaint categories, and status distribution across the barangay system.</p>
+        <p className="max-w-2xl text-sm text-slate-600">Track request volume, complaint categories, and status distribution across {BARANGAY_DISPLAY_NAME}.</p>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">

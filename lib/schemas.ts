@@ -1,36 +1,22 @@
 import { z } from 'zod'
-import { requestTypes } from './request-types'
-import { designationCategories, officialStatuses } from './governance'
+import { requestTypes } from './request-types.ts'
+import { designationCategories, officialStatuses } from './governance.ts'
+import { BARANGAY_FULL_LABEL, BARANGAY_NAME } from './barangay.ts'
 
-export const OLONGAPO_BARANGAYS = [
-  'Barretto',
-  'East Bajac-bajac',
-  'East Tapinac',
-  'Gordon Heights',
-  'Kalaklan',
-  'Mabayuan',
-  'New Asinan',
-  'New Banicain',
-  'New Cabalan',
-  'New Ilalim',
-  'New Kababae',
-  'New Kalalake',
-  'Old Cabalan',
-  'Pag-asa',
-  'Santa Rita',
-  'West Bajac-bajac',
-  'West Tapinac',
-] as const
-
-export type OlongapoBarangay = (typeof OLONGAPO_BARANGAYS)[number]
+// Barangay identity lives in the dependency-free ./barangay module so that UI
+// copy, metadata and server actions can share it without bundling zod. It is
+// re-exported here so `@/lib/schemas` keeps working for existing callers.
+export * from './barangay.ts'
 
 export const loginSchema = z.object({
   email: z.string().email('Invalid email address'),
   password: z.string().min(6, 'Password must be at least 6 characters'),
 })
 
-export const signUpBarangaySchema = z.enum(OLONGAPO_BARANGAYS, {
-  errorMap: () => ({ message: 'Please select a barangay' }),
+// Only Barangay Barretto is accepted; anything else is rejected so stray
+// multi-barangay data cannot enter the records.
+export const signUpBarangaySchema = z.literal(BARANGAY_NAME, {
+  errorMap: () => ({ message: `LingkodBayan only serves ${BARANGAY_FULL_LABEL}` }),
 })
 
 export const signUpSchema = z.object({

@@ -1,11 +1,11 @@
 import type { MetadataRoute } from 'next'
+import { BARANGAY_DISPLAY_NAME } from '@/lib/barangay'
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'LingkodBayan - Citizen Services Portal',
+    name: `LingkodBayan - ${BARANGAY_DISPLAY_NAME} Services Portal`,
     short_name: 'LingkodBayan',
-    description:
-      'A civic services portal for connecting citizens with local government services.',
+    description: `The civic services portal for ${BARANGAY_DISPLAY_NAME} residents.`,
     id: '/',
     start_url: '/',
     scope: '/',

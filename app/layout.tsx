@@ -7,13 +7,14 @@ import { SupabaseSessionGuard } from '@/components/supabase-session-guard'
 import { ThemeProvider } from '@/components/theme-provider'
 import { GlobalHotkeys } from '@/components/global-hotkeys'
 import { ServiceWorkerRegister } from '@/components/service-worker-register'
+import { BARANGAY_CITY, BARANGAY_DISPLAY_NAME } from '@/lib/barangay'
 
 const _geist = Geist({ subsets: ["latin"], display: "swap" });
 const _geistMono = Geist_Mono({ subsets: ["latin"], display: "swap" });
 
 export const metadata: Metadata = {
   title: 'LingkodBayan',
-  description: 'Connecting Citizens and Government Services',
+  description: `Connecting ${BARANGAY_DISPLAY_NAME} residents with government services — ${BARANGAY_CITY}.`,
   generator: 'v0.app',
   applicationName: 'LingkodBayan',
   manifest: '/manifest.webmanifest',

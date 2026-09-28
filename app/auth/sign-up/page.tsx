@@ -7,11 +7,11 @@ import { Input } from '@/components/ui/input'
 import { PasswordInput } from '@/components/ui/password-input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { AlertCircle, ArrowLeft, CheckCircle2, Loader2 } from 'lucide-react'
+import { AlertCircle, ArrowLeft, CheckCircle2, Loader2, MapPin } from 'lucide-react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { loginSchema, OLONGAPO_BARANGAYS, signUpBarangaySchema } from '@/lib/schemas'
+import { BARANGAY_FULL_LABEL, BARANGAY_NAME, loginSchema } from '@/lib/schemas'
 
 const TODAY = new Date().toISOString().split('T')[0]
 
@@ -32,7 +32,6 @@ type FieldErrors = Partial<
     | 'lastName'
     | 'dateOfBirth'
     | 'email'
-    | 'barangay'
     | 'phone'
     | 'password'
     | 'repeatPassword'
@@ -46,7 +45,6 @@ const FIELD_IDS: Record<string, string> = {
   lastName: 'last-name',
   dateOfBirth: 'date-of-birth',
   email: 'email',
-  barangay: 'barangay',
   phone: 'phone',
   password: 'password',
   repeatPassword: 'repeat-password',
@@ -55,7 +53,7 @@ const FIELD_IDS: Record<string, string> = {
 
 const STEP_FIELDS: Record<Step, (keyof FieldErrors)[]> = {
   1: ['firstName', 'lastName', 'dateOfBirth', 'email'],
-  2: ['barangay', 'phone'],
+  2: ['phone'],
   3: ['password', 'repeatPassword', 'consent'],
 }
 
@@ -64,7 +62,6 @@ type SignUpValues = {
   lastName: string
   dateOfBirth: string
   email: string
-  barangay: string
   phone: string
   password: string
   repeatPassword: string
@@ -91,10 +88,6 @@ function validateStep1(v: SignUpValues): FieldErrors {
 
 function validateStep2(v: SignUpValues): FieldErrors {
   const errors: FieldErrors = {}
-  const barangayResult = signUpBarangaySchema.safeParse(v.barangay)
-  if (!barangayResult.success) {
-    errors.barangay = barangayResult.error.issues[0]?.message ?? 'Please select a barangay'
-  }
   if (v.phone.trim()) {
     const digits = v.phone.replace(/\D/g, '')
     if (!/^09\d{9}$/.test(digits) && !/^639\d{9}$/.test(digits)) {
@@ -162,7 +155,6 @@ export default function Page() {
   const [lastName, setLastName] = useState('')
   const [middleName, setMiddleName] = useState('')
   const [dateOfBirth, setDateOfBirth] = useState('')
-  const [barangay, setBarangay] = useState('')
   const [phone, setPhone] = useState('')
   const [address, setAddress] = useState('')
   const [nationalId, setNationalId] = useState('')
@@ -184,7 +176,6 @@ export default function Page() {
     lastName,
     dateOfBirth,
     email,
-    barangay,
     phone,
     password,
     repeatPassword,
@@ -232,7 +223,7 @@ export default function Page() {
           email,
           phone,
           address,
-          barangay,
+          barangay: BARANGAY_NAME,
           dateOfBirth,
           nationalId,
         }),
@@ -257,7 +248,7 @@ export default function Page() {
         isCheckingMatchRef.current = false
       }
     }
-  }, [email, firstName, lastName, middleName, phone, address, barangay, dateOfBirth, nationalId, updateMatchResult])
+  }, [email, firstName, lastName, middleName, phone, address, dateOfBirth, nationalId, updateMatchResult])
 
   // Run the pre-registration check once the user reaches the final step, where
   // every field the matcher needs has been collected.
@@ -325,7 +316,7 @@ export default function Page() {
       formData.append('lastName', lastName)
       formData.append('middleName', middleName)
       formData.append('dateOfBirth', dateOfBirth)
-      formData.append('barangay', barangay)
+      formData.append('barangay', BARANGAY_NAME)
       formData.append('phone', phone)
       formData.append('address', address)
       formData.append('nationalId', nationalId)
@@ -596,29 +587,25 @@ export default function Page() {
 
               {step === 2 && (
                 <div className="flex flex-col gap-4">
-                  {/* Barangay */}
+                  {/* Barangay — fixed: LingkodBayan serves Barangay Barretto only */}
                   <div className="space-y-2">
-                    <Label htmlFor="barangay" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    <Label
+                      htmlFor="barangay"
+                      className="text-sm font-medium text-gray-700 dark:text-gray-300"
+                    >
                       Barangay
                     </Label>
-                    <Select value={barangay || undefined} onValueChange={setBarangay}>
-                      <SelectTrigger
-                        id="barangay"
-                        aria-invalid={!!fieldErrors.barangay}
-                        aria-describedby={fieldErrors.barangay ? 'barangay-error' : undefined}
-                        className={inputClassName(!!fieldErrors.barangay)}
-                      >
-                        <SelectValue placeholder="Select your barangay" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {OLONGAPO_BARANGAYS.map((name) => (
-                          <SelectItem key={name} value={name}>
-                            {name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FieldError id="barangay" message={fieldErrors.barangay} />
+                    <div
+                      id="barangay"
+                      className="flex items-center gap-2 rounded-lg border border-gray-300 bg-gray-50 px-4 py-2.5 text-sm dark:border-input dark:bg-muted"
+                    >
+                      <MapPin className="h-4 w-4 shrink-0 text-[#228039] dark:text-[#4ADE80]" aria-hidden="true" />
+                      <span className="font-medium text-gray-800 dark:text-gray-200">{BARANGAY_FULL_LABEL}</span>
+                    </div>
+                    <p className="text-xs text-gray-500 dark:text-muted-foreground">
+                      LingkodBayan is the online service portal of Barangay Barretto, so every resident account is
+                      registered under this barangay.
+                    </p>
                   </div>
 
                   {/* Phone Number */}

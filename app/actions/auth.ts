@@ -4,7 +4,7 @@ import { cookies } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
 import { getOrCreateResidentProfile } from '@/lib/residents'
 import { redirect } from 'next/navigation'
-import { forgotPasswordSchema, resetPasswordSchema } from '@/lib/schemas'
+import { BARANGAY_NAME, forgotPasswordSchema, resetPasswordSchema } from '@/lib/schemas'
 import { durableRateLimit } from '@/lib/rate-limit-durable'
 import { headers } from 'next/headers'
 import { logger } from '@/lib/logger'
@@ -64,7 +64,9 @@ export async function requestSignUpOtp(formData: FormData) {
   const lastName = formData.get('lastName') as string
   const middleName = formData.get('middleName') as string
   const dateOfBirth = formData.get('dateOfBirth') as string
-  const barangay = formData.get('barangay') as string
+  // Single-barangay system: every resident belongs to Barangay Barretto, so the
+  // barangay is pinned here instead of trusting a posted value.
+  const barangay = BARANGAY_NAME
   const phone = formData.get('phone') as string
   const address = formData.get('address') as string
   const nationalId = formData.get('nationalId') as string

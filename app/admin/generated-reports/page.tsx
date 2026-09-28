@@ -41,6 +41,7 @@ import {
   type RequestReportRow,
 } from '@/lib/admin-reporting'
 import { complaintCategories } from '@/lib/complaint-categories'
+import { BARANGAY_DISPLAY_NAME } from '@/lib/schemas'
 import { designationCategories, officialStatuses } from '@/lib/governance'
 import { requestStatuses, requestTypes } from '@/lib/request-types'
 
@@ -514,7 +515,7 @@ export default function AdminGeneratedReportsPage() {
 
   function handlePrint() {
     const opened = openPrintableReport({
-      barangayName: 'Lingkod Bayan Barangay',
+      barangayName: BARANGAY_DISPLAY_NAME,
       reportTitle: mapReportTypeToLabel(reportType),
       dateRangeLabel: buildPrintableDateRange(dateFrom, dateTo),
       columns: preview.columns,
