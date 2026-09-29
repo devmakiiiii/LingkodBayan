@@ -24,11 +24,48 @@ export interface RepresentativeAuthorization {
   created_at: string
 }
 
-/** Rows whose SELECT embeds a `residents(...)` join on the other party. */
+/** Base columns of representative_authorizations; party names are resolved separately. */
 const AUTHORIZATION_SELECT =
   'id, represented_resident_id, representative_resident_id, status, consent_note, granted_at, revoked_at, created_at'
 
 type PartyInfo = { first_name: string | null; last_name: string | null; email: string | null } | null
+
+type PartyDirectory = Map<string, { first_name: string | null; last_name: string | null; email: string | null }>
+
+/**
+ * Resolves the display fields (id, first_name, last_name, email) for residents
+ * the caller shares an authorization with.
+ *
+ * This is deliberately NOT a PostgREST embedded join. The residents table has a
+ * strict SELECT policy ("Residents can view their own data" ->
+ * USING (auth.uid() = user_id)), and PostgREST applies that policy to embedded
+ * joins, so `residents!representative_authorizations_represented_resident_id_fkey(...)`
+ * always resolved to null for the counterparty and the UI fell back to
+ * "Unnamed resident". Loosening the residents policy would expose every
+ * resident's full row to anyone they authorized, so migration 38 adds a
+ * SECURITY DEFINER helper that returns only this narrow projection and only for
+ * counterparties. If it is unavailable the caller still gets its rows, just
+ * without names.
+ */
+async function loadProxyParties(
+  supabase: SupabaseClient,
+  residentIds: string[],
+): Promise<PartyDirectory> {
+  const ids = Array.from(new Set(residentIds.filter(Boolean)))
+  if (ids.length === 0) return new Map()
+
+  const { data, error } = await supabase.rpc('proxy_party_directory', { p_resident_ids: ids })
+  if (error) {
+    console.warn('Failed to resolve proxy party names:', error)
+    return new Map()
+  }
+
+  return new Map(
+    ((data ?? []) as Array<{ id: string; first_name: string | null; last_name: string | null; email: string | null }>).map(
+      (party) => [party.id, { first_name: party.first_name, last_name: party.last_name, email: party.email }],
+    ),
+  )
+}
 
 /** Authorizations I granted (others may file for me). */
 export async function listAuthorizationsIGranted(
@@ -37,14 +74,20 @@ export async function listAuthorizationsIGranted(
 ): Promise<Array<RepresentativeAuthorization & { representative?: PartyInfo }>> {
   const { data, error } = await supabase
     .from('representative_authorizations')
-    .select(
-      `${AUTHORIZATION_SELECT}, representative:residents!representative_authorizations_representative_resident_id_fkey(first_name, last_name, email)`,
-    )
+    .select(AUTHORIZATION_SELECT)
     .eq('represented_resident_id', residentId)
     .order('created_at', { ascending: false })
 
   if (error) throw error
-  return (data ?? []) as unknown as Array<RepresentativeAuthorization & { representative?: PartyInfo }>
+  const authorizations = (data ?? []) as RepresentativeAuthorization[]
+  const parties = await loadProxyParties(
+    supabase,
+    authorizations.map((authorization) => authorization.representative_resident_id),
+  )
+  return authorizations.map((authorization) => ({
+    ...authorization,
+    representative: parties.get(authorization.representative_resident_id) ?? null,
+  }))
 }
 
 /** Authorizations granted to me (residents I may file for). */
@@ -54,14 +97,20 @@ export async function listAuthorizationsGrantedToMe(
 ): Promise<Array<RepresentativeAuthorization & { represented?: PartyInfo }>> {
   const { data, error } = await supabase
     .from('representative_authorizations')
-    .select(
-      `${AUTHORIZATION_SELECT}, represented:residents!representative_authorizations_represented_resident_id_fkey(first_name, last_name, email)`,
-    )
+    .select(AUTHORIZATION_SELECT)
     .eq('representative_resident_id', residentId)
     .order('created_at', { ascending: false })
 
   if (error) throw error
-  return (data ?? []) as unknown as Array<RepresentativeAuthorization & { represented?: PartyInfo }>
+  const authorizations = (data ?? []) as RepresentativeAuthorization[]
+  const parties = await loadProxyParties(
+    supabase,
+    authorizations.map((authorization) => authorization.represented_resident_id),
+  )
+  return authorizations.map((authorization) => ({
+    ...authorization,
+    represented: parties.get(authorization.represented_resident_id) ?? null,
+  }))
 }
 
 /** Active authorizations granted to me, for the "file on behalf of" picker. */
@@ -130,10 +179,20 @@ export async function revokeAuthorization(
   return { ok: true, authorization: data.authorization as RepresentativeAuthorization }
 }
 
-/** Display name for the other party embedded by the list queries. */
+/**
+ * Display name for the other party of an authorization.
+ *
+ * Prefers the full name, then the email they registered with. "Unnamed resident"
+ * only means the counterparty's profile has no name and no email on file - it is
+ * no longer reachable merely because the caller cannot read the other party's
+ * residents row, since the party details are resolved by `proxy_party_directory`
+ * (migration 38) rather than by an RLS-filtered embedded join.
+ */
 export function authorizationPartyName(
   authorization: RepresentativeAuthorization & { representative?: PartyInfo; represented?: PartyInfo },
 ): string {
+  // Exactly one of the two is populated, depending on which list this row came
+  // from, so prefer the first non-null one rather than whichever is truthy.
   const person = authorization.representative ?? authorization.represented
   const name = person ? `${person.first_name ?? ''} ${person.last_name ?? ''}`.trim() : ''
   return name || person?.email || 'Unnamed resident'
