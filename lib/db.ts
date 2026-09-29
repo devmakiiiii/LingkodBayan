@@ -1032,6 +1032,49 @@ export async function updateResidentVerification(
     .single()
 
   if (error) throw new Error(`Failed to update resident verification: ${error.message}`)
+
+  // Mirror the status into user_metadata so middleware can read it without a
+  // database round-trip. The RLS policy (migration 36) is still the authority —
+  // this is a UX hint, and a failure here must not fail the verification itself.
+  //
+  // updateUserById REPLACES user_metadata wholesale, and `role` lives there
+  // (middleware reads it to route admins to /admin). So the existing metadata is
+  // read back and merged; sending only the new key would silently demote every
+  // admin to a citizen.
+  if (updates.verificationStatus && data?.user_id) {
+    try {
+      const adminClient = createAdminClient()
+      const userId = data.user_id
+      const { data: authUser, error: getUserError } =
+        await adminClient.auth.admin.getUserById(userId)
+
+      if (getUserError) {
+        logger.warn('updateResidentVerification: could not read user_metadata', {
+          context: 'lib/db',
+          residentId,
+        }, getUserError)
+      } else {
+        const { error: metaError } = await adminClient.auth.admin.updateUserById(userId, {
+          user_metadata: {
+            ...(authUser?.user?.user_metadata ?? {}),
+            verification_status: updates.verificationStatus,
+          },
+        })
+        if (metaError) {
+          logger.warn('updateResidentVerification: user_metadata sync failed', {
+            context: 'lib/db',
+            residentId,
+          }, metaError)
+        }
+      }
+    } catch (metaError) {
+      logger.warn('updateResidentVerification: user_metadata sync threw', {
+        context: 'lib/db',
+        residentId,
+      }, metaError)
+    }
+  }
+
   return data
 }
 

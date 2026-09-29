@@ -1,16 +1,45 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { createServerClient } from '@supabase/ssr'
 import { getOcrJob } from '@/lib/verification-jobs'
 import { verifyRequest } from '@/lib/request-security'
 import { logger } from '@/lib/logger'
 
 export async function GET(request: NextRequest) {
+  const securityCheck = verifyRequest(request)
+  if (!securityCheck.valid) {
+    return NextResponse.json({ error: 'Invalid request origin' }, { status: 403 })
+  }
+
+  // The job store is keyed by (id, user_id), so the caller must be authenticated
+  // and a job id from another resident must not resolve.
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll()
+        },
+        setAll() {},
+      },
+    },
+  )
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) {
+    return NextResponse.json({ error: 'Authentication required.' }, { status: 401 })
+  }
+
   const jobId = request.nextUrl.searchParams.get('jobId')
 
   if (!jobId) {
     return NextResponse.json({ error: 'Missing jobId parameter.' }, { status: 400 })
   }
 
-  const job = getOcrJob(jobId)
+  const job = await getOcrJob(jobId, user.id)
 
   if (!job) {
     return NextResponse.json({ error: 'Job not found.' }, { status: 404 })

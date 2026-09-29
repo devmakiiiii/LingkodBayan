@@ -53,10 +53,50 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(url)
     }
 
-    // Identity verification is advisory, not a navigation gate: residents can
-    // browse every citizen page (My Requests, Request Service, My Complaints,
-    // etc.). The dashboard surfaces the verification banner and "Verify Now"
-    // call to action that links to /citizen/verify-id.
+    // Identity verification: enforcement lives in the RLS policy
+    // "Verified residents can create requests" (migration 36), because requests
+    // are inserted straight from the browser client and a redirect alone can be
+    // bypassed. This redirect is UX only — it keeps a pending resident off the
+    // request form and points them at the recovery path instead of showing a
+    // form that will fail on submit.
+    //
+    // Scoped to the surfaces that actually file a service request. It must NOT
+    // cover all of /citizen: migration 36 deliberately leaves complaints ungated,
+    // and redirecting a resident away from /citizen/file-complaint would both
+    // contradict that decision and read as silencing a public-safety channel.
+    // Announcements, tracking, pickups, and notifications stay reachable; the
+    // dashboard banner (components/citizen/verification-banner.tsx) is the
+    // non-blocking nudge toward verifying.
+    if (pathname.startsWith('/citizen') && userRole === 'citizen') {
+      const REQUEST_FILING_PATHS = [
+        '/citizen/request-service',
+        '/citizen/proxy-filing',
+      ]
+      const isRequestFilingPage = REQUEST_FILING_PATHS.some(
+        (path) => pathname === path || pathname.startsWith(`${path}/`),
+      )
+      const status = user.user_metadata?.verification_status as string | undefined
+
+      // Allowlist, not denylist, and it must stay in sync with the IN (...) list
+      // in migration 36. A denylist of the known-pending statuses silently drifts:
+      // a status added later is blocked by the RLS policy but not redirected here,
+      // so that resident meets a raw Postgres policy error on submit instead of
+      // being sent to /citizen/verify-id. Inverting the check makes the two
+      // agree by construction — anything not explicitly verified gets redirected.
+      const VERIFIED_STATUSES = ['auto_verified', 'id_verified']
+      const isVerified = VERIFIED_STATUSES.includes(status ?? '')
+
+      // `status === undefined` is the legacy-account case below: treat unknown as
+      // pass-through rather than locking the resident out of their own portal.
+      const needsVerification = status !== undefined && !isVerified
+
+      if (isRequestFilingPage && needsVerification) {
+        const url = request.nextUrl.clone()
+        url.pathname = '/citizen/verify-id'
+        url.searchParams.set('reason', 'verification-required')
+        return NextResponse.redirect(url)
+      }
+    }
   } else if (pathname.startsWith('/citizen') || pathname.startsWith('/admin')) {
     const url = request.nextUrl.clone()
     url.pathname = '/auth/login'

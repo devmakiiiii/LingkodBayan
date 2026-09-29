@@ -53,19 +53,21 @@ export async function POST(request: NextRequest) {
     const validated = processIdVerificationSchema.parse(body)
 
     const jobId = crypto.randomUUID()
-    ocrJobs.setOcrJob(jobId, { status: 'processing' })
+    // Awaited so the row exists before the client is told to poll for it —
+    // otherwise the first poll can race the insert and 404.
+    await ocrJobs.setOcrJob(jobId, user.id, { status: 'processing' })
 
     setImmediate(async () => {
       try {
         const result = await processOcrJob(user.id, validated.signedUrl, validated.idType, validated.expectedValues)
         if (result) {
-          ocrJobs.setOcrJob(jobId, { status: 'completed', result })
+          await ocrJobs.setOcrJob(jobId, user.id, { status: 'completed', result })
         } else {
-          ocrJobs.setOcrJob(jobId, { status: 'failed', error: 'OCR processing failed.' })
+          await ocrJobs.setOcrJob(jobId, user.id, { status: 'failed', error: 'OCR processing failed.' })
         }
       } catch (error: unknown) {
         const message = error instanceof Error ? error.message : 'Failed to process ID verification.'
-        ocrJobs.setOcrJob(jobId, { status: 'failed', error: message })
+        await ocrJobs.setOcrJob(jobId, user.id, { status: 'failed', error: message })
       }
     })
 

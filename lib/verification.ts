@@ -524,7 +524,6 @@ export function parseOcrExtractedFields(
   idType: string,
 ): Record<string, string> {
   const text = ocrText.toUpperCase()
-  const result: Record<string, string> = {}
 
   const idTypeParsers: Record<string, (text: string) => Record<string, string>> = {
     philsys: (t) => parsePhilsysFields(t),

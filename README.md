@@ -89,6 +89,46 @@ scripts/
 
    Copy the SQL output into the Supabase SQL Editor and run it. For the full setup flow, see [SETUP.md](SETUP.md).
 
+   Then apply the numbered migrations in `scripts/` in ascending order. Migrations
+   35-37 are required for identity verification and must be applied **before**
+   deploying, because the OCR job store (`lib/verification-jobs.ts`) queries the
+   `verification_ocr_jobs` table unconditionally:
+
+   | Migration | Purpose | Skip if |
+   |---|---|---|
+   | `35_durable_ocr_jobs.sql` | Postgres-backed OCR job store, plus the `trg_prune_verification_ocr_jobs` trigger that reaps expired rows | Never — required for ID verification |
+   | `36_verification_gate_requests.sql` | Requires a verified resident to file a service request | Never — the RLS gate |
+   | `37_backfill_verification_claim.sql` | Backfills `verification_status` into `user_metadata` for pre-existing accounts | Only if the project has no verified residents yet |
+
+   Migration 35's trigger matters: `verification_ocr_jobs` stores OCR output read
+   off a resident's government ID, and the `expires_at` column on its own deletes
+   nothing. Without the trigger those rows — and the PII in them — accumulate
+   forever. Re-running 35 is safe; it drops and recreates the trigger.
+
+   Migration 35 defines two functions. `prune_verification_ocr_jobs()` does the
+   DELETE and returns VOID so it stays callable by hand via the SQL Editor's RPC
+   panel; `trg_prune_verification_ocr_jobs()` returns TRIGGER and is what the
+   trigger calls. The split is required — Postgres rejects a `CREATE TRIGGER`
+   whose target returns anything other than `trigger` (error 42P17).
+
+   Confirm the trigger is live with:
+
+   ```bash
+   node scripts/_check_prune_trigger.mjs
+   ```
+
+   Migration 36 gates **requests only**. Complaints are deliberately ungated, so
+   a resident who has not verified can still file a complaint. The UX redirect in
+   `middleware.ts` mirrors that scope (only `/citizen/request-service` and
+   `/citizen/proxy-filing`) and treats any status outside
+   `('auto_verified', 'id_verified')` as needing verification, so the redirect and
+   the RLS policy cannot drift apart when a new status is added.
+
+   Migration 37 writes to `auth.users`, which Supabase's GoTrue owns. It is
+   idempotent and safe to re-run, but run it during a quiet period and run the
+   commented verification query at the end of the file to confirm no admin lost
+   its `role`.
+
 4. Start the development server:
 
    ```bash

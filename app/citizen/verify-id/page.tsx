@@ -62,6 +62,10 @@ export default function VerifyIdPage() {
   const [rejectionReason, setRejectionReason] = useState<string | null>(null)
   const [adminNotes, setAdminNotes] = useState<string | null>(null)
   const [isAppealing, setIsAppealing] = useState(false)
+  // Set by middleware.ts when it redirects a pending resident here. Read from
+  // window.location rather than useSearchParams so this statically prerendered
+  // page does not need a Suspense boundary just to show an explanatory banner.
+  const [wasRedirected, setWasRedirected] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   async function checkExistingStatus() {
@@ -98,6 +102,14 @@ export default function VerifyIdPage() {
 
   useEffect(() => {
     checkExistingStatus()
+
+    // Strip the query param once read so a later manual refresh (or the back
+    // button) does not re-show a banner for a redirect that already happened.
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('reason') === 'verification-required') {
+      setWasRedirected(true)
+      window.history.replaceState(null, '', window.location.pathname)
+    }
   }, [])
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -378,6 +390,20 @@ export default function VerifyIdPage() {
         </div>
         {getStatusBadge(verificationStatus)}
       </div>
+
+      {wasRedirected && (
+        <div className="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded-lg mb-4">
+          <div className="flex items-center gap-2">
+            <Info className="h-5 w-5" />
+            <span className="font-semibold">Verification is required to file a service request</span>
+          </div>
+          <p className="text-sm mt-1">
+            You were redirected here because your identity is not verified yet. Upload a valid
+            government ID below to unlock service requests. You can still browse announcements,
+            track your existing requests, and file complaints.
+          </p>
+        </div>
+      )}
 
       {verificationStatus === 'auto_verified' && (
         <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg mb-4">
