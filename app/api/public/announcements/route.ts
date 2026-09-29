@@ -13,6 +13,13 @@ export async function GET(request: NextRequest) {
     const adminClient = createAdminClient()
     const now = new Date().toISOString()
 
+    // The landing page renders a fixed-size "Latest News" strip, so the default
+    // caps what an anonymous visitor has to download. `content` is full rich-text
+    // HTML, so returning every published row means shipping the whole archive to
+    // show three cards. Callers that genuinely need more pass ?limit= explicitly.
+    const rawLimit = Number.parseInt(request.nextUrl.searchParams.get('limit') ?? '', 10)
+    const limit = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(rawLimit, 100) : 3
+
     // Richest query first; each fallback drops columns whose migrations have not
     // been applied. Scheduled (future published_at) and expired rows are hidden.
     const attempts = [
@@ -24,20 +31,23 @@ export async function GET(request: NextRequest) {
           .lte('published_at', now)
           .or(`expires_at.is.null,expires_at.gt.${now}`)
           .order('pinned', { ascending: false })
-          .order('published_at', { ascending: false }),
+          .order('published_at', { ascending: false })
+          .limit(limit),
       () =>
         adminClient
           .from('announcements')
           .select(COLUMNS_NO_PIN)
           .eq('is_published', true)
           .lte('published_at', now)
-          .order('published_at', { ascending: false }),
+          .order('published_at', { ascending: false })
+          .limit(limit),
       () =>
         adminClient
           .from('announcements')
           .select(COLUMNS_BASE)
           .eq('is_published', true)
-          .order('created_at', { ascending: false }),
+          .order('created_at', { ascending: false })
+          .limit(limit),
     ]
 
     let data: any[] | null = null

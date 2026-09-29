@@ -142,9 +142,15 @@ export default function Home() {
 
       try {
         const supabase = createClient()
+        // Pin the exact columns this component renders. The public RLS policy
+        // permits reading every column of an active row, so a `select('*')`
+        // would push charter internals (office keys, fee structures, processing
+        // times, staffing) into the browser bundle for data never displayed.
         const { data, error } = await supabase
           .from('service_categories')
-          .select('*')
+          .select(
+            'slug, title, description, category_type, fee_type, fee_amount_min, fee_amount_max, fee_description'
+          )
           .eq('is_active', true)
           .neq('category_type', 'incident')
           .order('sort_order', { ascending: true })
@@ -303,7 +309,7 @@ export default function Home() {
       </section>
 
       {/* Why Use LingkodBayan */}
-      <section className="py-16 sm:py-24 px-4 sm:px-6 bg-white dark:bg-card dark:bg-background">
+      <section className="py-16 sm:py-24 px-4 sm:px-6 bg-white dark:bg-background">
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-12 sm:mb-16">
             <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 dark:text-foreground mb-4">Why use LingkodBayan?</h2>
@@ -330,7 +336,7 @@ export default function Home() {
                 description: 'Smart prioritization and insight generation help officials address the most critical community needs.',
               },
             ].map((item, i) => (
-              <div key={i} className="bg-gray-50 dark:bg-muted dark:bg-card dark:border-border rounded-lg p-6 sm:p-8">
+              <div key={i} className="bg-gray-50 dark:bg-card dark:border-border rounded-lg p-6 sm:p-8">
                 <div className="mb-4">{item.icon}</div>
                 <h3 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-foreground dark:text-card-foreground mb-3">{item.title}</h3>
                 <p className="text-gray-600 dark:text-muted-foreground text-sm sm:text-base leading-relaxed">{item.description}</p>
@@ -345,7 +351,7 @@ export default function Home() {
         <div className="max-w-6xl mx-auto">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-12 gap-4">
             <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 dark:text-foreground">Featured Services</h2>
-            <Link href="/auth/sign-up" className="text-[#28A745] font-semibold hover:underline text-sm sm:text-base">
+            <Link href="/services" className="text-[#28A745] font-semibold hover:underline text-sm sm:text-base">
               View All Services →
             </Link>
           </div>
@@ -357,9 +363,10 @@ export default function Home() {
               const showFee = feeLabel != null && feeLabel !== NOT_SPECIFIED
 
               return (
-                <div
+                <Link
                   key={service.slug}
-                  className="group flex flex-col bg-white dark:bg-card border border-gray-100 dark:border-border rounded-lg p-4 sm:p-5 shadow-sm hover:shadow-md transition"
+                  href="/services"
+                  className="group flex flex-col bg-white dark:bg-card border border-gray-100 dark:border-border rounded-lg p-4 sm:p-5 shadow-sm hover:shadow-md hover:border-[#28A745]/40 transition"
                 >
                   <div className="flex items-start justify-between gap-2 mb-4">
                     <div className="w-11 h-11 shrink-0 rounded-lg bg-linear-to-br from-[#28A745]/10 to-[#28A745]/5 flex items-center justify-center text-[#28A745]">
@@ -375,13 +382,20 @@ export default function Home() {
                   <p className="text-xs sm:text-sm text-gray-600 dark:text-muted-foreground leading-relaxed grow line-clamp-3">
                     {service.description || 'No description available'}
                   </p>
-                  {showFee && (
-                    <span className="mt-4 inline-flex items-center gap-1 self-start rounded-md border border-gray-200 dark:border-border px-2 py-0.5 text-[11px] font-medium text-gray-700 dark:text-muted-foreground">
-                      <PhilippinePeso className="h-3 w-3" aria-hidden="true" />
-                      {feeLabel}
+                  <div className="mt-4 flex flex-wrap items-center gap-2">
+                    {showFee && (
+                      <span className="inline-flex items-center gap-1 rounded-md border border-gray-200 dark:border-border px-2 py-0.5 text-[11px] font-medium text-gray-700 dark:text-muted-foreground">
+                        <PhilippinePeso className="h-3 w-3" aria-hidden="true" />
+                        {feeLabel}
+                      </span>
+                    )}
+                    {/* Makes the card's click target explicit rather than relying on
+                        the hover shadow alone to imply it. */}
+                    <span className="ml-auto text-[11px] font-medium text-[#28A745] opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
+                      View details →
                     </span>
-                  )}
-                </div>
+                  </div>
+                </Link>
               )
             })}
           </div>
@@ -390,7 +404,7 @@ export default function Home() {
 
       {/* Latest News — hidden until real announcements load */}
       {newsItems.length > 0 && (
-        <section className="py-16 sm:py-24 px-4 sm:px-6 bg-white dark:bg-card dark:bg-background">
+        <section id="news" className="scroll-mt-20 py-16 sm:py-24 px-4 sm:px-6 bg-white dark:bg-background">
           <div className="max-w-6xl mx-auto">
             <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 dark:text-foreground mb-12">Latest News & Announcements</h2>
 
@@ -401,8 +415,8 @@ export default function Home() {
                 return (
                   <Link
                     key={announcement.id}
-                    href={`/citizen/announcements/${announcement.id}`}
-                    className="group block bg-gray-100 dark:bg-muted dark:bg-card dark:border-border rounded-lg overflow-hidden hover:shadow-lg transition"
+                    href={`/announcements/${announcement.id}`}
+                    className="group block bg-gray-100 dark:bg-card dark:border-border rounded-lg overflow-hidden hover:shadow-lg transition"
                   >
                     <div className="relative h-32 sm:h-40 bg-linear-to-br from-[#001a4d] to-[#0d2d66]">
                       <div className="absolute inset-0 flex items-center justify-center" aria-hidden="true">
@@ -465,6 +479,7 @@ export default function Home() {
                 <li><Link href="/auth/login" className="hover:text-white">Login</Link></li>
                 <li><Link href="/auth/sign-up" className="hover:text-white">Sign Up</Link></li>
                 <li><Link href="/auth/forgot-password" className="hover:text-white">Forgot Password</Link></li>
+                <li><Link href="/services" className="hover:text-white">All Services</Link></li>
                 <li><Link href="/track" className="hover:text-white">Track a Submission</Link></li>
               </ul>
             </div>
