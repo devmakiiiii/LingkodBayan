@@ -10,12 +10,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { AlertCircle, ArrowLeft, CheckCircle2, Loader2, MapPin } from 'lucide-react'
 import Image from 'next/image'
 import Link from 'next/link'
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { BARANGAY_FULL_LABEL, BARANGAY_NAME, loginSchema } from '@/lib/schemas'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { BARANGAY_FULL_LABEL, BARANGAY_NAME, MIN_PASSWORD_LENGTH, loginSchema } from '@/lib/schemas'
 
 const TODAY = new Date().toISOString().split('T')[0]
-
-const linkClassName = 'font-semibold text-[#228039] hover:underline dark:text-[#4ADE80]'
 
 const inputClassName = (hasError?: boolean) =>
   hasError
@@ -33,6 +31,7 @@ type FieldErrors = Partial<
     | 'dateOfBirth'
     | 'email'
     | 'phone'
+    | 'nationalId'
     | 'password'
     | 'repeatPassword'
     | 'consent',
@@ -46,6 +45,7 @@ const FIELD_IDS: Record<string, string> = {
   dateOfBirth: 'date-of-birth',
   email: 'email',
   phone: 'phone',
+  nationalId: 'national-id',
   password: 'password',
   repeatPassword: 'repeat-password',
   consent: 'consent',
@@ -53,7 +53,7 @@ const FIELD_IDS: Record<string, string> = {
 
 const STEP_FIELDS: Record<Step, (keyof FieldErrors)[]> = {
   1: ['firstName', 'lastName', 'dateOfBirth', 'email'],
-  2: ['phone'],
+  2: ['phone', 'nationalId'],
   3: ['password', 'repeatPassword', 'consent'],
 }
 
@@ -86,7 +86,7 @@ function validateStep1(v: SignUpValues): FieldErrors {
   return errors
 }
 
-function validateStep2(v: SignUpValues): FieldErrors {
+function validateStep2(v: SignUpValues, nationalId: string): FieldErrors {
   const errors: FieldErrors = {}
   if (v.phone.trim()) {
     const digits = v.phone.replace(/\D/g, '')
@@ -94,6 +94,13 @@ function validateStep2(v: SignUpValues): FieldErrors {
       errors.phone = 'Enter a valid Philippine mobile number (e.g., 0917 123 4567)'
     }
   }
+
+  // Optional, but when supplied it must be a real number: the duplicate-identity
+  // check and the pre-registered match both rely on these digits.
+  if (nationalId.trim() && !/^\d{12}$|^\d{16}$/.test(nationalId.trim())) {
+    errors.nationalId = 'Enter the 12-digit number on your PhilSys card (or the 16-digit PhilSys number)'
+  }
+
   return errors
 }
 
@@ -171,16 +178,21 @@ export default function Page() {
   const matchResultRef = useRef<MatchResult | null>(null)
   const isCheckingMatchRef = useRef(false)
 
-  const values: SignUpValues = {
-    firstName,
-    lastName,
-    dateOfBirth,
-    email,
-    phone,
-    password,
-    repeatPassword,
-    consent,
-  }
+  // Memoized so the per-step validators below keep stable dependencies; a plain
+  // object literal here would make every validator a new function each render.
+  const values: SignUpValues = useMemo(
+    () => ({
+      firstName,
+      lastName,
+      dateOfBirth,
+      email,
+      phone,
+      password,
+      repeatPassword,
+      consent,
+    }),
+    [firstName, lastName, dateOfBirth, email, phone, password, repeatPassword, consent],
+  )
 
   const updateMatchResult = useCallback((result: MatchResult | null) => {
     matchResultRef.current = result
@@ -220,7 +232,8 @@ export default function Page() {
           firstName,
           lastName,
           middleName,
-          email,
+          // Trimmed so a stray trailing space cannot mismatch the stored record.
+          email: email.trim(),
           phone,
           address,
           barangay: BARANGAY_NAME,
@@ -268,14 +281,18 @@ export default function Page() {
 
   const validateCurrentStep = useCallback((): boolean => {
     const errors =
-      step === 1 ? validateStep1(values) : step === 2 ? validateStep2(values) : validateStep3(values)
+      step === 1
+        ? validateStep1(values)
+        : step === 2
+          ? validateStep2(values, nationalId)
+          : validateStep3(values)
     setFieldErrors(errors)
     if (Object.keys(errors).length > 0) {
       focusFirstError(errors)
       return false
     }
     return true
-  }, [step, values, focusFirstError])
+  }, [step, values, nationalId, focusFirstError])
 
   const goToStep = useCallback((next: Step) => {
     setFieldErrors({})
@@ -298,7 +315,11 @@ export default function Page() {
     e.preventDefault()
 
     // Re-validate every step so a user cannot reach submit with stale errors.
-    const allErrors = { ...validateStep1(values), ...validateStep2(values), ...validateStep3(values) }
+    const allErrors = {
+      ...validateStep1(values),
+      ...validateStep2(values, nationalId),
+      ...validateStep3(values),
+    }
     setFieldErrors(allErrors)
     if (Object.keys(allErrors).length > 0) {
       focusFirstError(allErrors)
@@ -310,7 +331,7 @@ export default function Page() {
 
     try {
       const formData = new FormData()
-      formData.append('email', email)
+      formData.append('email', email.trim())
       formData.append('password', password)
       formData.append('firstName', firstName)
       formData.append('lastName', lastName)
@@ -579,7 +600,7 @@ export default function Page() {
                     />
                     <FieldError id="email" message={fieldErrors.email} />
                     <p className="text-xs text-gray-500 dark:text-muted-foreground">
-                      We&apos;ll send a 6-digit code to this address to confirm it.
+                      We&apos;ll email you a verification code to confirm this address.
                     </p>
                   </div>
                 </div>
@@ -654,10 +675,16 @@ export default function Page() {
                       type="text"
                       placeholder="12-digit PhilSys number"
                       inputMode="numeric"
+                      maxLength={16}
                       value={nationalId}
-                      onChange={(e) => setNationalId(e.target.value)}
-                      className={inputClassName()}
+                      // Digits only: the duplicate-identity check and the
+                      // pre-registered match compare these characters.
+                      onChange={(e) => setNationalId(e.target.value.replace(/\D/g, '').slice(0, 16))}
+                      aria-invalid={!!fieldErrors.nationalId}
+                      aria-describedby={fieldErrors.nationalId ? 'national-id-error' : undefined}
+                      className={inputClassName(!!fieldErrors.nationalId)}
                     />
+                    <FieldError id="national-id" message={fieldErrors.nationalId} />
                     <p className="text-xs text-gray-500 dark:text-muted-foreground">
                       Providing your ID helps verify you faster against pre-registered records.
                     </p>
@@ -673,7 +700,7 @@ export default function Page() {
                         <SelectValue placeholder="Select ID type" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="philsys">PhilSys (Philhealth ID)</SelectItem>
+                        <SelectItem value="philsys">PhilSys ID (National ID)</SelectItem>
                         <SelectItem value="drivers_license">Driver&apos;s License</SelectItem>
                         <SelectItem value="voter">Voter&apos;s ID</SelectItem>
                         <SelectItem value="passport">Passport</SelectItem>
@@ -705,7 +732,9 @@ export default function Page() {
                     />
                     <FieldError id="password" message={fieldErrors.password} />
                     {!fieldErrors.password && (
-                      <p className="text-xs text-gray-500 dark:text-muted-foreground">Must be at least 6 characters.</p>
+                      <p className="text-xs text-gray-500 dark:text-muted-foreground">
+                        Must be at least {MIN_PASSWORD_LENGTH} characters.
+                      </p>
                     )}
                   </div>
 
@@ -752,8 +781,8 @@ export default function Page() {
                           htmlFor="consent"
                           className="cursor-pointer text-sm font-normal leading-relaxed text-gray-700 dark:text-gray-300"
                         >
-                          I consent to the collection and verification of my personal information — including my national
-                          ID — for identity verification under the Data Privacy Act of 2012.
+                          I consent to the collection and verification of my personal information — including any
+                          national ID I provide — for identity verification under the Data Privacy Act of 2012.
                         </Label>
                         <FieldError id="consent" message={fieldErrors.consent} />
                       </div>

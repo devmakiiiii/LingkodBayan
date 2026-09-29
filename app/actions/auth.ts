@@ -4,20 +4,24 @@ import { cookies } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
 import { getOrCreateResidentProfile } from '@/lib/residents'
 import { redirect } from 'next/navigation'
-import { BARANGAY_NAME, forgotPasswordSchema, resetPasswordSchema } from '@/lib/schemas'
+import { BARANGAY_NAME, forgotPasswordSchema, loginSchema, resetPasswordSchema } from '@/lib/schemas'
 import { durableRateLimit } from '@/lib/rate-limit-durable'
 import { headers } from 'next/headers'
 import { logger } from '@/lib/logger'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { findDuplicateResidentAccounts } from '@/lib/db'
+import { findDuplicateResidentAccounts, isEmailRegisteredToResident } from '@/lib/db'
+import { ZodError } from 'zod'
 
 const SIGNUP_COOKIE = 'signup_temp_data'
 const COOKIE_MAX_AGE = 300
 
 async function getEncryptionKey(): Promise<CryptoKey> {
-  const secret = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  // Server-only secret, and no fallback: the sign-up cookie carries the account
+  // password, so deriving the AES key from the public anon key would make the
+  // ciphertext readable by anyone who holds the cookie.
+  const secret = process.env.SUPABASE_SERVICE_ROLE_KEY
   if (!secret) {
-    throw new Error('Missing Supabase key material for encrypting temporary signup data.')
+    throw new Error('Missing SUPABASE_SERVICE_ROLE_KEY: temporary sign-up data cannot be encrypted.')
   }
   // Derive a uniformly distributed 256-bit key from the secret instead of
   // truncating it, so the AES key does not inherit the secret's byte layout.
@@ -58,7 +62,9 @@ async function decryptData(encrypted: string): Promise<string | null> {
 }
 
 export async function requestSignUpOtp(formData: FormData) {
-  const email = formData.get('email') as string
+  // Trimmed server-side too: the form trims before posting, but the action is a
+  // public endpoint and must not mint an account for " juan@example.com ".
+  const email = ((formData.get('email') as string | null) ?? '').trim()
   const password = formData.get('password') as string
   const firstName = formData.get('firstName') as string
   const lastName = formData.get('lastName') as string
@@ -72,6 +78,24 @@ export async function requestSignUpOtp(formData: FormData) {
   const nationalId = formData.get('nationalId') as string
   const idType = formData.get('idType') as string
   const verificationAction = formData.get('verificationAction') as string
+
+  // Credential gate on the server: the wizard validates these client-side, but
+  // this action is a public endpoint and must enforce the same rules itself.
+  const credentials = loginSchema.safeParse({ email, password })
+  if (!credentials.success) {
+    return { error: credentials.error.issues[0]?.message ?? 'Enter a valid email address and password.' }
+  }
+
+  // Fail closed: this action needs the service-role key both for the identity
+  // checks below and for encrypting the temporary sign-up cookie.
+  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    logger.error('Sign-up unavailable: SUPABASE_SERVICE_ROLE_KEY is not configured', undefined, {
+      context: 'auth',
+    })
+    return {
+      error: 'Sign-up is temporarily unavailable. Please try again later or contact the barangay office.',
+    }
+  }
 
   // Durable limit: cap OTP emails per address so this endpoint cannot be used
   // to spam residents or exhaust the Supabase auth email quota. Enforced in
@@ -97,6 +121,22 @@ export async function requestSignUpOtp(formData: FormData) {
   // sign-up continues.
   try {
     const adminClient = createAdminClient()
+
+    // Returning residents must sign in rather than walk through sign-up: Supabase
+    // never reports "already registered" for `signInWithOtp`, so without this the
+    // flow would re-issue a code for the account they already own and then
+    // overwrite its password.
+    if (await isEmailRegisteredToResident(email, adminClient)) {
+      logger.warn('Sign-up blocked: email already belongs to a registered resident', {
+        context: 'auth',
+        email,
+      })
+      return {
+        error:
+          'An account with this email already exists. Please sign in instead, or use "Forgot password?" if you cannot remember your password.',
+      }
+    }
+
     const duplicates = await findDuplicateResidentAccounts(
       {
         email,
@@ -140,6 +180,8 @@ export async function requestSignUpOtp(formData: FormData) {
         date_of_birth: dateOfBirth || undefined,
         national_id: nationalId || undefined,
         id_type: idType,
+        // Informational only. Authorization reads `app_metadata.role`, because
+        // user metadata (this object) is writable by the account holder.
         role: 'citizen',
         verification_action: verificationAction || 'no_match',
       },
@@ -171,8 +213,26 @@ export async function requestSignUpOtp(formData: FormData) {
 }
 
 export async function completeSignUpVerification(formData: FormData) {
-  const email = formData.get('email') as string
-  const code = formData.get('code') as string
+  const email = ((formData.get('email') as string | null) ?? '').trim()
+  const code = ((formData.get('code') as string | null) ?? '').trim()
+
+  if (!email || !code) {
+    return { error: 'Enter the verification code we emailed you.' }
+  }
+
+  // Durable limit: a short numeric code is guessable at volume, so cap attempts
+  // per address in Postgres (falls back to in-memory if the migration is
+  // missing). Every attempt counts, matching the password-reset limiter.
+  const verifyRateLimit = await durableRateLimit(`signup-verify:${email.toLowerCase()}`, {
+    intervalMs: 10 * 60 * 1000,
+    limit: 10,
+  })
+  if (!verifyRateLimit.allowed) {
+    return {
+      error:
+        'Too many verification attempts for this email. Please wait 10 minutes and try again, or contact the barangay office for help.',
+    }
+  }
 
   const cookieStore = await cookies()
   const cookie = cookieStore.get(SIGNUP_COOKIE)?.value
@@ -186,7 +246,29 @@ export async function completeSignUpVerification(formData: FormData) {
     return { error: 'Invalid sign-up session. Please try again.' }
   }
 
-  const signupData = JSON.parse(decrypted)
+  const signupData = JSON.parse(decrypted) as {
+    email?: string
+    password?: string
+    verificationAction?: string
+    nationalId?: string
+  }
+
+  // The temporary password rides in the cookie for the address that started the
+  // sign-up, so refuse to apply it to a different address than the one posted.
+  if (
+    typeof signupData.email !== 'string' ||
+    signupData.email.trim().toLowerCase() !== email.toLowerCase()
+  ) {
+    return {
+      error:
+        'This code was requested from a different sign-up session. Please start again from the sign-up page.',
+    }
+  }
+
+  if (typeof signupData.password !== 'string' || !signupData.password) {
+    return { error: 'Sign-up session expired. Please try again.' }
+  }
+
   const supabase = await createClient()
 
   const { data, error } = await supabase.auth.verifyOtp({
@@ -209,7 +291,24 @@ export async function completeSignUpVerification(formData: FormData) {
 }
 
 export async function resendSignUpOtp(formData: FormData) {
-  const email = formData.get('email') as string
+  const email = ((formData.get('email') as string | null) ?? '').trim()
+
+  if (!email) {
+    return { error: 'Enter the email address you signed up with.' }
+  }
+
+  // The verify screen only disables the resend button for 30 seconds, which is
+  // trivially bypassed, so cap resends per address on the server too.
+  const resendRateLimit = await durableRateLimit(`signup-otp-resend:${email.toLowerCase()}`, {
+    intervalMs: 10 * 60 * 1000,
+    limit: 5,
+  })
+  if (!resendRateLimit.allowed) {
+    return {
+      error:
+        'Too many verification codes were requested for this email. Please wait 10 minutes before trying again, or contact the barangay office for help.',
+    }
+  }
 
   const supabase = await createClient()
 
@@ -228,7 +327,7 @@ export async function resendSignUpOtp(formData: FormData) {
 }
 
 export async function requestPasswordReset(formData: FormData) {
-  const email = formData.get('email') as string
+  const email = ((formData.get('email') as string | null) ?? '').trim()
 
   try {
     const validated = forgotPasswordSchema.parse({ email })
@@ -262,8 +361,8 @@ export async function requestPasswordReset(formData: FormData) {
     logger.info('Password reset email sent', { context: 'auth', email: validated.email })
     return { success: true, message: 'If an account exists with this email, a password reset link has been sent.' }
   } catch (error: unknown) {
-    if (error && typeof error === 'object' && 'name' in error && (error as any).name === 'ZodError') {
-      return { error: (error as any).errors[0]?.message || 'Invalid email address' }
+    if (error instanceof ZodError) {
+      return { error: error.issues[0]?.message || 'Invalid email address' }
     }
     logger.error('Password reset request error', error, { context: 'auth' })
     return { error: 'Failed to process password reset request.' }
@@ -297,8 +396,8 @@ export async function resetPassword(formData: FormData) {
     logger.info('Password reset successful', { context: 'auth', userId: user.id })
     return { success: true, message: 'Your password has been reset successfully.' }
   } catch (error: unknown) {
-    if (error && typeof error === 'object' && 'name' in error && (error as any).name === 'ZodError') {
-      return { error: (error as any).errors[0]?.message || 'Invalid password' }
+    if (error instanceof ZodError) {
+      return { error: error.issues[0]?.message || 'Invalid password' }
     }
     logger.error('Password reset error', error, { context: 'auth' })
     return { error: 'Failed to reset password.' }

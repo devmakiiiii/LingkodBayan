@@ -129,6 +129,18 @@ scripts/
    commented verification query at the end of the file to confirm no admin lost
    its `role`.
 
+   **Migration 39 is a security fix and must be applied too.** It stops
+   `public.is_admin_user()` — the function every admin RLS policy calls — from
+   accepting a role out of `user_metadata`, which is writable by the signed-in
+   account itself (`supabase.auth.updateUser({ data: { role: 'admin' } })`). Until
+   it is applied, a resident can forge an admin claim and read or write admin-only
+   tables through the browser client, even though `lib/roles.ts` already refuses
+   that claim for middleware and the `/api/admin/*` handlers. The file first
+   backfills `app_metadata.role` for admins that only ever had the role in
+   `user_metadata`, then replaces both `is_admin_user()` and
+   `is_super_admin_user()`. It is idempotent; run the commented verification
+   queries at the end to confirm no admin lost access.
+
 4. Start the development server:
 
    ```bash
@@ -147,6 +159,27 @@ The app relies on the following environment variables:
 - `SEMAPHORE_SENDERNAME` - (optional) SMS sender name, defaults to "LingkodBayan"
 
 If you deploy on Vercel, add the same values in the project environment settings.
+
+### Authorization roles
+
+Role checks read `app_metadata.role` only, through the shared resolver in
+`lib/roles.ts` (used by `middleware.ts`, `lib/auth.ts`, `lib/admin-auth.ts`, and
+the `/api/admin/*` handlers). `user_metadata.role` is writable by the signed-in
+account holder through `supabase.auth.updateUser()`, so it is never trusted for
+authorization — a resident cannot promote themselves by editing it. Provision
+admins with `node scripts/setup_admin_account.js` or by setting
+`role: 'admin'` in **Raw App Meta Data** in the Supabase dashboard.
+
+The database side of that rule lives in `public.is_admin_user()`, which every
+admin RLS policy calls. Apply migration `39_harden_admin_authorization.sql` so
+the SQL function also ignores `user_metadata`; without it, the browser client
+(which talks to PostgREST directly, not through `lib/roles.ts`) would still act
+on a forged claim.
+
+Sign-up also refuses an email that already belongs to a registered resident
+(`isEmailRegisteredToResident` in `lib/db.ts`), because Supabase's
+`signInWithOtp` silently signs an existing account in rather than reporting
+"already registered".
 
 ## Database Setup
 

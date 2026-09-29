@@ -77,8 +77,8 @@ The following environment variables are automatically configured by Supabase:
 2. Middleware checks role and redirects to `/citizen/dashboard`
 
 **Admin Access:**
-1. Currently, admin accounts must be created directly in Supabase
-2. Set `role: 'admin'` in user metadata
+1. Admin accounts must be provisioned with the service-role key: run `node scripts/setup_admin_account.js`, which sets `app_metadata.role` (and the informational `user_metadata.role`) for the account
+2. If you create the user by hand instead, put `role: 'admin'` in **Raw App Meta Data** (`app_metadata`). `user_metadata.role` is writable by the signed-in account holder and is deliberately ignored by every authorization check
 3. Create corresponding `admin_users` profile
 4. Login redirects admin to `/admin/dashboard`
 
@@ -190,14 +190,16 @@ To create an admin user:
 1. Go to your Supabase project dashboard
 2. Navigate to Authentication → Users
 3. Create a new user with their email and password
-4. Edit user metadata and add:
+4. Edit the user's **Raw App Meta Data** (`app_metadata`, not user metadata) and add:
    ```json
    {
-     "first_name": "John",
-     "last_name": "Doe",
      "role": "admin"
    }
    ```
+   `app_metadata` is the only role source the app trusts. `user_metadata` can be
+   rewritten by the signed-in account holder, so a `role: "admin"` there is
+   ignored on purpose. The service-role script `scripts/setup_admin_account.js`
+   does this step (and the `admin_users` insert below) for you.
 5. Go to SQL Editor and insert admin profile:
    ```sql
    INSERT INTO admin_users (user_id, first_name, last_name, email, role)
@@ -237,7 +239,7 @@ After setting up the database:
 
 **Test Admin Account:**
 1. Create via Supabase dashboard
-2. Set role to 'admin' in metadata
+2. Set `role` to `'admin'` in **app metadata** (`app_metadata`)
 
 ## Troubleshooting
 
@@ -250,8 +252,9 @@ After setting up the database:
 - Verify the 6-digit OTP was entered correctly and that the Supabase signup email template uses `{{ .Token }}`
 
 **Admin redirect not working:**
-- Confirm `role: 'admin'` is set in user metadata
-- Check middleware.ts routing logic
+- Confirm `role: 'admin'` is set in **app metadata** (`app_metadata` → "Raw App Meta Data"), not in user metadata
+- The role checks read `app_metadata.role` only: `user_metadata.role` is writable by the account holder and is intentionally ignored
+- Check `middleware.ts` routing logic (and `lib/roles.ts`, the shared resolver)
 
 **Database connection issues:**
 - Verify Supabase credentials in .env.local

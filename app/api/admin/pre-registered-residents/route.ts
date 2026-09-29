@@ -5,6 +5,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { verifyRequest } from '@/lib/request-security'
 import { logAuditAction } from '@/lib/audit-log'
 import { logger } from '@/lib/logger'
+import { isAdminUser } from '@/lib/roles'
 import { BARANGAY_CITY, BARANGAY_DISPLAY_NAME, BARANGAY_PROVINCE, canonicalBarangayName } from '@/lib/schemas'
 
 function stripBom(text: string): string {
@@ -163,14 +164,7 @@ export async function GET(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser()
 
-  const isAdmin = !!user && (
-    user.user_metadata?.role === 'admin' ||
-    user.user_metadata?.role === 'super_admin' ||
-    user.app_metadata?.role === 'admin' ||
-    user.app_metadata?.role === 'super_admin'
-  )
-
-  if (!isAdmin) {
+  if (!user || !isAdminUser(user)) {
     return NextResponse.json({ error: 'Admin access required.' }, { status: 403 })
   }
 
@@ -211,14 +205,7 @@ export async function POST(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser()
 
-  const isAdmin = !!user && (
-    user.user_metadata?.role === 'admin' ||
-    user.user_metadata?.role === 'super_admin' ||
-    user.app_metadata?.role === 'admin' ||
-    user.app_metadata?.role === 'super_admin'
-  )
-
-  if (!isAdmin) {
+  if (!user || !isAdminUser(user)) {
     return NextResponse.json({ error: 'Admin access required.' }, { status: 403 })
   }
 

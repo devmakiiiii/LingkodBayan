@@ -4,18 +4,10 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { resetPassword } from '@/app/actions/auth'
 import { Button } from '@/components/ui/button'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
 import { PasswordInput } from '@/components/ui/password-input'
 import { Label } from '@/components/ui/label'
 import Image from 'next/image'
-import Link from 'next/link'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 
 export default function ResetPasswordPage() {
   const [password, setPassword] = useState('')
@@ -26,7 +18,6 @@ export default function ResetPasswordPage() {
   const [hasSession, setHasSession] = useState(false)
   const [isCheckingSession, setIsCheckingSession] = useState(true)
   const router = useRouter()
-  const searchParams = useSearchParams()
 
   useEffect(() => {
     const checkSession = async () => {

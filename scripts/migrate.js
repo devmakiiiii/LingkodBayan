@@ -127,6 +127,21 @@ const sql = readMigrationScript()
   + '--- Migration 34: Single-Barangay Deployment (Barangay Barretto) ---\n'
   + readMigrationFile('34_single_barangay_barretto.sql')
   + '\n'
+  + '--- Migration 35: Durable OCR Job Store ---\n'
+  + readMigrationFile('35_durable_ocr_jobs.sql')
+  + '\n'
+  + '--- Migration 36: Verification Gate on Request Filing ---\n'
+  + readMigrationFile('36_verification_gate_requests.sql')
+  + '\n'
+  + '--- Migration 37: Backfill Verification Claim ---\n'
+  + readMigrationFile('37_backfill_verification_claim.sql')
+  + '\n'
+  + '--- Migration 38: Fix Proxy Party Names ---\n'
+  + readMigrationFile('38_fix_proxy_party_names.sql')
+  + '\n'
+  + '--- Migration 39: Harden Admin Authorization (drop user_metadata trust) ---\n'
+  + readMigrationFile('39_harden_admin_authorization.sql')
+  + '\n'
   + '--- Finalize Complaints Schema ---\n'
   + readMigrationFile('finalize_complaints_schema.sql');
 console.log(sql);

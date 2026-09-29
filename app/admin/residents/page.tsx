@@ -1,7 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
-import useSWR from 'swr'
+import React, { useCallback, useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -92,36 +91,68 @@ const ResidentCard = React.memo(function ResidentCard({ resident }: { resident: 
 })
 
 export default function AdminResidentsPage() {
-  const { data, error, isLoading, mutate } = useSWR<{ data: Resident[]; count: number }>(
-    'admin-residents',
-    async () => {
-      const supabase = createClient()
-      const from = 0
-      const to = PAGE_SIZE - 1
+  const [residents, setResidents] = useState<Resident[]>([])
+  const [totalCount, setTotalCount] = useState(0)
+  const [page, setPage] = useState(0)
+  const [isLoading, setIsLoading] = useState(true)
+  const [isLoadingMore, setIsLoadingMore] = useState(false)
+  const [error, setError] = useState<Error | null>(null)
 
-      const { data, error, count } = await supabase
+  /**
+   * Loads one page of residents. `append` separates "Load More" (keep the rows
+   * already on screen) from a first load / retry (replace them).
+   *
+   * Previously the fetcher was pinned to `range(0, PAGE_SIZE - 1)` and Load More
+   * only called `mutate()`, so the button re-rendered the same first page and
+   * residents past the twentieth were unreachable.
+   */
+  const loadResidents = useCallback(async (pageIndex: number, append: boolean) => {
+    if (append) {
+      setIsLoadingMore(true)
+    } else {
+      setIsLoading(true)
+    }
+
+    try {
+      setError(null)
+
+      const supabase = createClient()
+      const from = pageIndex * PAGE_SIZE
+      const to = from + PAGE_SIZE - 1
+
+      const { data, error: queryError, count } = await supabase
         .from('residents')
         .select('*', { count: 'exact' })
         .range(from, to)
         .order('created_at', { ascending: false })
 
-      if (error) {
-        throw new Error(error.message || 'Failed to load residents')
+      if (queryError) {
+        throw new Error(queryError.message || 'Failed to load residents')
       }
 
-      return {
-        data: (data || []) as Resident[],
-        count: count ?? 0,
-      }
-    },
-    {
-      revalidateOnFocus: false,
-      dedupingInterval: 10000,
-    },
-  )
+      const pageRows = (data || []) as Resident[]
+      setTotalCount(count ?? 0)
+      setResidents((current) => (append ? [...current, ...pageRows] : pageRows))
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError : new Error('Failed to load residents'))
+      if (!append) setResidents([])
+    } finally {
+      setIsLoading(false)
+      setIsLoadingMore(false)
+    }
+  }, [])
 
-  const residents = data?.data ?? []
-  const totalCount = data?.count ?? 0
+  useEffect(() => {
+    loadResidents(0, false)
+  }, [loadResidents])
+
+  const hasMore = residents.length < totalCount
+
+  function loadMore() {
+    const nextPage = page + 1
+    setPage(nextPage)
+    loadResidents(nextPage, true)
+  }
 
   return (
     <div className="space-y-8 p-8">
@@ -160,7 +191,7 @@ export default function AdminResidentsPage() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => mutate()}
+            onClick={() => loadResidents(page, false)}
             className="mt-3 border-red-300 text-red-700 hover:bg-red-50"
           >
             Retry
@@ -176,14 +207,15 @@ export default function AdminResidentsPage() {
             ))}
           </div>
 
-          {residents.length >= PAGE_SIZE && (
+          {hasMore && (
             <div className="flex justify-center">
               <Button
                 variant="outline"
-                onClick={() => mutate()}
+                onClick={loadMore}
+                disabled={isLoadingMore}
                 className="border-emerald-200 text-emerald-700 hover:bg-emerald-50"
               >
-                Load More
+                {isLoadingMore ? 'Loading…' : 'Load More'}
               </Button>
             </div>
           )}

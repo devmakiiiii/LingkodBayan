@@ -63,14 +63,16 @@ To create an admin account, you need to manually set it up in Supabase:
 1. Go to Supabase Dashboard → Authentication → Users
 2. Create a new user with any email (e.g., admin@example.com)
 3. Go to the "User Details" for that user
-4. In the "Raw User Meta Data" section, add:
+4. In the **"Raw App Meta Data"** section, add:
    ```json
    {
-     "role": "admin",
-     "first_name": "Admin",
-     "last_name": "User"
+     "role": "admin"
    }
    ```
+   Role checks read `app_metadata` only. `user_metadata` (the "Raw User Meta
+   Data" section) can be rewritten by the account holder from the browser, so a
+   `role` there is ignored — that is what stops a resident from promoting
+   themselves to admin. `scripts/setup_admin_account.js` sets this for you.
 5. Sign in with that email
 6. You'll be redirected to the admin dashboard where you can:
    - View all submissions
@@ -160,9 +162,9 @@ The app requires these environment variables (set automatically by Vercel):
 - Check browser console for detailed error messages
 
 ### Role-based redirect not working
-- Make sure you set the `role` metadata correctly for admin users
-- Middleware redirects based on `user.user_metadata.role`
-- Citizens have `role: "citizen"`, Admins have `role: "admin"`
+- Make sure `role: "admin"` is set in **app metadata** (`app_metadata`) for admin users
+- Middleware resolves the role through `lib/roles.ts`, which reads `app_metadata.role` only — `user_metadata.role` is user-writable and intentionally ignored
+- Citizens have no explicit role (treated as `citizen`), Admins have `role: "admin"` or `"super_admin"`
 
 ## Next Steps
 

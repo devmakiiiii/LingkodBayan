@@ -3,6 +3,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { createCsrfToken, setCsrfCookie } from '@/lib/csrf'
 import { verifyRequest } from '@/lib/request-security'
 import { logger } from '@/lib/logger'
+import { getUserRole, isAdminRole } from '@/lib/roles'
 
 function hasSupabaseConfig() {
   return Boolean(
@@ -39,17 +40,21 @@ export async function middleware(request: NextRequest) {
   }
 
   if (user) {
-    const userRole = user.user_metadata?.role || user.app_metadata?.role || 'citizen'
+    // app_metadata only: `user_metadata.role` is writable by the account holder.
+    const userRole = getUserRole(user) ?? 'citizen'
 
-    if (pathname.startsWith('/citizen') && (userRole === 'admin' || userRole === 'super_admin')) {
+    if (pathname.startsWith('/citizen') && isAdminRole(userRole)) {
       const url = request.nextUrl.clone()
-      url.pathname = '/admin'
+      // Must be a real route: there is no app/citizen/page.tsx or
+      // app/admin/page.tsx index, so redirecting to '/admin' or '/citizen'
+      // lands on a 404. Both portals expose a dashboard as their entry point.
+      url.pathname = '/admin/dashboard'
       return NextResponse.redirect(url)
     }
 
-    if (pathname.startsWith('/admin') && userRole !== 'admin' && userRole !== 'super_admin') {
+    if (pathname.startsWith('/admin') && !isAdminRole(userRole)) {
       const url = request.nextUrl.clone()
-      url.pathname = '/citizen'
+      url.pathname = '/citizen/dashboard'
       return NextResponse.redirect(url)
     }
 
@@ -100,6 +105,11 @@ export async function middleware(request: NextRequest) {
   } else if (pathname.startsWith('/citizen') || pathname.startsWith('/admin')) {
     const url = request.nextUrl.clone()
     url.pathname = '/auth/login'
+    // Remember where the resident was headed so the sign-in form can send them
+    // straight there instead of always dropping them on a dashboard. Only the
+    // path is carried, and the sign-in form re-validates it before redirecting.
+    url.search = ''
+    url.searchParams.set('next', `${pathname}${request.nextUrl.search}`)
     return NextResponse.redirect(url)
   }
 

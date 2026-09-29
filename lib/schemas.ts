@@ -8,9 +8,18 @@ import { BARANGAY_FULL_LABEL, BARANGAY_NAME } from './barangay.ts'
 // re-exported here so `@/lib/schemas` keeps working for existing callers.
 export * from './barangay.ts'
 
+// Minimum password length for every account-creating or password-changing path.
+// Shared so the sign-up wizard, the reset form, and the server actions cannot
+// drift apart. Supabase's own project minimum is lower, so this is the binding
+// rule; keeping it in one place makes the error copy consistent too.
+export const MIN_PASSWORD_LENGTH = 8
+const passwordField = z
+  .string()
+  .min(MIN_PASSWORD_LENGTH, `Password must be at least ${MIN_PASSWORD_LENGTH} characters`)
+
 export const loginSchema = z.object({
   email: z.string().email('Invalid email address'),
-  password: z.string().min(6, 'Password must be at least 6 characters'),
+  password: passwordField,
 })
 
 // Only Barangay Barretto is accepted; anything else is rejected so stray
@@ -21,8 +30,8 @@ export const signUpBarangaySchema = z.literal(BARANGAY_NAME, {
 
 export const signUpSchema = z.object({
   email: z.string().email('Invalid email address'),
-  password: z.string().min(6, 'Password must be at least 6 characters'),
-  confirmPassword: z.string().min(6, 'Password must be at least 6 characters'),
+  password: passwordField,
+  confirmPassword: passwordField,
   firstName: z.string().min(2, 'First name is required'),
   lastName: z.string().min(2, 'Last name is required'),
   barangay: signUpBarangaySchema,
@@ -113,8 +122,8 @@ export const forgotPasswordSchema = z.object({
 })
 
 export const resetPasswordSchema = z.object({
-  password: z.string().min(6, 'Password must be at least 6 characters'),
-  confirmPassword: z.string().min(6, 'Password must be at least 6 characters'),
+  password: passwordField,
+  confirmPassword: passwordField,
 }).refine((data) => data.password === data.confirmPassword, {
   message: "Passwords don't match",
   path: ['confirmPassword'],

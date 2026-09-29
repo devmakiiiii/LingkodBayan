@@ -24,6 +24,15 @@
 
 DROP POLICY IF EXISTS "Residents can create requests" ON public.requests;
 
+-- Also drop this migration's own policy. Without it the script only works on a
+-- database that has never run migration 36: Postgres raises
+--   ERROR: 42710: policy "Verified residents can create requests" already exists
+-- on a second run, because the DROP above targets the *old* policy name. Since
+-- migrate.js replays every migration, that made the whole batch abort partway
+-- through — leaving migrations 37-39 (including the admin authorization
+-- hardening) unapplied. Idempotent: safe to run any number of times.
+DROP POLICY IF EXISTS "Verified residents can create requests" ON public.requests;
+
 CREATE POLICY "Verified residents can create requests" ON public.requests
   FOR INSERT WITH CHECK (
     resident_id IN (

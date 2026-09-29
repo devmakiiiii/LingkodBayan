@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label'
 import { ArrowLeft, CheckCircle2, Loader2 } from 'lucide-react'
 import Image from 'next/image'
 import { LocaleToggle } from '@/components/citizen/locale-toggle'
+import { getUserRole, isAdminRole } from '@/lib/roles'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Suspense, useState } from 'react'
@@ -36,9 +37,22 @@ function friendlyLoginError(message: string): string {
   return message
 }
 
+/**
+ * Only same-origin, relative paths are honoured for `?next=`, so a crafted
+ * sign-in link cannot turn the form into an open redirect.
+ */
+function safeRedirectTarget(value: string | null): string | null {
+  if (!value) return null
+  if (!value.startsWith('/') || value.startsWith('//')) return null
+  // Backslashes are normalised to slashes by some browsers, so reject them.
+  if (value.includes('\\')) return null
+  return value
+}
+
 function SignInForm() {
   const searchParams = useSearchParams()
   const resetPasswordSuccess = searchParams.get('reset') === 'success'
+  const nextTarget = safeRedirectTarget(searchParams.get('next'))
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -58,38 +72,45 @@ function SignInForm() {
     setIsLoading(true)
     setError(null)
 
+    // Supabase treats the address literally, so trim it: a pasted address with a
+    // trailing space would otherwise fail as "invalid login credentials".
+    const trimmedEmail = email.trim()
+
     try {
       const { error } = await supabase.auth.signInWithPassword({
-        email,
+        email: trimmedEmail,
         password,
       })
       if (error) throw error
 
-      // Check user role and redirect accordingly
+      // Role is resolved from app_metadata only — user_metadata is writable by
+      // the account holder, so it cannot be trusted for routing/authorization.
       const { data: { user } } = await supabase.auth.getUser()
-      const role = user?.user_metadata?.role || user?.app_metadata?.role
-      const target = role === 'admin' || role === 'super_admin' ? '/admin/dashboard' : '/citizen/dashboard'
+      const target = isAdminRole(getUserRole(user)) ? '/admin/dashboard' : '/citizen/dashboard'
+      // Prefer the page they were originally bounced from (middleware adds
+      // ?next=); middleware re-checks their role for that destination.
       // Keep the button disabled until navigation finishes so the form cannot be
       // resubmitted, and use replace so Back does not return to the login form.
-      router.replace(target)
+      router.replace(nextTarget ?? target)
     } catch (error: unknown) {
-      const err = error as any
+      const err = error as { message?: unknown; status?: unknown; code?: unknown; name?: unknown }
+      const message = typeof err?.message === 'string' ? err.message : ''
 
-      // Check for rate limit error (429) - check multiple possible properties
-      const isRateLimited = err?.status === 429 ||
-                            err?.code === '429' ||
-                            err?.code === 'rate_limit_exceeded' ||
-                            (typeof err?.message === 'string' && err.message.includes('Too Many Requests')) ||
-                            (typeof err?.message === 'string' && err.message.includes('rate_limit')) ||
-                            err?.name === 'RateLimitError'
+      // Supabase surfaces throttling as 429 or "rate limit exceeded"; its
+      // AuthApiError carries no retry-after header, so the wait time cannot be
+      // read from the response and the guidance stays generic.
+      const isRateLimited =
+        err?.status === 429 ||
+        err?.code === '429' ||
+        err?.code === 'rate_limit_exceeded' ||
+        err?.name === 'RateLimitError' ||
+        /too many requests|rate.?limit/i.test(message)
 
-      if (isRateLimited) {
-        const retryAfterHeader = err?.headers?.['retry-after'] || err?.headers?.['Retry-After']
-        const retrySeconds = retryAfterHeader ? parseInt(retryAfterHeader, 10) : 30
-        setError(`Too many attempts. Please wait ${retrySeconds} seconds before trying again.`)
-      } else {
-        setError(friendlyLoginError(typeof err?.message === 'string' ? err.message : ''))
-      }
+      setError(
+        isRateLimited
+          ? 'Too many sign-in attempts. Please wait a few minutes before trying again.'
+          : friendlyLoginError(message),
+      )
       setIsLoading(false)
     }
   }

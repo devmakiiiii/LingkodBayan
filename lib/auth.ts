@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { NextRequest, NextResponse } from 'next/server'
 import { logger } from '@/lib/logger'
+import { getUserRole, isAdminRole, isAdminUser } from '@/lib/roles'
 
 export async function getAuthenticatedUser(request: NextRequest) {
   try {
@@ -34,9 +35,9 @@ export async function getAdminUser(request: NextRequest) {
       return { user: null, error: error?.message || 'Unauthorized' }
     }
 
-    const role = user.user_metadata?.role || user.app_metadata?.role
+    const role = getUserRole(user)
 
-    if (role !== 'admin' && role !== 'super_admin') {
+    if (!isAdminRole(role)) {
       return { user: null, error: 'Forbidden' }
     }
 
@@ -76,10 +77,9 @@ export async function getResidentId(request: NextRequest): Promise<{ residentId:
   }
 }
 
-export function isAdmin(user: { user_metadata?: Record<string, unknown>; app_metadata?: Record<string, unknown> } | null): boolean {
-  if (!user) return false
-  const role = user.user_metadata?.role || user.app_metadata?.role
-  return role === 'admin' || role === 'super_admin'
+/** Role guard for server components. Only `app_metadata` is trusted. */
+export function isAdmin(user: { app_metadata?: Record<string, unknown> | null } | null): boolean {
+  return isAdminUser(user)
 }
 
 export function unauthorizedResponse(message = 'Unauthorized') {

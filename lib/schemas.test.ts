@@ -20,6 +20,9 @@ import {
   BARANGAY_PROVINCE,
   canonicalBarangayName,
   isInServiceArea,
+  loginSchema,
+  MIN_PASSWORD_LENGTH,
+  resetPasswordSchema,
   signUpBarangaySchema,
   signUpSchema,
 } from './schemas.ts'
@@ -117,5 +120,50 @@ describe('signUpBarangaySchema', () => {
 
     assert.equal(signUpSchema.safeParse({ ...base, barangay: BARANGAY_NAME }).success, true)
     assert.equal(signUpSchema.safeParse({ ...base, barangay: 'Gordon Heights' }).success, false)
+  })
+})
+
+describe('password policy', () => {
+  it('requires the shared minimum length for sign-in and account creation', () => {
+    assert.equal(MIN_PASSWORD_LENGTH, 8)
+
+    const tooShort = 'a'.repeat(MIN_PASSWORD_LENGTH - 1)
+    const justEnough = 'a'.repeat(MIN_PASSWORD_LENGTH)
+
+    assert.equal(loginSchema.safeParse({ email: 'juan@example.com', password: tooShort }).success, false)
+    assert.equal(loginSchema.safeParse({ email: 'juan@example.com', password: justEnough }).success, true)
+  })
+
+  it('applies the same minimum to sign-up and password reset', () => {
+    const tooShort = 'a'.repeat(MIN_PASSWORD_LENGTH - 1)
+
+    const signUp = signUpSchema.safeParse({
+      email: 'juan@example.com',
+      password: tooShort,
+      confirmPassword: tooShort,
+      firstName: 'Juan',
+      lastName: 'Dela Cruz',
+      barangay: BARANGAY_NAME,
+    })
+
+    assert.equal(signUp.success, false)
+    if (!signUp.success) {
+      assert.match(signUp.error.issues[0]?.message ?? '', new RegExp(`at least ${MIN_PASSWORD_LENGTH}`))
+    }
+
+    assert.equal(
+      resetPasswordSchema.safeParse({ password: tooShort, confirmPassword: tooShort }).success,
+      false,
+    )
+  })
+
+  it('still rejects mismatched confirmations', () => {
+    const valid = 'a'.repeat(MIN_PASSWORD_LENGTH)
+    const mismatch = resetPasswordSchema.safeParse({ password: valid, confirmPassword: `${valid}x` })
+
+    assert.equal(mismatch.success, false)
+    if (!mismatch.success) {
+      assert.match(mismatch.error.issues[0]?.message ?? '', /don't match/)
+    }
   })
 })

@@ -11,6 +11,7 @@ import { notifyResidentByUserId } from '@/lib/notify'
 import { verifyRequest } from '@/lib/request-security'
 import { logAuditAction } from '@/lib/audit-log'
 import { logger } from '@/lib/logger'
+import { isAdminUser } from '@/lib/roles'
 
 export async function GET(request: NextRequest) {
   const supabase = createServerClient(
@@ -30,14 +31,9 @@ export async function GET(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser()
 
-  const isAdmin = !!user && (
-    user.user_metadata?.role === 'admin' ||
-    user.user_metadata?.role === 'super_admin' ||
-    user.app_metadata?.role === 'admin' ||
-    user.app_metadata?.role === 'super_admin'
-  )
-
-  if (!isAdmin) {
+  // `!user` is checked explicitly so the rest of the handler is narrowed to a
+  // signed-in user; isAdminUser alone cannot narrow the type.
+  if (!user || !isAdminUser(user)) {
     return NextResponse.json({ error: 'Admin access required.' }, { status: 403 })
   }
 
@@ -82,14 +78,9 @@ export async function PATCH(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser()
 
-  const isAdmin = !!user && (
-    user.user_metadata?.role === 'admin' ||
-    user.user_metadata?.role === 'super_admin' ||
-    user.app_metadata?.role === 'admin' ||
-    user.app_metadata?.role === 'super_admin'
-  )
-
-  if (!isAdmin) {
+  // `!user` is checked explicitly so the rest of the handler is narrowed to a
+  // signed-in user; isAdminUser alone cannot narrow the type.
+  if (!user || !isAdminUser(user)) {
     return NextResponse.json({ error: 'Admin access required.' }, { status: 403 })
   }
 

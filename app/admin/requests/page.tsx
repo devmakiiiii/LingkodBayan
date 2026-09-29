@@ -95,6 +95,13 @@ function getSectionStatuses(section: RequestSectionFilter) {
 
 const PAGE_SIZE = 20
 
+/**
+ * Upper bound for the status-only fetch that backs the section counters. Those
+ * counters describe the whole table, so they must not be derived from the
+ * paginated `requests` slice (which holds only the loaded pages).
+ */
+const STATUS_ROW_LIMIT = 10000
+
 const RequestRow = React.memo(function RequestRow({
   request,
   onView,
@@ -158,6 +165,13 @@ export default function AdminRequestsPage() {
   const [selectedRequest, setSelectedRequest] = useState<Request | null>(null)
   const [isDetailOpen, setIsDetailOpen] = useState(false)
   const [page, setPage] = useState(0)
+  const [hasMore, setHasMore] = useState(false)
+  const [sectionCounts, setSectionCounts] = useState<Record<RequestSectionFilter, number>>({
+    all: 0,
+    pending: 0,
+    in_progress: 0,
+    resolved: 0,
+  })
   const searchParams = useSearchParams()
 
   const activeSection = normalizeSectionFilter(searchParams.get('status'))
@@ -194,10 +208,15 @@ export default function AdminRequestsPage() {
         residents: row.residents || null,
       }))
 
-      setRequests(mappedRequests)
+      // Append on "Load More" so the pages already on screen stay put. Setting
+      // state to just the newest page made the list look like it had jumped
+      // elsewhere and left the section counters at one page's worth of rows.
+      setRequests((current) => (page === 0 ? mappedRequests : [...current, ...mappedRequests]))
+      setHasMore(mappedRequests.length === PAGE_SIZE)
     } catch (error: any) {
       setLoadError(error?.message || 'Failed to load requests')
       setRequests([])
+      setHasMore(false)
     } finally {
       setLoading(false)
     }
@@ -217,11 +236,37 @@ export default function AdminRequestsPage() {
     return requests.filter((request) => allowedStatuses.includes(request.status?.toLowerCase() ?? 'pending'))
   }, [activeSection, requests])
 
-  const sectionCounts = useMemo(() => ({
-    pending: requests.filter((request) => normalizeRequestStatus(request.status) === 'pending').length,
-    in_progress: requests.filter((request) => normalizeRequestStatus(request.status) === 'in_progress').length,
-    resolved: requests.filter((request) => normalizeRequestStatus(request.status) === 'resolved').length,
-  }), [requests])
+  /**
+   * Table-wide section counters, fetched separately from the paginated list so
+   * "All Requests: 300" cannot be confused with "20 rows shown".
+   */
+  const loadSectionCounts = useCallback(async () => {
+    if (!hasSupabaseConfig()) return
+
+    try {
+      const supabase = createClient()
+      const { data, error } = await supabase
+        .from('requests')
+        .select('status')
+        .limit(STATUS_ROW_LIMIT)
+
+      if (error) return
+
+      const rows: Array<{ status: string | null }> = data ?? []
+      setSectionCounts({
+        all: rows.length,
+        pending: rows.filter((row) => normalizeRequestStatus(row.status) === 'pending').length,
+        in_progress: rows.filter((row) => normalizeRequestStatus(row.status) === 'in_progress').length,
+        resolved: rows.filter((row) => normalizeRequestStatus(row.status) === 'resolved').length,
+      })
+    } catch {
+      // The counters are decorative; a failure must not blank the request list.
+    }
+  }, [])
+
+  useEffect(() => {
+    loadSectionCounts()
+  }, [loadSectionCounts])
 
   async function updateRequestStatus(requestId: string, newStatus: RequestStatus) {
     try {
@@ -263,6 +308,8 @@ export default function AdminRequestsPage() {
       )
 
       toast.success(`Request status updated to ${newStatus}`)
+      // A status change moves a row between sections, so refresh the counters.
+      loadSectionCounts()
     } catch (error) {
       console.error('Error updating request:', error)
       toast.error('An unexpected error occurred while updating request')
@@ -295,7 +342,7 @@ export default function AdminRequestsPage() {
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {([
-          { key: 'all', href: '/admin/requests', count: requests.length, label: 'All Requests' },
+          { key: 'all', href: '/admin/requests', count: sectionCounts.all, label: 'All Requests' },
           { key: 'pending', href: '/admin/requests?status=pending', count: sectionCounts.pending, label: 'Pending' },
           { key: 'in_progress', href: '/admin/requests?status=in_progress', count: sectionCounts.in_progress, label: 'In Progress' },
           { key: 'resolved', href: '/admin/requests?status=resolved', count: sectionCounts.resolved, label: 'Resolved' },
@@ -364,7 +411,7 @@ export default function AdminRequestsPage() {
         </div>
       )}
 
-      {!loading && requests.length > 0 && (
+      {!loading && hasMore && (
         <div className="flex justify-center">
           <Button
             variant="outline"

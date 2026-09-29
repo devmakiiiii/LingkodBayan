@@ -895,6 +895,41 @@ export interface DuplicateResidentMatch {
 }
 
 /**
+ * True when a registered resident already uses this email address.
+ *
+ * Used by sign-up to send returning residents to the sign-in page instead of
+ * quietly issuing a one-time code for an account they already own — Supabase's
+ * `signInWithOtp` never reports "already registered", so the check must happen
+ * here.
+ *
+ * MUST be called with a service-role client (`createAdminClient()`) because
+ * `residents` is RLS-scoped to the signed-in user. ILIKE keeps the comparison
+ * case-insensitive, but the match is confirmed in JS so a LIKE wildcard inside
+ * an address cannot produce a false positive that blocks a real sign-up.
+ */
+export async function isEmailRegisteredToResident(
+  email: string,
+  client: SupabaseClient,
+): Promise<boolean> {
+  const normalized = email.trim().toLowerCase()
+  if (!normalized) return false
+
+  const { data, error } = await client
+    .from('residents')
+    .select('id, email')
+    .ilike('email', normalized)
+    .limit(5)
+
+  if (error) throw new Error(`Failed to check existing resident email: ${error.message}`)
+
+  return (data ?? []).some((row) => {
+    const stored = (row as { email?: string | null }).email
+    return typeof stored === 'string' && stored.trim().toLowerCase() === normalized
+  })
+}
+
+
+/**
  * Detects already-registered resident accounts that belong to the same person
  * as a new sign-up, so one resident cannot create multiple accounts with
  * different emails. Checks are additive: a single sign-up may trip several.

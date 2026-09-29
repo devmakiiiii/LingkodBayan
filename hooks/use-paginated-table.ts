@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import useSWR from 'swr'
 import { createClient } from '@/lib/supabase/client'
 
@@ -57,7 +58,9 @@ async function paginatedFetcher<T>(options: FetcherOptions): Promise<PaginatedRe
 
 export function usePaginatedTable<T>(options: Omit<FetcherOptions, 'page' | 'pageSize'> & { pageSize?: number }) {
   const { pageSize = 20, ...fetcherOptions } = options
-  const page = 0
+  // `page` used to be a hardcoded `0` with no setter, so the hook could only
+  // ever return the first page and callers had no way to advance it.
+  const [page, setPage] = useState(0)
 
   const { data, error, isLoading, mutate } = useSWR<PaginatedResponse<T>>(
     [`paginated-table`, fetcherOptions.table, fetcherOptions.select, page, pageSize, fetcherOptions.orderColumn, fetcherOptions.orderAscending, JSON.stringify(fetcherOptions.filter)],
@@ -68,14 +71,19 @@ export function usePaginatedTable<T>(options: Omit<FetcherOptions, 'page' | 'pag
     },
   )
 
+  const totalPages = data?.totalPages ?? 1
+
   return {
     data: data?.data ?? [],
     count: data?.count ?? 0,
-    page: data?.page ?? 0,
+    page: data?.page ?? page,
     pageSize: data?.pageSize ?? pageSize,
-    totalPages: data?.totalPages ?? 1,
+    totalPages,
     isLoading,
     error: error as Error | null,
     mutate,
+    goToPage: (nextPage: number) => setPage(Math.min(Math.max(nextPage, 0), Math.max(totalPages - 1, 0))),
+    nextPage: () => setPage((current) => Math.min(current + 1, Math.max(totalPages - 1, 0))),
+    previousPage: () => setPage((current) => Math.max(current - 1, 0)),
   }
 }

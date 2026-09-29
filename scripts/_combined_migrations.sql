@@ -1,6 +1,18 @@
 
--- Run this script FIRST to set up the database schema with correct RLS policies
--- This is a consolidated version with the INSERT policy fix included
+-- ============================================================================
+-- STALE SNAPSHOT — DO NOT USE AS A SETUP SCRIPT
+-- ============================================================================
+-- This file stops at migration 27 and is missing migrations 28 through 39. It
+-- is a historical consolidation only.
+--
+-- Do NOT paste this after the numbered migrations in scripts/: it redefines
+-- public.is_admin_user() three times with the OLD body, which trusted
+-- `user_metadata.role`. That is the privilege-escalation hole migration 39
+-- (39_harden_admin_authorization.sql) removes, so running this file last would
+-- silently undo that security fix.
+--
+-- Set a project up by running migrations in scripts/ in ascending numeric order.
+-- ============================================================================
 
 -- Create residents table
 CREATE TABLE IF NOT EXISTS public.residents (

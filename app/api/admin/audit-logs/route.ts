@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@supabase/ssr'
 import { z } from 'zod'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { verifyRequest } from '@/lib/request-security'
+import { getAdminFromRequest } from '@/lib/admin-auth'
 import { logger } from '@/lib/logger'
 
 const DEFAULT_LIMIT = 500
@@ -16,33 +16,10 @@ const createAuditLogSchema = z.object({
   newValues: z.record(z.unknown()).optional(),
 })
 
-async function getAdminFromRequest(request: NextRequest) {
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll()
-        },
-        setAll() {},
-      },
-    },
-  )
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  const isAdmin = !!user && (
-    user.user_metadata?.role === 'admin' ||
-    user.user_metadata?.role === 'super_admin' ||
-    user.app_metadata?.role === 'admin' ||
-    user.app_metadata?.role === 'super_admin'
-  )
-
-  return isAdmin ? user : null
-}
+// The admin check is the shared `getAdminFromRequest()` from
+// `@/lib/admin-auth` (app_metadata only). This route used to keep a private
+// copy of the same logic, which meant two places to update whenever the role
+// resolver changed.
 
 export async function GET(request: NextRequest) {
   const securityCheck = verifyRequest(request)
