@@ -150,7 +150,7 @@ type MatchResult = {
   matched: boolean
   confidence: number
   action: 'auto_verify' | 'id_verify' | 'needs_review' | 'no_match'
-  matchedResident?: { firstName: string; lastName: string; email: string; barangay: string } | null
+  matchedResident?: { firstName: string; lastName: string; email: string | null; barangay: string } | null
 }
 
 export default function Page() {

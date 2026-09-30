@@ -1,12 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
-import { z } from 'zod'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { verifyRequest } from '@/lib/request-security'
 import { logAuditAction } from '@/lib/audit-log'
 import { logger } from '@/lib/logger'
 import { isAdminUser } from '@/lib/roles'
-import { BARANGAY_CITY, BARANGAY_DISPLAY_NAME, BARANGAY_PROVINCE, canonicalBarangayName } from '@/lib/schemas'
+import {
+  IMPORT_COLUMNS,
+  REQUIRED_IMPORT_COLUMNS,
+  buildPreRegisteredImportRecord,
+  parseExcelToRows,
+  resolveImportFormat,
+} from '@/lib/pre-registered-import'
 
 function stripBom(text: string): string {
   if (text.charCodeAt(0) === 0xfeff) {
@@ -77,75 +82,6 @@ function parseCsv(csvText: string): string[][] {
   return rows
 }
 
-const EXPECTED_COLUMNS = [
-  'first_name',
-  'last_name',
-  'middle_name',
-  'date_of_birth',
-  'email',
-  'phone',
-  'street_address',
-  'barangay',
-  'city_municipality',
-  'province',
-  'postal_code',
-  'national_id',
-  'id_type',
-] as const
-
-// `barangay` is optional: LingkodBayan only serves Barangay Barretto, so a
-// missing/blank value is filled in with the system's barangay instead of
-// forcing the admin to repeat it on every imported row.
-const REQUIRED_COLUMNS = ['first_name', 'last_name', 'email'] as const
-
-const ALLOWED_ID_TYPES = [
-  'philsys',
-  'drivers_license',
-  'passport',
-  'voter',
-  'sss',
-  'tin',
-  'umid',
-] as const
-
-const csvRowSchema = z.object({
-  first_name: z.string().min(1, 'First name is required'),
-  last_name: z.string().min(1, 'Last name is required'),
-  middle_name: z.string().optional().or(z.literal('')),
-  date_of_birth: z
-    .string()
-    .optional()
-    .or(z.literal(''))
-    .refine((val) => {
-      if (!val) return true
-      const date = new Date(val)
-      if (isNaN(date.getTime())) return false
-      return date <= new Date()
-    }, 'Invalid date format (expected YYYY-MM-DD)'),
-  email: z.string().min(1, 'Email is required').email('Invalid email format'),
-  phone: z.string().optional().or(z.literal('')),
-  street_address: z.string().optional().or(z.literal('')),
-  barangay: z.string().optional().or(z.literal('')),
-  city_municipality: z.string().optional().or(z.literal('')),
-  province: z.string().optional().or(z.literal('')),
-  postal_code: z.string().optional().or(z.literal('')),
-  national_id: z.string().optional().or(z.literal('')),
-  id_type: z
-    .string()
-    .optional()
-    .or(z.literal(''))
-    .refine((val) => {
-      if (!val) return true
-      return (ALLOWED_ID_TYPES as readonly string[]).includes(val)
-    }, 'Invalid ID type'),
-})
-
-type CsvRow = z.infer<typeof csvRowSchema>
-
-function normalizePhone(phone: string): string {
-  return phone.replace(/\D/g, '')
-}
-
 export async function GET(request: NextRequest) {
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -213,7 +149,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const contentType = request.headers.get('content-type') || ''
-    const batchId = `csv_${Date.now()}`
+    const batchId = `import_${Date.now()}`
 
     if (contentType.includes('multipart/form-data')) {
       const formData = await request.formData()
@@ -223,18 +159,41 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'No file provided.' }, { status: 400 })
       }
 
-      const csvText = await file.text()
-      const rows = parseCsv(csvText)
+      const format = resolveImportFormat(file.name)
+
+      if (format === 'unsupported') {
+        return NextResponse.json(
+          { error: 'Unsupported file type. Please upload a .csv, .xlsx, or .xlsm file.' },
+          { status: 400 },
+        )
+      }
+
+      let rows: string[][]
+      if (format === 'xlsx') {
+        try {
+          rows = await parseExcelToRows(new Uint8Array(await file.arrayBuffer()))
+        } catch (error) {
+          logger.error('[admin/pre-registered-residents] Excel parse error', error, {
+            context: 'api/admin/pre-registered-residents',
+          })
+          return NextResponse.json(
+            { error: 'Could not read the spreadsheet. Please make sure it is a valid .xlsx file.' },
+            { status: 400 },
+          )
+        }
+      } else {
+        rows = parseCsv(await file.text())
+      }
 
       if (rows.length < 2) {
-        return NextResponse.json({ error: 'CSV file must contain a header row and at least one data row.' }, { status: 400 })
+        return NextResponse.json({ error: 'File must contain a header row and at least one data row.' }, { status: 400 })
       }
 
       const headers = rows[0].map((h) => h.trim().toLowerCase())
       const columnMap = new Map<string, number>()
       headers.forEach((h, idx) => columnMap.set(h, idx))
 
-      const missingRequired = REQUIRED_COLUMNS.filter((col) => !columnMap.has(col))
+      const missingRequired = REQUIRED_IMPORT_COLUMNS.filter((col) => !columnMap.has(col))
       if (missingRequired.length > 0) {
         return NextResponse.json({
           error: `Missing required columns in header: ${missingRequired.join(', ')}`,
@@ -250,55 +209,24 @@ export async function POST(request: NextRequest) {
         if (row.length === 0 || row.every((c) => c === '')) continue
 
         const rawRecord: Record<string, string> = {}
-        for (const col of EXPECTED_COLUMNS) {
+        for (const col of IMPORT_COLUMNS) {
           const idx = columnMap.get(col)
           if (idx !== undefined && idx < row.length) {
             rawRecord[col] = row[idx]
           }
         }
 
-        const result = csvRowSchema.safeParse(rawRecord)
-
-        if (!result.success) {
-          failedRows.push({
-            row: i + 1,
-            errors: result.error.errors.map((e) => e.message),
-          })
-          continue
-        }
-
-        const record = result.data
-
-        const barangayName = canonicalBarangayName(record.barangay)
-        if (!barangayName) {
-          failedRows.push({
-            row: i + 1,
-            errors: [
-              `Row lists "${record.barangay}", but this system only serves ${BARANGAY_DISPLAY_NAME}.`,
-            ],
-          })
-          continue
-        }
-
-        const phone = record.phone ? normalizePhone(record.phone) : null
-
-        validRecords.push({
-          first_name: record.first_name,
-          last_name: record.last_name,
-          middle_name: record.middle_name || null,
-          date_of_birth: record.date_of_birth || null,
-          email: record.email,
-          phone,
-          street_address: record.street_address || null,
-          barangay: barangayName,
-          city_municipality: record.city_municipality || BARANGAY_CITY,
-          province: record.province || BARANGAY_PROVINCE,
-          postal_code: record.postal_code || null,
-          national_id: record.national_id || null,
-          id_type: record.id_type || null,
-          source: 'csv_upload',
-          import_batch_id: batchId,
+        const result = buildPreRegisteredImportRecord(rawRecord, {
+          source: format === 'xlsx' ? 'xlsx_upload' : 'csv_upload',
+          importBatchId: batchId,
         })
+
+        if (!result.ok) {
+          failedRows.push({ row: i + 1, errors: result.errors })
+          continue
+        }
+
+        validRecords.push(result.record)
       }
 
       let importedCount = 0
@@ -331,7 +259,7 @@ export async function POST(request: NextRequest) {
       await logAuditAction({
         adminId: user.id,
         adminEmail: user.email ?? undefined,
-        action: 'residents_csv_imported',
+        action: 'residents_imported',
         resourceType: 'pre_registered_residents',
         resourceId: batchId,
         newValues: {
@@ -373,48 +301,17 @@ export async function POST(request: NextRequest) {
         id_type: r.idType || r.id_type || '',
       }
 
-      const result = csvRowSchema.safeParse(rawRecord)
-
-      if (!result.success) {
-        failedRows.push({
-          row: i + 1,
-          errors: result.error.errors.map((e) => e.message),
-        })
-        continue
-      }
-
-      const record = result.data
-
-      const barangayName = canonicalBarangayName(record.barangay)
-      if (!barangayName) {
-        failedRows.push({
-          row: i + 1,
-          errors: [
-            `Record lists "${record.barangay}", but this system only serves ${BARANGAY_DISPLAY_NAME}.`,
-          ],
-        })
-        continue
-      }
-
-      const phone = record.phone ? normalizePhone(record.phone) : null
-
-      validRecords.push({
-        first_name: record.first_name,
-        last_name: record.last_name,
-        middle_name: record.middle_name || null,
-        date_of_birth: record.date_of_birth || null,
-        email: record.email,
-        phone,
-        street_address: record.street_address || null,
-        barangay: barangayName,
-        city_municipality: record.city_municipality || BARANGAY_CITY,
-        province: record.province || BARANGAY_PROVINCE,
-        postal_code: record.postal_code || null,
-        national_id: record.national_id || null,
-        id_type: record.id_type || null,
+      const result = buildPreRegisteredImportRecord(rawRecord, {
         source: r.source || 'manual',
-        import_batch_id: batchId,
+        importBatchId: batchId,
       })
+
+      if (!result.ok) {
+        failedRows.push({ row: i + 1, errors: result.errors })
+        continue
+      }
+
+      validRecords.push(result.record)
     }
 
     let importedCount = 0

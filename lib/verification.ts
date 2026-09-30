@@ -87,7 +87,7 @@ export interface PreRegisteredResident {
   last_name: string
   middle_name?: string | null
   date_of_birth?: string | null
-  email: string
+  email: string | null
   phone?: string | null
   street_address?: string | null
   barangay: string
@@ -101,7 +101,7 @@ export interface MatchResult {
     id: string
     firstName: string
     lastName: string
-    email: string
+    email: string | null
     barangay: string
   } | null
   action: 'auto_verify' | 'id_verify' | 'needs_review' | 'no_match'
@@ -311,9 +311,12 @@ export function calculateMatchScore(
   )
   breakdown.name = nameScore
 
-  const emailScore = input.email
-    ? emailMatch(input.email, candidate.email)
-    : 0
+  // A pre-registered record may have no email on file (see the pre-registered
+  // import), so only score this signal when both sides carry a value.
+  const emailScore =
+    input.email && candidate.email
+      ? emailMatch(input.email, candidate.email)
+      : 0
   breakdown.email = emailScore
 
   const phoneScore =

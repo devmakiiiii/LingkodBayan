@@ -142,6 +142,9 @@ const sql = readMigrationScript()
   + '--- Migration 39: Harden Admin Authorization (drop user_metadata trust) ---\n'
   + readMigrationFile('39_harden_admin_authorization.sql')
   + '\n'
+  + '--- Migration 40: Pre-Registered Residents Without Email ---\n'
+  + readMigrationFile('40_pre_registered_residents_optional_email.sql')
+  + '\n'
   + '--- Finalize Complaints Schema ---\n'
   + readMigrationFile('finalize_complaints_schema.sql');
 console.log(sql);

@@ -33,7 +33,7 @@ interface PreRegisteredResident {
   last_name: string
   middle_name: string | null
   date_of_birth: string | null
-  email: string
+  email: string | null
   phone: string | null
   street_address: string | null
   barangay: string
@@ -102,7 +102,7 @@ export default function PreRegisteredResidentsPage() {
 
   async function handleImport() {
     if (!importFile) {
-      toast.error('Please select a CSV file')
+      toast.error('Please select a CSV or Excel file')
       return
     }
 
@@ -121,11 +121,34 @@ export default function PreRegisteredResidentsPage() {
         throw new Error(data.error || `HTTP ${res.status}: Import failed`)
       }
 
-      const data = await res.json()
-      toast.success(`${data.imported} residents imported successfully`)
-      setShowImportDialog(false)
-      setImportFile(null)
-      fetchResidents()
+      const data = (await res.json()) as {
+        imported?: number
+        failedCount?: number
+        failedRows?: { row: number; errors: string[] }[]
+      }
+      const imported = data.imported ?? 0
+      const failedRows = data.failedRows ?? []
+      const failedCount = data.failedCount ?? failedRows.length
+
+      if (imported > 0 && failedCount > 0) {
+        toast.success(`${imported} resident(s) imported, ${failedCount} row(s) skipped`)
+      } else if (imported > 0) {
+        toast.success(`${imported} resident(s) imported successfully`)
+      } else if (failedCount > 0) {
+        const firstFailure = failedRows[0]
+        const detail = firstFailure?.errors?.length
+          ? ` Row ${firstFailure.row}: ${firstFailure.errors.join('; ')}`
+          : ''
+        toast.error(`No residents imported — ${failedCount} row(s) failed validation.${detail}`)
+      } else {
+        toast.info('No data rows found in the file.')
+      }
+
+      if (imported > 0) {
+        setShowImportDialog(false)
+        setImportFile(null)
+        fetchResidents()
+      }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Import failed'
       toast.error(message)
@@ -153,27 +176,27 @@ export default function PreRegisteredResidentsPage() {
           <DialogTrigger asChild>
             <Button>
               <Upload className="h-4 w-4 mr-2" />
-              Import CSV
+              Import CSV / Excel
             </Button>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Import Pre-Registered Residents</DialogTitle>
               <DialogDescription className="break-words max-w-full overflow-wrap-anywhere">
-                Upload a CSV file with resident data. Expected columns: {expectedCsvHeaders.join(', ')}
+                Upload a CSV or Excel (.xlsx) file with resident data. Expected columns: {expectedCsvHeaders.join(', ')}
                 <br />
                 The <code>barangay</code> column is optional: blank values default to Barangay Barretto, and rows
-                for any other barangay are rejected.
+                for any other barangay are rejected. For Excel files, the first worksheet is used.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
               <Input
                 type="file"
-                accept=".csv"
+                accept=".csv,.xlsx,.xlsm"
                 onChange={(e) => setImportFile(e.target.files?.[0] || null)}
               />
               <div className="text-xs text-muted-foreground">
-                <p>CSV format example:</p>
+                <p>Example (CSV, or the first sheet of an Excel file):</p>
                 <code className="block mt-1 p-2 bg-gray-100 dark:bg-muted rounded break-all max-w-full whitespace-pre-wrap overflow-wrap-anywhere">
                   first_name,last_name,middle_name,date_of_birth,email,phone,street_address,barangay,city_municipality,province,postal_code,national_id,id_type<br />
                   {'Juan,Dela Cruz,Santos,1985-03-15,juan@example.com,09171234567,"1234 Ilo-Ilo Street, Purok 1","Barretto","Olongapo City","Zambales",2200,123456789012,philsys'}
@@ -250,7 +273,7 @@ export default function PreRegisteredResidentsPage() {
                           )}
                         </div>
                       </TableCell>
-                      <TableCell className="break-all">{resident.email}</TableCell>
+                      <TableCell className="break-all">{resident.email || '-'}</TableCell>
                       <TableCell>{resident.phone || '-'}</TableCell>
                       <TableCell>{resident.barangay}</TableCell>
                       <TableCell>{resident.national_id || '-'}</TableCell>

@@ -748,7 +748,7 @@ export interface PreRegisteredResidentData {
   lastName: string
   middleName?: string
   dateOfBirth?: string
-  email: string
+  email?: string
   phone?: string
   streetAddress?: string
   barangay: string
@@ -781,7 +781,7 @@ export async function createPreRegisteredResident(data: PreRegisteredResidentDat
         last_name: data.lastName,
         middle_name: data.middleName || null,
         date_of_birth: data.dateOfBirth || null,
-        email: data.email,
+        email: data.email ? data.email.trim().toLowerCase() : null,
         phone: data.phone || null,
         street_address: data.streetAddress || null,
         barangay: barangayName,
