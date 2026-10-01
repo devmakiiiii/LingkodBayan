@@ -43,6 +43,29 @@ CREATE POLICY "Admins can view officials" ON public.officials
 CREATE POLICY "Admins can manage officials" ON public.officials
   FOR ALL USING (public.is_admin_user(auth.uid()));
 
-CREATE INDEX IF NOT EXISTS designations_priority_order_idx ON public.designations(priority_order ASC, name ASC);
+-- This index used to reference designations(priority_order). Migration 42
+-- renames that column to "rank", which means this statement ERRORS on any
+-- database where 42 has already run:
+--     column "priority_order" does not exist
+-- Since migrate.js emits the whole migration history and the SQL editor is
+-- re-runnable, that abort killed the script before migration 42 was reached.
+--
+-- Guarded on the column's existence so this migration is safe on both a fresh
+-- database (column is priority_order -> index created) and an already-migrated
+-- one (column is "rank" -> skipped). Migration 42 creates the equivalent
+-- designations_rank_idx, so no index is lost either way.
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_attribute
+    WHERE attrelid = 'public.designations'::regclass
+      AND attname = 'priority_order'
+      AND NOT attisdropped
+  ) THEN
+    CREATE INDEX IF NOT EXISTS designations_priority_order_idx
+      ON public.designations(priority_order ASC, name ASC);
+  END IF;
+END
+$$;
 CREATE INDEX IF NOT EXISTS officials_designation_id_idx ON public.officials(designation_id);
 CREATE INDEX IF NOT EXISTS officials_status_idx ON public.officials(status);

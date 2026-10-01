@@ -145,6 +145,15 @@ const sql = readMigrationScript()
   + '--- Migration 40: Pre-Registered Residents Without Email ---\n'
   + readMigrationFile('40_pre_registered_residents_optional_email.sql')
   + '\n'
+  + '--- Migration 41: Structured Name Parts on Officials ---\n'
+  + readMigrationFile('41_add_official_name_parts.sql')
+  + '\n'
+  + '--- Migration 42: Rename Designation priority_order to rank + auto-assign ---\n'
+  + readMigrationFile('42_auto_designation_priority.sql')
+  + '\n'
+  + '--- Migration 43: Derive Designation Badge Color From Category ---\n'
+  + readMigrationFile('43_derive_designation_badge_color.sql')
+  + '\n'
   + '--- Finalize Complaints Schema ---\n'
   + readMigrationFile('finalize_complaints_schema.sql');
 console.log(sql);

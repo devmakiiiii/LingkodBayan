@@ -6,6 +6,7 @@ import { RequestInput, ComplaintInput, DesignationInput, OfficialInput, Barangay
 import { logger } from './logger'
 import { isAnnouncementColumnError } from './announcements'
 import { assertRequestTransition, assertComplaintTransition } from './status-machine'
+import { getNextRank } from './governance'
 import {
   buildRequestPaymentSnapshot,
   toRequestPaymentRow,
@@ -365,7 +366,7 @@ export async function getAllDesignations() {
   const { data, error } = await supabase
     .from('designations')
     .select('*')
-    .order('priority_order', { ascending: true })
+    .order('rank', { ascending: true })
     .order('name', { ascending: true })
 
   if (error) throw new Error(`Failed to get designations: ${error.message}`)
@@ -375,14 +376,33 @@ export async function getAllDesignations() {
 export async function createDesignation(input: DesignationInput) {
   const supabase = await createClient()
 
+  // Migration 42: a blank rank means "next in this category". Resolved here as
+  // well as in the UI so every write path agrees, not just the admin form.
+  let rank = input.rank
+  if (rank === undefined || rank === null || Number.isNaN(rank)) {
+    const { data: siblings, error: siblingsError } = await supabase
+      .from('designations')
+      .select('category, rank')
+      .eq('category', input.category)
+
+    if (siblingsError) throw new Error(`Failed to resolve rank: ${siblingsError.message}`)
+
+    rank = getNextRank(
+      (siblings ?? []).map((row) => ({
+        category: row.category as string,
+        rank: row.rank as number | null,
+      })),
+      input.category,
+    )
+  }
+
   const { data, error } = await supabase
     .from('designations')
     .insert([
       {
         name: input.name,
         category: input.category,
-        priority_order: input.priorityOrder,
-        badge_color: input.badgeColor,
+        rank,
       },
     ])
     .select()
@@ -395,15 +415,21 @@ export async function createDesignation(input: DesignationInput) {
 export async function updateDesignation(designationId: string, input: DesignationInput) {
   const supabase = await createClient()
 
+  // A blank rank on edit means "leave it alone" rather than "auto-assign":
+  // auto-assigning max+1 on every save would push an existing designation to the
+  // bottom of its category each time it was touched without changing the field.
+  const patch: Record<string, unknown> = {
+    name: input.name,
+    category: input.category,
+    updated_at: new Date(),
+  }
+  if (input.rank !== undefined && input.rank !== null && !Number.isNaN(input.rank)) {
+    patch.rank = input.rank
+  }
+
   const { data, error } = await supabase
     .from('designations')
-    .update({
-      name: input.name,
-      category: input.category,
-      priority_order: input.priorityOrder,
-      badge_color: input.badgeColor,
-      updated_at: new Date(),
-    })
+    .update(patch)
     .eq('id', designationId)
     .select()
     .single()
@@ -425,7 +451,7 @@ export async function getAllOfficials() {
 
   const { data, error } = await supabase
     .from('officials')
-    .select('*, designations(id, name, category, priority_order, badge_color)')
+    .select('*, designations(id, name, category, rank)')
     .order('created_at', { ascending: false })
 
   if (error) throw new Error(`Failed to get officials: ${error.message}`)
@@ -440,6 +466,10 @@ export async function createOfficial(input: OfficialInput) {
     .insert([
       {
         full_name: input.fullName,
+        first_name: input.firstName || null,
+        middle_initial: input.middleInitial || null,
+        last_name: input.lastName || null,
+        suffix: input.suffix || null,
         designation_id: input.designationId,
         contact_number: input.contactNumber || null,
         email: input.email || null,
@@ -449,7 +479,7 @@ export async function createOfficial(input: OfficialInput) {
         photo: input.photo || null,
       },
     ])
-    .select('*, designations(id, name, category, priority_order, badge_color)')
+    .select('*, designations(id, name, category, rank)')
     .single()
 
   if (error) throw new Error(`Failed to create official: ${error.message}`)
@@ -463,6 +493,10 @@ export async function updateOfficial(officialId: string, input: OfficialInput) {
     .from('officials')
     .update({
       full_name: input.fullName,
+      first_name: input.firstName || null,
+      middle_initial: input.middleInitial || null,
+      last_name: input.lastName || null,
+      suffix: input.suffix || null,
       designation_id: input.designationId,
       contact_number: input.contactNumber || null,
       email: input.email || null,
@@ -473,7 +507,7 @@ export async function updateOfficial(officialId: string, input: OfficialInput) {
       updated_at: new Date(),
     })
     .eq('id', officialId)
-    .select('*, designations(id, name, category, priority_order, badge_color)')
+    .select('*, designations(id, name, category, rank)')
     .single()
 
   if (error) throw new Error(`Failed to update official: ${error.message}`)

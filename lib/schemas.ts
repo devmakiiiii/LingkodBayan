@@ -60,13 +60,46 @@ export const designationSchema = z.object({
   id: z.string().uuid().optional(),
   name: z.string().min(2, 'Designation name is required'),
   category: z.enum(designationCategories),
-  priorityOrder: z.coerce.number().int().min(1, 'Priority order must be at least 1'),
-  badgeColor: z.string().min(4, 'Badge color is required'),
+  // The designation's standing rank within its category (migration 42). Named
+  // `rank`, not `priority`, to avoid confusion with requests.priority and
+  // complaints.priority_level, which are per-item triage urgency.
+  //
+  // Optional: blank/undefined means "assign the next rank in this category"
+  // (max + 1). An explicit number is still allowed as an override, and must be
+  // unique within the category.
+  rank: z.preprocess(
+    (value) => {
+      if (value === undefined || value === null) return undefined
+      if (typeof value === 'string' && value.trim() === '') return undefined
+      return value
+    },
+    z.coerce
+      .number({ invalid_type_error: 'Rank must be a number' })
+      .int('Rank must be a whole number')
+      .min(1, 'Rank must be at least 1')
+      .optional(),
+  ),
+  // Badge color is deliberately NOT stored. It is derived from the category by
+  // getDesignationBadgeColor() (migration 43) - a per-designation color implied
+  // distinctions that did not exist and had to be picked by hand.
 })
 
 export const officialSchema = z.object({
   id: z.string().uuid().optional(),
   fullName: z.string().min(2, 'Full name is required'),
+  // Structured name parts (migration 41). The Add/Edit Official form requires
+  // first + last name and composes fullName from them; they stay optional here
+  // so legacy rows and older write paths remain valid.
+  firstName: z.string().min(1, 'First name is required').optional().or(z.literal('')),
+  // Officials are recorded with a middle initial only (residents keep a full
+  // middle name on their own table), so this holds one letter and a period.
+  middleInitial: z
+    .string()
+    .regex(/^[A-Za-z]?\.?$/, 'Middle initial must be a single letter, e.g. S.')
+    .optional()
+    .or(z.literal('')),
+  lastName: z.string().min(1, 'Last name is required').optional().or(z.literal('')),
+  suffix: z.string().optional().or(z.literal('')),
   designationId: z.string().uuid('Designation is required'),
   contactNumber: z.string().min(5, 'Contact number is required').optional().or(z.literal('')),
   email: z.string().email('Invalid email address').optional().or(z.literal('')),

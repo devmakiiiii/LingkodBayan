@@ -19,7 +19,7 @@ import {
   getDesignationCategoryShortLabel,
   getOfficialTermDuration,
   isCaptainDesignation,
-  normalizeBadgeColor,
+  getDesignationBadgeColor,
 } from '@/lib/governance'
 import { formatDate } from '@/lib/format-date'
 
@@ -33,6 +33,10 @@ function mapOfficialRow(row: any): OfficialRow {
   return {
     id: row.id,
     fullName: row.full_name || row.fullName || '',
+    firstName: row.first_name || '',
+    middleInitial: row.middle_initial || '',
+    lastName: row.last_name || '',
+    suffix: row.suffix || '',
     designationId: row.designation_id,
     contactNumber: row.contact_number,
     email: row.email,
@@ -47,8 +51,7 @@ function mapOfficialRow(row: any): OfficialRow {
           id: designationRow.id,
           name: designationRow.name,
           category: designationRow.category,
-          priorityOrder: designationRow.priority_order,
-          badgeColor: designationRow.badge_color,
+          rank: designationRow.rank,
           created_at: designationRow.created_at,
           updated_at: designationRow.updated_at,
         }
@@ -60,13 +63,13 @@ const categoryFilters = ['all', 'barangay', 'sk', 'staff'] as const
 const recordFilters = ['current', 'archived'] as const
 
 const defaultDesignations = [
-  { name: 'Barangay Captain', category: 'barangay', priority_order: 1, badge_color: '#166534' },
-  { name: 'Barangay Kagawad', category: 'barangay', priority_order: 2, badge_color: '#28A745' },
-  { name: 'Barangay Secretary', category: 'barangay', priority_order: 3, badge_color: '#0f766e' },
-  { name: 'Barangay Treasurer', category: 'barangay', priority_order: 4, badge_color: '#0ea5e9' },
-  { name: 'SK Chairperson', category: 'sk', priority_order: 1, badge_color: '#7c3aed' },
-  { name: 'SK Kagawad', category: 'sk', priority_order: 2, badge_color: '#8b5cf6' },
-  { name: 'Staff Member', category: 'staff', priority_order: 1, badge_color: '#6b7280' },
+  { name: 'Barangay Captain', category: 'barangay', rank: 1 },
+  { name: 'Barangay Kagawad', category: 'barangay', rank: 2 },
+  { name: 'Barangay Secretary', category: 'barangay', rank: 3 },
+  { name: 'Barangay Treasurer', category: 'barangay', rank: 4 },
+  { name: 'SK Chairperson', category: 'sk', rank: 1 },
+  { name: 'SK Kagawad', category: 'sk', rank: 2 },
+  { name: 'Staff Member', category: 'staff', rank: 1 },
 ] as const
 
 function formatSupabaseError(error: unknown): string {
@@ -125,8 +128,8 @@ export default function AdminOfficialsPage() {
       setLoadError('')
       const supabase = createClient()
       const [{ data: designationData, error: designationError }, { data: officialData, error: officialError }] = await Promise.all([
-        supabase.from('designations').select('*').order('priority_order', { ascending: true }).order('name', { ascending: true }),
-        supabase.from('officials').select('*, designations(id, name, category, priority_order, badge_color)').order('created_at', { ascending: false }),
+        supabase.from('designations').select('*').order('rank', { ascending: true }).order('name', { ascending: true }),
+        supabase.from('officials').select('*, designations(id, name, category, rank)').order('created_at', { ascending: false }),
       ])
 
       if (designationError) {
@@ -152,7 +155,7 @@ export default function AdminOfficialsPage() {
           const { data: seededDesignations, error: reFetchError } = await supabase
             .from('designations')
             .select('*')
-            .order('priority_order', { ascending: true })
+            .order('rank', { ascending: true })
             .order('name', { ascending: true })
 
           if (reFetchError) {
@@ -196,9 +199,15 @@ export default function AdminOfficialsPage() {
       .sort((a, b) => {
         const da = a.designation || (a as any).designations || null
         const db = b.designation || (b as any).designations || null
-        const priorityDiff = (da?.priorityOrder || 999) - (db?.priorityOrder || 999)
-        if (priorityDiff !== 0) return priorityDiff
-        return (a.fullName || '').localeCompare(b.fullName || '')
+        const rankDiff = (da?.rank || 999) - (db?.rank || 999)
+        if (rankDiff !== 0) return rankDiff
+
+        // Surname-first ordering, the way official directories are listed.
+        // Legacy rows without structured parts fall back to the display name.
+        const surnameDiff = (a.lastName || a.fullName || '').localeCompare(b.lastName || b.fullName || '')
+        if (surnameDiff !== 0) return surnameDiff
+
+        return (a.firstName || '').localeCompare(b.firstName || '')
       })
   }, [officials, search, categoryFilter, recordFilter])
 
@@ -270,6 +279,7 @@ export default function AdminOfficialsPage() {
         mode={modalMode}
         official={selectedOfficial}
         designations={designations}
+        officials={officials}
         onClose={() => {
           setModalOpen(false)
           setSelectedOfficial(null)
@@ -407,7 +417,7 @@ export default function AdminOfficialsPage() {
                               </div>
                             </TableCell>
                             <TableCell>
-                              <Badge style={{ backgroundColor: normalizeBadgeColor(designation?.badgeColor), color: '#fff' }}>
+                              <Badge style={{ backgroundColor: getDesignationBadgeColor(designation?.category), color: '#fff' }}>
                                 {designation?.name || 'N/A'}
                               </Badge>
                             </TableCell>

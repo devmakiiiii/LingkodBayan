@@ -1,9 +1,18 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { MapContainer, TileLayer, Marker, Popup, CircleMarker } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
+import { BarangayBoundary } from '@/components/maps/barangay-boundary'
+import {
+  BARANGAY_BARRETTO_CENTER,
+  BARANGAY_BARRETTO_MAX_BOUNDS,
+  BARANGAY_BARRETTO_MAX_ZOOM,
+  BARANGAY_BARRETTO_MIN_ZOOM,
+  BARANGAY_MAP_TILE_ATTRIBUTION,
+  BARANGAY_MAP_TILE_URL,
+} from '@/lib/barangay-map'
 
 interface ComplaintData {
   id: string
@@ -20,6 +29,17 @@ interface ComplaintData {
 interface ComplaintsAnalyticsMapClientProps {
   complaints: ComplaintData[]
   onMarkerClick?: (complaint: ComplaintData) => void
+}
+
+/** ~0.002° grid (~200 m) used to group nearby complaints into hotspot circles. */
+const HOTSPOT_GRID_FACTOR = 500
+
+function hasCoordinates(complaint: ComplaintData): boolean {
+  return (
+    Number.isFinite(complaint.latitude) &&
+    Number.isFinite(complaint.longitude) &&
+    !(complaint.latitude === 0 && complaint.longitude === 0)
+  )
 }
 
 export default function ComplaintsAnalyticsMapClient({ complaints, onMarkerClick }: ComplaintsAnalyticsMapClientProps) {
@@ -76,35 +96,66 @@ export default function ComplaintsAnalyticsMapClient({ complaints, onMarkerClick
     }
   }
 
-  const [heatmapData, setHeatmapData] = useState<[number, number, number][]>([])
+  const locatedComplaints = useMemo(() => complaints.filter(hasCoordinates), [complaints])
 
-  // Generate heatmap data from complaints (lat, lng, intensity)
-  useEffect(() => {
-    const data = complaints
-      .filter((c) => c.latitude && c.longitude)
-      .map((c) => [c.latitude, c.longitude, 0.5] as [number, number, number])
-    setHeatmapData(data)
-  }, [complaints])
+  // Group nearby complaints into hotspot cells so repeated reports in the same
+  // purok show up as a single, heavier circle instead of overlapping pins.
+  const hotspotCells = useMemo(() => {
+    const grid = new Map<string, { latitude: number; longitude: number; count: number }>()
+    for (const complaint of locatedComplaints) {
+      const latitude = Math.round(complaint.latitude * HOTSPOT_GRID_FACTOR) / HOTSPOT_GRID_FACTOR
+      const longitude = Math.round(complaint.longitude * HOTSPOT_GRID_FACTOR) / HOTSPOT_GRID_FACTOR
+      const key = `${latitude}:${longitude}`
+      const cell = grid.get(key)
+      if (cell) {
+        cell.count += 1
+      } else {
+        grid.set(key, { latitude, longitude, count: 1 })
+      }
+    }
+    return [...grid.values()].filter((cell) => cell.count >= 2)
+  }, [locatedComplaints])
 
-  // Calculate center of all complaints
+  // Centre on the first pinned complaint, otherwise the barangay itself.
   const center: [number, number] =
-    complaints.length > 0 && complaints[0].latitude && complaints[0].longitude
-      ? [complaints[0].latitude, complaints[0].longitude]
-      : [14.8405, 120.2575] // Subic Barretto default
+    locatedComplaints.length > 0
+      ? [locatedComplaints[0].latitude, locatedComplaints[0].longitude]
+      : BARANGAY_BARRETTO_CENTER
 
   return (
-    <div className="w-full h-[600px] rounded-lg overflow-hidden border border-gray-200 dark:border-border shadow-sm">
-      <MapContainer center={center} zoom={13} style={{ height: '100%', width: '100%' }}>
+    <div className="relative w-full h-[600px] rounded-lg overflow-hidden border border-gray-200 dark:border-border shadow-sm">
+      <MapContainer
+        center={center}
+        zoom={14}
+        minZoom={BARANGAY_BARRETTO_MIN_ZOOM}
+        maxZoom={BARANGAY_BARRETTO_MAX_ZOOM}
+        maxBounds={BARANGAY_BARRETTO_MAX_BOUNDS}
+        maxBoundsViscosity={1}
+        style={{ height: '100%', width: '100%' }}
+      >
         <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          attribution={BARANGAY_MAP_TILE_ATTRIBUTION}
+          url={BARANGAY_MAP_TILE_URL}
         />
+        <BarangayBoundary />
+
+        {/* Hotspot density — one circle per cluster of two or more complaints */}
+        {hotspotCells.map((cell) => (
+          <CircleMarker
+            key={`hotspot-${cell.latitude}:${cell.longitude}`}
+            center={[cell.latitude, cell.longitude]}
+            radius={Math.min(12 + cell.count * 3, 40)}
+            pathOptions={{
+              color: '#dc2626',
+              weight: 1,
+              fillColor: '#f87171',
+              fillOpacity: 0.35,
+            }}
+          />
+        ))}
 
         {/* Render complaint markers */}
-        {complaints.map(
-          (complaint) =>
-            complaint.latitude &&
-            complaint.longitude && (
+        {locatedComplaints.map((complaint) => (
               <Marker
                 key={complaint.id}
                 position={[complaint.latitude, complaint.longitude]}
@@ -132,29 +183,11 @@ export default function ComplaintsAnalyticsMapClient({ complaints, onMarkerClick
                   </div>
                 </Popup>
               </Marker>
-            )
-        )}
-
-        {/* Hotspot visualization - circles for density areas */}
-        {complaints.slice(0, 5).map((complaint, idx) => (
-          complaint.latitude &&
-          complaint.longitude && (
-            <CircleMarker
-              key={`hotspot-${idx}`}
-              center={[complaint.latitude, complaint.longitude]}
-              radius={30}
-              fillColor="#ff6b6b"
-              color="#ff0000"
-              weight={2}
-              opacity={0.3}
-              fillOpacity={0.1}
-            />
-          )
         ))}
       </MapContainer>
 
       {/* Legend */}
-      <div className="absolute bottom-4 left-4 bg-white dark:bg-card p-4 rounded-lg shadow-md border border-gray-200 dark:border-border z-999">
+      <div className="absolute bottom-4 left-4 z-[1000] bg-white dark:bg-card p-4 rounded-lg shadow-md border border-gray-200 dark:border-border">
         <h4 className="font-semibold text-sm mb-2">Status Legend</h4>
         <div className="space-y-1 text-xs">
           <div className="flex items-center gap-2">

@@ -96,3 +96,45 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: message }, { status: 500 })
   }
 }
+
+// Removes a photo object from the public bucket. Used when an official's photo
+// is replaced or removed, and to roll back a failed save, so orphaned files do
+// not accumulate in the bucket.
+export async function DELETE(request: NextRequest) {
+  const securityCheck = verifyRequest(request)
+  if (!securityCheck.valid) {
+    return NextResponse.json({ error: 'Invalid request origin' }, { status: 403 })
+  }
+
+  // Same gate as POST: middleware never covers /api/*, and the storage client
+  // below uses the service role, which bypasses storage RLS.
+  const admin = await getAdminFromRequest(request)
+  if (!admin) {
+    return NextResponse.json({ error: 'Admin access required.' }, { status: 403 })
+  }
+
+  try {
+    const body = (await request.json()) as { path?: string }
+    const path = typeof body.path === 'string' ? body.path.trim() : ''
+
+    // Object names come from buildSafeFileName and never contain path
+    // separators; reject anything else before handing it to the storage API.
+    if (!path || path.includes('/') || path.includes('\\') || path.includes('..') || path.length > 200) {
+      return NextResponse.json({ error: 'Invalid photo path.' }, { status: 400 })
+    }
+
+    const supabase = createAdminClient()
+    const { error } = await supabase.storage.from(bucketName).remove([path])
+
+    if (error) {
+      logger.error('Remove error', error, { context: 'api/official-photos' })
+      return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+
+    return NextResponse.json({ removed: path })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to remove official photo.'
+    logger.error('Remove error', error, { context: 'api/official-photos' })
+    return NextResponse.json({ error: message }, { status: 500 })
+  }
+}

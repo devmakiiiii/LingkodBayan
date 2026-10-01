@@ -109,7 +109,10 @@ const notWrittenByApp = {
   pre_registered_residents: ['source'],
   admin_users: ['role'],
   officials: ['status'],
-  designations: ['priority_order', 'badge_color'],
+  // `rank` after migration 42 (was `priority_order`). The app always writes it,
+  // so a missing default would not block inserts - listed for visibility only.
+  // `badge_color` was dropped in migration 43 (derived from the category).
+  designations: ['rank'],
 }
 
 console.log('\nLegacy NOT NULL columns the app never writes:')

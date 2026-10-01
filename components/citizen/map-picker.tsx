@@ -1,9 +1,10 @@
 'use client'
 
 import dynamic from 'next/dynamic'
+import type { PickedAddress } from '@/lib/address'
 
 interface MapPickerProps {
-  onLocationSelect: (lat: number, lng: number, address: string) => void
+  onLocationSelect: (lat: number, lng: number, picked: PickedAddress) => void
 }
 
 const MapPickerClient = dynamic(() => import('./map-picker-client'), {

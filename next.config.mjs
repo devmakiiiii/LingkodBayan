@@ -14,7 +14,10 @@ const nextConfig = {
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: blob: https:",
       "font-src 'self' data:",
-      "connect-src 'self' https://*.supabase.co https://*.supabase.com wss://*.supabase.co https://vision.googleapis.com",
+      // connect-src must allow the reverse-geocoding host used by the complaint
+      // location picker (components/citizen/map-picker-client.tsx). Without it
+      // the browser blocks the request and residents only see coordinates.
+      "connect-src 'self' https://*.supabase.co https://*.supabase.com wss://*.supabase.co https://nominatim.openstreetmap.org https://vision.googleapis.com",
       "frame-src 'none'",
       "object-src 'none'",
       "base-uri 'self'",

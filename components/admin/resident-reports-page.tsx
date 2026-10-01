@@ -84,6 +84,8 @@ type OfficialOption = {
   name: string
   label: string
   designationLabel: string
+  /** Designation rank within its category (migration 42); 1 = highest. */
+  designationRank?: number | null
   status?: string | null
 }
 
@@ -94,6 +96,7 @@ type OfficialRow = {
   status?: string | null
   designations?: {
     name?: string | null
+    rank?: number | null
   } | null
 }
 
@@ -465,7 +468,7 @@ export function ResidentReportsPage() {
         supabase.from('service_categories').select('id, slug, title, description, is_active').eq('category_type', 'incident').eq('is_active', true).order('sort_order', { ascending: true }),
         supabase.from('complaints').select('*').order('created_at', { ascending: false }),
         supabase.from('residents').select('*'),
-        supabase.from('officials').select('id, full_name, status, designation_id, designations(id, name, category, priority_order, badge_color)').order('created_at', { ascending: false }),
+        supabase.from('officials').select('id, full_name, status, designation_id, designations(id, name, category, rank)').order('created_at', { ascending: false }),
         supabase.from('complaint_messages').select('*').order('created_at', { ascending: true }),
       ])
 
@@ -488,6 +491,7 @@ export function ResidentReportsPage() {
         name: official.full_name || 'Official',
         label: `${official.full_name || 'Unassigned'}${official.designations?.name ? ` • ${official.designations.name}` : ''}`,
         designationLabel: official.designations?.name || 'Official',
+        designationRank: official.designations?.rank ?? null,
         status: official.status,
       }))
 
@@ -657,6 +661,7 @@ evidenceUrls: extractEvidenceUrls(row),
       id: official.id,
       name: official.name,
       designationLabel: official.designationLabel,
+      designationRank: official.designationRank,
       status: official.status,
     })),
     reports.map((report) => ({

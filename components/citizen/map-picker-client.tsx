@@ -1,38 +1,54 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { MapContainer, Marker, Popup, TileLayer, useMap, useMapEvents } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
+import { BarangayBoundary } from '@/components/maps/barangay-boundary'
+import { formatCoordinates, describePickedAddress, type PickedAddress } from '@/lib/address'
+import {
+  BARANGAY_BARRETTO_CENTER,
+  BARANGAY_BARRETTO_DEFAULT_ZOOM,
+  BARANGAY_BARRETTO_MAX_BOUNDS,
+  BARANGAY_BARRETTO_MAX_ZOOM,
+  BARANGAY_BARRETTO_MIN_ZOOM,
+  BARANGAY_MAP_TILE_ATTRIBUTION,
+  BARANGAY_MAP_TILE_URL,
+  isWithinBarangayBarretto,
+} from '@/lib/barangay-map'
 
 interface MapPickerClientProps {
-  onLocationSelect: (lat: number, lng: number, address: string) => void
+  onLocationSelect: (lat: number, lng: number, picked: PickedAddress) => void
 }
-
-const BARANGAY_BARRETTO_BOUNDS: [[number, number], [number, number]] = [
-  [14.840, 120.253],
-  [14.860, 120.270],
-]
-
-const BARANGAY_BARRETTO_CENTER: [number, number] = [14.851, 120.263]
 
 function MapBoundsSetter() {
   const map = useMap()
   useEffect(() => {
-    map.fitBounds(BARANGAY_BARRETTO_BOUNDS, { padding: [20, 20] })
+    // Fit the whole barangay on first paint so residents can't start outside it.
+    map.fitBounds(BARANGAY_BARRETTO_MAX_BOUNDS, {
+      padding: [20, 20],
+      maxZoom: BARANGAY_BARRETTO_DEFAULT_ZOOM,
+    })
   }, [map])
   return null
 }
 
-function LocationMarker({ onLocationSelect }: { onLocationSelect: (lat: number, lng: number) => void }) {
-  const [position, setPosition] = useState<[number, number] | null>(null)
+/** Progress of the reverse-geocode lookup for the current pin. */
+type GeocodeState = 'idle' | 'resolving' | 'resolved' | 'unavailable'
 
-  useMapEvents({
-    click(e) {
-      setPosition([e.latlng.lat, e.latlng.lng])
-      onLocationSelect(e.latlng.lat, e.latlng.lng)
-    },
-  })
+interface LocationMarkerProps {
+  onLocationSelect: (lat: number, lng: number, picked: PickedAddress) => void
+  /** Called with `true` when a click lands outside Barangay Barretto. */
+  onOutOfAreaChange: (outOfArea: boolean) => void
+  /** Reports whether a readable street address could be found for the pin. */
+  onGeocodeStateChange: (state: GeocodeState) => void
+}
+
+function LocationMarker({ onLocationSelect, onOutOfAreaChange, onGeocodeStateChange }: LocationMarkerProps) {
+  const [position, setPosition] = useState<[number, number] | null>(null)
+  const [address, setAddress] = useState<string | null>(null)
+  // Guards against a slow reverse-geocode response overwriting a newer pick.
+  const requestRef = useRef(0)
 
   const defaultIcon = useMemo(() =>
     L.icon({
@@ -45,35 +61,103 @@ function LocationMarker({ onLocationSelect }: { onLocationSelect: (lat: number, 
       popupAnchor: [1, -34],
     }), [])
 
-  return position === null ? null : (
+  async function reverseGeocode(lat: number, lng: number, requestId: number) {
+    const fallback = formatCoordinates(lat, lng)
+    const isStale = () => requestRef.current !== requestId
+    try {
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?format=json&addressdetails=1&zoom=18&accept-language=en&lat=${lat}&lon=${lng}`,
+      )
+      if (!response.ok) throw new Error(`reverse geocoding failed with ${response.status}`)
+      const data = await response.json()
+      const picked = describePickedAddress(data, fallback)
+      if (isStale()) return
+      setAddress(picked.full)
+      onLocationSelect(lat, lng, picked)
+      // No street came back — tell the resident to type it instead of
+      // silently showing coordinates.
+      onGeocodeStateChange(picked.street ? 'resolved' : 'unavailable')
+    } catch {
+      if (isStale()) return
+      const picked = { street: '', localities: fallback, full: fallback }
+      setAddress(fallback)
+      onLocationSelect(lat, lng, picked)
+      onGeocodeStateChange('unavailable')
+    }
+  }
+
+  useMapEvents({
+    click(e) {
+      const { lat, lng } = e.latlng
+      // Complaints must be pinned inside Barangay Barretto, so ignore (and
+      // flag) any click that lands in a neighbouring barangay or on the bay.
+      if (!isWithinBarangayBarretto(lat, lng)) {
+        onOutOfAreaChange(true)
+        return
+      }
+      onOutOfAreaChange(false)
+      onGeocodeStateChange('resolving')
+      setPosition([lat, lng])
+      setAddress(null)
+      requestRef.current += 1
+      void reverseGeocode(lat, lng, requestRef.current)
+    },
+  })
+
+  if (position === null) return null
+
+  return (
     <Marker position={position} icon={defaultIcon}>
-      <Popup>Complaint Location</Popup>
+      <Popup>
+        <span className="block max-w-[220px] text-xs leading-snug">
+          {address ?? 'Resolving address…'}
+        </span>
+      </Popup>
     </Marker>
   )
 }
 
 export default function MapPickerClient({ onLocationSelect }: MapPickerClientProps) {
-  const handleLocationSelect = async (lat: number, lng: number) => {
-    try {
-      const response = await fetch(
-        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`,
-      )
-      const data = await response.json()
-      const address = data.address?.road || data.address?.village || `${lat.toFixed(4)}, ${lng.toFixed(4)}`
-      onLocationSelect(lat, lng, address)
-    } catch {
-      onLocationSelect(lat, lng, `${lat.toFixed(4)}, ${lng.toFixed(4)}`)
-    }
-  }
+  const [outOfArea, setOutOfArea] = useState(false)
+  const [geocodeState, setGeocodeState] = useState<GeocodeState>('idle')
 
   return (
-    <MapContainer center={BARANGAY_BARRETTO_CENTER} zoom={15} style={{ height: '250px', width: '100%' }}>
-      <TileLayer
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-      />
-      <MapBoundsSetter />
-      <LocationMarker onLocationSelect={handleLocationSelect} />
-    </MapContainer>
+    <div>
+      <div className="relative">
+        <MapContainer
+          center={BARANGAY_BARRETTO_CENTER}
+          zoom={BARANGAY_BARRETTO_DEFAULT_ZOOM}
+          minZoom={BARANGAY_BARRETTO_MIN_ZOOM}
+          maxZoom={BARANGAY_BARRETTO_MAX_ZOOM}
+          maxBounds={BARANGAY_BARRETTO_MAX_BOUNDS}
+          maxBoundsViscosity={1}
+          style={{ height: '250px', width: '100%' }}
+        >
+          <TileLayer
+            attribution={BARANGAY_MAP_TILE_ATTRIBUTION}
+            url={BARANGAY_MAP_TILE_URL}
+          />
+          <BarangayBoundary />
+          <MapBoundsSetter />
+          <LocationMarker
+            onLocationSelect={onLocationSelect}
+            onOutOfAreaChange={setOutOfArea}
+            onGeocodeStateChange={setGeocodeState}
+          />
+        </MapContainer>
+
+        {outOfArea && (
+          <div className="pointer-events-none absolute left-1/2 top-2 z-[1000] -translate-x-1/2 rounded-full bg-red-600 px-3 py-1 text-xs font-medium text-white shadow-md">
+            Please pick a spot inside Barangay Barretto.
+          </div>
+        )}
+      </div>
+
+      {geocodeState === 'unavailable' && (
+        <p className="mt-1 text-[11px] leading-snug text-amber-700 dark:text-amber-300">
+          We couldn&apos;t read a street address at this pin — please type it in the address box below.
+        </p>
+      )}
+    </div>
   )
 }

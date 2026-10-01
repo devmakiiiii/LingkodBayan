@@ -21,6 +21,7 @@ import { MapPicker } from '@/components/citizen/map-picker'
 import { getOrCreateResidentProfile } from '@/lib/residents'
 import { complaintCategories, type ComplaintCategory, analyzeComplaintPriority, complaintCategoryFallbackPriorities, complaintCategoryKeywords } from '@/lib/complaint-categories'
 import { Badge } from '@/components/ui/badge'
+import { formatCoordinates } from '@/lib/address'
 
 interface IncidentCategory {
   id: string
@@ -36,7 +37,12 @@ export default function FileComplaintPage() {
   const [category, setCategory] = useState<string>('')
   const [latitude, setLatitude] = useState<number | null>(null)
   const [longitude, setLongitude] = useState<number | null>(null)
-  const [locationAddress, setLocationAddress] = useState<string | null>(null)
+  // Split so the resident supplies the house number/street (the part map data
+  // rarely has) while the barangay/city/ZIP stays derived and consistently
+  // spelled. Both are joined again into `complaints.location_address`.
+  const [locationStreet, setLocationStreet] = useState('')
+  const [locationLocalities, setLocationLocalities] = useState('')
+  const [residentAddress, setResidentAddress] = useState<string | null>(null)
   const [evidenceFile, setEvidenceFile] = useState<File | null>(null)
   const [evidencePreview, setEvidencePreview] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -64,6 +70,14 @@ export default function FileComplaintPage() {
     description,
     category ? complaintCategoryFallbackPriorities[category as ComplaintCategory] : 'low'
   ).priority
+
+  // The localities line is derived from the geocoder; hide it when all we
+  // have is the coordinate fallback (already shown below) to avoid printing
+  // the same numbers twice under a misleading label.
+  const coordinateFallback =
+    latitude !== null && longitude !== null ? formatCoordinates(latitude, longitude) : null
+  const showLocalities =
+    Boolean(locationLocalities) && locationLocalities !== coordinateFallback
 
   async function loadIncidentCategories() {
     try {
@@ -93,6 +107,29 @@ export default function FileComplaintPage() {
 
   useEffect(() => {
     loadIncidentCategories()
+  }, [])
+
+  // Pre-fill the house/street field with the resident's registered address.
+  // Reverse geocoding rarely carries a house number for Barretto, but the
+  // resident gave us one at sign-up. It is only a starting point.
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const supabase = createClient()
+        const {
+          data: { user },
+        } = await supabase.auth.getUser()
+        if (!user) return
+        const profile = await getOrCreateResidentProfile(supabase, user)
+        if (!cancelled && profile?.address) setResidentAddress(profile.address)
+      } catch {
+        // The profile is optional — the field simply stays empty.
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   // Initialize category with first available or preselected from URL
@@ -155,7 +192,10 @@ export default function FileComplaintPage() {
 
       if (latitude) complaintData.latitude = latitude
       if (longitude) complaintData.longitude = longitude
-      if (locationAddress) complaintData.location_address = locationAddress
+      const fullAddress = [locationStreet.trim(), locationLocalities.trim()]
+        .filter(Boolean)
+        .join(', ')
+      if (fullAddress) complaintData.location_address = fullAddress
       if (evidenceUrl) complaintData.evidence_url = evidenceUrl
 
       const { error: insertError } = await supabase.from('complaints').insert([complaintData])
@@ -261,18 +301,53 @@ export default function FileComplaintPage() {
                 <div>
                   <Suspense fallback={<div className="h-[200px] bg-gray-100 dark:bg-muted rounded-md flex items-center justify-center text-xs">Loading map...</div>}>
                     <MapPicker
-                      onLocationSelect={(lat, lng, address) => {
+                      onLocationSelect={(lat, lng, picked) => {
                         setLatitude(lat)
                         setLongitude(lng)
-                        setLocationAddress(address)
+                        setLocationLocalities(picked.localities)
+                        // Prefer the geocoder's street, but keep whatever the
+                        // resident already typed — or their registered address
+                        // — when the map data has none.
+                        setLocationStreet(
+                          (current) => picked.street || current || residentAddress || '',
+                        )
                       }}
                     />
                   </Suspense>
                 </div>
-                {locationAddress && (
-                  <div className="bg-blue-50 p-1.5 rounded-md border border-blue-200">
-                    <p className="text-xs text-blue-900 truncate">
-                      <strong>Selected:</strong> {locationAddress}
+                {latitude !== null && longitude !== null && (
+                  <div className="space-y-1.5 rounded-md border border-blue-200 bg-blue-50 p-2">
+                    <div className="space-y-1">
+                      <Label htmlFor="location-street" className="text-xs font-semibold text-blue-900">
+                        House no. &amp; street
+                      </Label>
+                      <Input
+                        id="location-street"
+                        value={locationStreet}
+                        onChange={(e) => setLocationStreet(e.target.value)}
+                        onKeyDown={(e) => {
+                          // Enter inside the form would submit the complaint early.
+                          if (e.key === 'Enter') e.preventDefault()
+                        }}
+                        placeholder="e.g. 123 Zambales Highway"
+                        className="h-8 bg-white text-xs"
+                      />
+                      <p className="text-[11px] text-blue-800/80">
+                        Add your house or unit number so responders can find you.
+                      </p>
+                    </div>
+
+                    {showLocalities && (
+                      <div className="border-t border-blue-200 pt-1.5">
+                        <p className="text-[11px] font-semibold uppercase tracking-wide text-blue-800/70">
+                          Barangay, city &amp; ZIP
+                        </p>
+                        <p className="text-xs text-blue-900">{locationLocalities}</p>
+                      </div>
+                    )}
+
+                    <p className="font-mono text-[11px] text-blue-800/80">
+                      {latitude.toFixed(6)}, {longitude.toFixed(6)}
                     </p>
                   </div>
                 )}

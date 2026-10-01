@@ -1,18 +1,5 @@
-
--- ============================================================================
--- STALE SNAPSHOT — DO NOT USE AS A SETUP SCRIPT
--- ============================================================================
--- This file stops at migration 27 and is missing migrations 28 through 39. It
--- is a historical consolidation only.
---
--- Do NOT paste this after the numbered migrations in scripts/: it redefines
--- public.is_admin_user() three times with the OLD body, which trusted
--- `user_metadata.role`. That is the privilege-escalation hole migration 39
--- (39_harden_admin_authorization.sql) removes, so running this file last would
--- silently undo that security fix.
---
--- Set a project up by running migrations in scripts/ in ascending numeric order.
--- ============================================================================
+-- Run this script FIRST to set up the database schema with correct RLS policies
+-- This is a consolidated version with the INSERT policy fix included
 
 -- Create residents table
 CREATE TABLE IF NOT EXISTS public.residents (
@@ -555,7 +542,30 @@ CREATE POLICY "Admins can view officials" ON public.officials
 CREATE POLICY "Admins can manage officials" ON public.officials
   FOR ALL USING (public.is_admin_user(auth.uid()));
 
-CREATE INDEX IF NOT EXISTS designations_priority_order_idx ON public.designations(priority_order ASC, name ASC);
+-- This index used to reference designations(priority_order). Migration 42
+-- renames that column to "rank", which means this statement ERRORS on any
+-- database where 42 has already run:
+--     column "priority_order" does not exist
+-- Since migrate.js emits the whole migration history and the SQL editor is
+-- re-runnable, that abort killed the script before migration 42 was reached.
+--
+-- Guarded on the column's existence so this migration is safe on both a fresh
+-- database (column is priority_order -> index created) and an already-migrated
+-- one (column is "rank" -> skipped). Migration 42 creates the equivalent
+-- designations_rank_idx, so no index is lost either way.
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_attribute
+    WHERE attrelid = 'public.designations'::regclass
+      AND attname = 'priority_order'
+      AND NOT attisdropped
+  ) THEN
+    CREATE INDEX IF NOT EXISTS designations_priority_order_idx
+      ON public.designations(priority_order ASC, name ASC);
+  END IF;
+END
+$$;
 CREATE INDEX IF NOT EXISTS officials_designation_id_idx ON public.officials(designation_id);
 CREATE INDEX IF NOT EXISTS officials_status_idx ON public.officials(status);
 
@@ -2004,11 +2014,15 @@ ON CONFLICT (setting_key) DO UPDATE SET
   value = EXCLUDED.value,
   updated_at = NOW();
 
---- Migration 24: Save Service Requests Together With Payments ---
+--- Migration 24: Save Requests With Payments ---
+-- Migration 24: Save service requests together with their payment record
 -- Adds a payment ledger entry per request so submitting a request also
 -- captures the Citizen's Charter fee snapshot and how/whether it was paid.
 -- Idempotent: safe to run multiple times.
 
+-- ============================================================================
+-- 1. REQUEST PAYMENTS TABLE
+-- ============================================================================
 CREATE TABLE IF NOT EXISTS public.request_payments (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   request_id UUID NOT NULL UNIQUE REFERENCES public.requests(id) ON DELETE CASCADE,
@@ -2034,6 +2048,9 @@ CREATE TABLE IF NOT EXISTS public.request_payments (
   updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
 
+-- ============================================================================
+-- 2. UPDATED_AT MAINTENANCE
+-- ============================================================================
 CREATE OR REPLACE FUNCTION public.touch_request_payment_updated_at()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -2047,6 +2064,11 @@ CREATE TRIGGER trg_request_payments_touch
   BEFORE UPDATE ON public.request_payments
   FOR EACH ROW EXECUTE FUNCTION public.touch_request_payment_updated_at();
 
+-- ============================================================================
+-- 3. ROW LEVEL SECURITY
+--    Residents read/record payments for their own requests; admins manage all
+--    (e.g. verifying a GCash/Maya reference and marking it paid).
+-- ============================================================================
 ALTER TABLE public.request_payments ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Residents can view own request payments" ON public.request_payments;
@@ -2080,10 +2102,1173 @@ CREATE POLICY "Admins can view all request payments" ON public.request_payments
 CREATE POLICY "Admins can manage request payments" ON public.request_payments
   FOR ALL USING (public.is_admin_user(auth.uid()));
 
+-- ============================================================================
+-- 4. INDEXES
+-- ============================================================================
 CREATE INDEX IF NOT EXISTS request_payments_request_idx ON public.request_payments(request_id);
 CREATE INDEX IF NOT EXISTS request_payments_resident_idx ON public.request_payments(resident_id);
 CREATE INDEX IF NOT EXISTS request_payments_status_idx ON public.request_payments(payment_status);
 
+--- Migration 25: Fix verification_attempts RLS (INSERT/UPDATE) ---
+-- Migration 25: Fix verification_attempts RLS (INSERT/UPDATE policies)
+-- Migration 16 enabled RLS on verification_attempts but only created SELECT
+-- policies. Without INSERT/UPDATE policies, user-session writes were rejected:
+--   * Residents' OCR attempts were silently dropped, so the admin review queue
+--     never received `needs_review` entries.
+--   * Admin approve/reject failed with a permission error (HTTP 500).
+
+-- Residents can log verification attempts for their own profile (OCR uploads,
+-- re-submissions, and rejected-verification appeals).
+DROP POLICY IF EXISTS "Residents can log their own verification attempts" ON public.verification_attempts;
+CREATE POLICY "Residents can log their own verification attempts" ON public.verification_attempts
+  FOR INSERT WITH CHECK (
+    resident_id IN (
+      SELECT id FROM public.residents WHERE residents.user_id = auth.uid()
+    )
+  );
+
+-- Admins can update attempts when reviewing them (status, reviewer, timestamp).
+DROP POLICY IF EXISTS "Admins can review verification attempts" ON public.verification_attempts;
+CREATE POLICY "Admins can review verification attempts" ON public.verification_attempts
+  FOR UPDATE USING (public.is_admin_user(auth.uid()))
+  WITH CHECK (public.is_admin_user(auth.uid()));
+
+--- Migration 26: Add published_at to Announcements ---
+-- Migration 26: Add published_at to announcements
+-- Records the real publish time. Before this, the UI reused created_at, so a
+-- draft written weeks earlier displayed a stale "Published on" date the moment
+-- it went live. Cleared back to NULL when an announcement is unpublished.
+
+ALTER TABLE public.announcements
+  ADD COLUMN IF NOT EXISTS published_at TIMESTAMP WITH TIME ZONE;
+
+COMMENT ON COLUMN public.announcements.published_at IS 'When the announcement was most recently published; NULL while it is a draft';
+
+-- Backfill: announcements that are already live were published when created.
+UPDATE public.announcements
+   SET published_at = created_at
+ WHERE is_published = TRUE
+   AND published_at IS NULL;
+
+-- Supports the citizen feed (published newest-first) and admin status filters.
+CREATE INDEX IF NOT EXISTS announcements_published_feed_idx
+  ON public.announcements (is_published, published_at DESC NULLS LAST);
+
+--- Migration 27: Announcement Pinning & Expiry ---
+-- Migration 27: Announcement pinning and expiry
+-- `pinned` keeps an important announcement at the top of the citizen feed.
+-- `expires_at` hides time-bound notices automatically (e.g. a maintenance window),
+-- so they do not linger on the dashboard once they stop applying.
+--
+-- No scheduled job is needed: migration 26's `published_at` doubles as the
+-- publish schedule (a future value means "publish later"), and visibility is
+-- resolved at read time.
+
+ALTER TABLE public.announcements
+  ADD COLUMN IF NOT EXISTS pinned BOOLEAN NOT NULL DEFAULT FALSE;
+
+ALTER TABLE public.announcements
+  ADD COLUMN IF NOT EXISTS expires_at TIMESTAMP WITH TIME ZONE;
+
+COMMENT ON COLUMN public.announcements.pinned IS 'Pins the announcement above unpinned ones in the citizen feed';
+COMMENT ON COLUMN public.announcements.expires_at IS 'Optional time after which the announcement is hidden from residents (NULL = never expires)';
+
+-- Supports the citizen feed: visible rows, pinned first, newest publish first.
+CREATE INDEX IF NOT EXISTS announcements_feed_idx
+  ON public.announcements (is_published, pinned DESC, published_at DESC);
+
+--- Migration 28: Retire Inactive Officials Status ---
+-- Migration 28: Retire the 'inactive' officials status
+-- The admin UI no longer exposes active/inactive: officials are either
+-- current (active) or archived. Fold any legacy 'inactive' rows into
+-- 'active' and tighten the CHECK constraint to ('active', 'archived').
+
+UPDATE public.officials
+SET status = 'active'
+WHERE LOWER(TRIM(status)) = 'inactive';
+
+ALTER TABLE public.officials
+  DROP CONSTRAINT IF EXISTS officials_status_check;
+
+ALTER TABLE public.officials
+  ADD CONSTRAINT officials_status_check
+  CHECK (status IN ('active', 'archived'));
+--- Migration 29: User Notifications ---
+-- =====================================================================
+-- Migration 29: User notifications
+--
+-- Gives citizens in-app notifications for identity-verification decisions
+-- (and any future non-complaint events). The existing notifications page
+-- and unread badge only query complaint_messages, whose schema requires a
+-- complaint_id FK, so verification decisions had nowhere to go.
+--
+-- Rows are inserted with the service-role client by server APIs
+-- (e.g. app/api/admin/verification/attempts PATCH); users can only read
+-- and mark their own as read.
+-- =====================================================================
+
+CREATE TABLE IF NOT EXISTS public.user_notifications (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  type TEXT NOT NULL DEFAULT 'system',       -- e.g. verification_approved, verification_rejected
+  title TEXT NOT NULL,
+  body TEXT,
+  link TEXT,                                 -- in-app route to open, e.g. /citizen/verify-id
+  is_read BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_notifications_user_unread
+  ON public.user_notifications (user_id, is_read, created_at DESC);
+
+ALTER TABLE public.user_notifications ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Users can view own notifications" ON public.user_notifications;
+CREATE POLICY "Users can view own notifications" ON public.user_notifications
+  FOR SELECT USING (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Users can mark own notifications read" ON public.user_notifications;
+CREATE POLICY "Users can mark own notifications read" ON public.user_notifications
+  FOR UPDATE USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+-- No INSERT/DELETE policies on purpose: writes come from the server via the
+-- service-role client (bypasses RLS), never directly from browsers.
+
+--- Migration 30: Representative Authorizations (proxy filing) ---
+-- ============================================================================
+-- Migration 30: Representative authorizations (proxy filing)
+--
+-- Lets one resident authorize another registered resident (a family member,
+-- neighbor, or purok leader) to file service requests on their behalf. This
+-- is the access bridge for residents who cannot operate the portal
+-- themselves: someone with a phone and an account can file for them.
+--
+-- Consent model:
+--   * Only the represented resident (or an admin via service role) can grant.
+--   * Either party can revoke.
+--   * The requests INSERT policy is extended so a representative may insert
+--     a request row for the represented resident ONLY while an active
+--     authorization exists.
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS public.representative_authorizations (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  represented_resident_id UUID NOT NULL REFERENCES public.residents(id) ON DELETE CASCADE,
+  representative_resident_id UUID NOT NULL REFERENCES public.residents(id) ON DELETE CASCADE,
+  status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'revoked')),
+  consent_note TEXT,
+  granted_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+  revoked_at TIMESTAMP WITH TIME ZONE,
+  created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+  CHECK (represented_resident_id <> representative_resident_id)
+);
+
+CREATE INDEX IF NOT EXISTS representative_authorizations_represented_idx
+  ON public.representative_authorizations(represented_resident_id);
+CREATE INDEX IF NOT EXISTS representative_authorizations_representative_idx
+  ON public.representative_authorizations(representative_resident_id);
+-- At most one active authorization per (represented, representative) pair.
+CREATE UNIQUE INDEX IF NOT EXISTS representative_authorizations_active_pair_idx
+  ON public.representative_authorizations(represented_resident_id, representative_resident_id)
+  WHERE status = 'active';
+
+-- ----------------------------------------------------------------------------
+-- SECURITY DEFINER helpers (bypass RLS recursion, mirroring 03_fix_residents_rls)
+-- ----------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION public.current_resident_id()
+RETURNS uuid
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT id FROM public.residents WHERE user_id = auth.uid()
+  ORDER BY created_at DESC
+  LIMIT 1;
+$$;
+
+-- Whether the current user may file a request for the given resident: either
+-- it is their own profile, or that resident granted them an active proxy
+-- authorization.
+CREATE OR REPLACE FUNCTION public.can_file_request_for(target_resident_id uuid)
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT target_resident_id = public.current_resident_id()
+  OR EXISTS (
+    SELECT 1 FROM public.representative_authorizations ra
+    WHERE ra.represented_resident_id = target_resident_id
+      AND ra.representative_resident_id = public.current_resident_id()
+      AND ra.status = 'active'
+  );
+$$;
+
+-- ----------------------------------------------------------------------------
+-- RLS
+-- ----------------------------------------------------------------------------
+
+ALTER TABLE public.representative_authorizations ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Authorizations visible to involved parties" ON public.representative_authorizations;
+CREATE POLICY "Authorizations visible to involved parties"
+  ON public.representative_authorizations
+  FOR SELECT
+  USING (
+    represented_resident_id = public.current_resident_id()
+    OR representative_resident_id = public.current_resident_id()
+  );
+
+-- Only the represented resident grants consent (admins use the service role,
+-- which bypasses RLS, for assisted onboarding at the barangay hall).
+DROP POLICY IF EXISTS "Represented resident can grant authorization" ON public.representative_authorizations;
+CREATE POLICY "Represented resident can grant authorization"
+  ON public.representative_authorizations
+  FOR INSERT
+  WITH CHECK (represented_resident_id = public.current_resident_id());
+
+-- Either party may revoke (only to 'revoked'); updates by anyone else are
+-- blocked by the WITH CHECK.
+DROP POLICY IF EXISTS "Involved parties can revoke authorization" ON public.representative_authorizations;
+CREATE POLICY "Involved parties can revoke authorization"
+  ON public.representative_authorizations
+  FOR UPDATE
+  USING (
+    represented_resident_id = public.current_resident_id()
+    OR representative_resident_id = public.current_resident_id()
+  )
+  WITH CHECK (
+    status = 'revoked'
+    AND revoked_at IS NOT NULL
+  );
+
+-- ----------------------------------------------------------------------------
+-- Allow proxy INSERTs on requests. The existing own-profile INSERT policy is
+-- left untouched; this adds the authorized-representative path.
+-- ----------------------------------------------------------------------------
+
+DROP POLICY IF EXISTS "Representatives can file for authorized residents" ON public.requests;
+CREATE POLICY "Representatives can file for authorized residents"
+  ON public.requests
+  FOR INSERT
+  WITH CHECK (public.can_file_request_for(resident_id));
+
+--- Migration 31: Document Pickups (clearance claiming) ---
+-- ============================================================================
+-- Migration 31: Document pickups (clearance claiming)
+--
+-- Bridges the portal to the physical world: after staff process a document
+-- request (barangay clearance, certificate, etc.), they record a pickup.
+-- When the document is signed and ready, the pickup gets a claim code and
+-- the resident is notified. The resident (or anyone holding the claim code
+-- / tracking code) can verify the pickup status without an account — useful
+-- for residents who filed through a proxy or kiosk.
+--
+-- Lifecycle: preparing -> ready -> claimed
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS public.document_pickups (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  request_id UUID NOT NULL REFERENCES public.requests(id) ON DELETE CASCADE,
+  resident_id UUID NOT NULL REFERENCES public.residents(id) ON DELETE CASCADE,
+  status TEXT NOT NULL DEFAULT 'preparing' CHECK (status IN ('preparing', 'ready', 'claimed')),
+  pickup_code TEXT NOT NULL DEFAULT 'PICKUP-' || UPPER(SUBSTRING(gen_random_uuid()::text, 1, 8)),
+  document_title TEXT,
+  scheduled_date DATE,
+  ready_at TIMESTAMP WITH TIME ZONE,
+  claimed_at TIMESTAMP WITH TIME ZONE,
+  claimed_by_staff UUID REFERENCES auth.users(id),
+  notes TEXT,
+  created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+  UNIQUE (request_id)
+);
+
+CREATE INDEX IF NOT EXISTS document_pickups_resident_idx ON public.document_pickups(resident_id);
+CREATE INDEX IF NOT EXISTS document_pickups_request_idx ON public.document_pickups(request_id);
+CREATE INDEX IF NOT EXISTS document_pickups_status_idx ON public.document_pickups(status);
+
+-- ----------------------------------------------------------------------------
+-- RLS
+-- ----------------------------------------------------------------------------
+
+ALTER TABLE public.document_pickups ENABLE ROW LEVEL SECURITY;
+
+-- Residents see their own pickups; admins see all (is_admin_user comes from
+-- migration 03 and is SECURITY DEFINER, so it avoids RLS recursion).
+DROP POLICY IF EXISTS "Residents see their own pickups" ON public.document_pickups;
+CREATE POLICY "Residents see their own pickups"
+  ON public.document_pickups
+  FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.residents r
+      WHERE r.id = resident_id AND r.user_id = auth.uid()
+    )
+    OR public.is_admin_user(auth.uid())
+  );
+
+-- Residents may not create or modify pickups; staff act through the
+-- service-role client which bypasses RLS. No INSERT/UPDATE/DELETE policies.
+
+--- Migration 32: Duplicate Resident Prevention ---
+-- Migration 32: Duplicate-account prevention for residents
+-- Adds national_id / id_type to residents (mirroring pre_registered_residents)
+-- and enforces uniqueness of normalized national ID and phone number so the
+-- same person cannot register multiple accounts with different emails.
+--
+-- NOTE: the unique indexes below are created with IF NOT EXISTS but will still
+-- fail if existing rows already contain duplicates. Before running, merge or
+-- clean duplicate rows, e.g.:
+--   SELECT regexp_replace(national_id, '\D', '', 'g') AS nid, count(*)
+--   FROM public.residents GROUP BY 1 HAVING count(*) > 1;
+
+ALTER TABLE public.residents
+  ADD COLUMN IF NOT EXISTS national_id TEXT;
+ALTER TABLE public.residents
+  ADD COLUMN IF NOT EXISTS id_type TEXT CHECK (id_type IN ('philsys', 'drivers_license', 'passport', 'voter', 'sss', 'tin', 'umid'));
+
+CREATE INDEX IF NOT EXISTS idx_residents_national_id ON public.residents (national_id);
+CREATE INDEX IF NOT EXISTS idx_residents_id_type ON public.residents (id_type);
+
+-- Uniqueness is enforced on the digits-only normalization so formats such as
+-- "1234-5678-9012", "1234 5678 9012" and "123456789012" are treated the same.
+-- Empty normalization (NULL / no digits) is excluded via the partial predicate.
+CREATE UNIQUE INDEX IF NOT EXISTS uq_residents_national_id_normalized
+  ON public.residents (regexp_replace(national_id, '\D', '', 'g'))
+  WHERE coalesce(regexp_replace(national_id, '\D', '', 'g'), '') <> '';
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_residents_phone_normalized
+  ON public.residents (regexp_replace(phone, '\D', '', 'g'))
+  WHERE coalesce(regexp_replace(phone, '\D', '', 'g'), '') <> '';
+
+--- Migration 33: Durable Rate Limiting ---
+-- Migration 33: Durable rate limiting
+--
+-- The in-memory limiter in lib/rate-limit.ts resets whenever a serverless
+-- instance cold-starts, so it cannot stop brute-force abuse of sensitive
+-- endpoints (password reset, sign-up OTP) in production. This migration adds
+-- a Postgres-backed limiter: an atomic SQL function performs the check inside
+-- a single upsert so concurrent requests from different instances share one
+-- counter.
+--
+-- The table has RLS enabled with NO policies — only the service-role key can
+-- read or write it, and the SECURITY DEFINER function is revoked from
+-- anon/authenticated so it can only be called from trusted server code.
+
+CREATE TABLE IF NOT EXISTS public.rate_limits (
+  key TEXT PRIMARY KEY,
+  window_started_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  count INTEGER NOT NULL DEFAULT 0,
+  expires_at TIMESTAMPTZ NOT NULL
+);
+
+ALTER TABLE public.rate_limits ENABLE ROW LEVEL SECURITY;
+
+CREATE OR REPLACE FUNCTION public.consume_rate_limit(
+  p_key TEXT,
+  p_interval_seconds INTEGER,
+  p_limit INTEGER
+)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_now TIMESTAMPTZ := now();
+  v_row public.rate_limits;
+BEGIN
+  INSERT INTO public.rate_limits (key, window_started_at, count, expires_at)
+  VALUES (p_key, v_now, 1, v_now + make_interval(secs => p_interval_seconds))
+  ON CONFLICT (key) DO UPDATE SET
+    count = CASE
+      WHEN public.rate_limits.expires_at <= v_now THEN 1
+      ELSE public.rate_limits.count + 1
+    END,
+    window_started_at = CASE
+      WHEN public.rate_limits.expires_at <= v_now THEN v_now
+      ELSE public.rate_limits.window_started_at
+    END,
+    expires_at = CASE
+      WHEN public.rate_limits.expires_at <= v_now
+        THEN v_now + make_interval(secs => p_interval_seconds)
+      ELSE public.rate_limits.expires_at
+    END
+  RETURNING * INTO v_row;
+
+  -- Opportunistic cleanup so abandoned windows do not accumulate.
+  DELETE FROM public.rate_limits
+  WHERE expires_at < v_now - INTERVAL '1 day' AND key <> p_key;
+
+  RETURN v_row.count <= p_limit;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.consume_rate_limit(TEXT, INTEGER, INTEGER)
+  FROM public, anon, authenticated;
+
+--- Migration 34: Single-Barangay Deployment (Barangay Barretto) ---
+-- Migration 34: Focus the system on Barangay Barretto (single-barangay deployment)
+--
+-- LingkodBayan serves exactly one barangay, so the application no longer offers
+-- a barangay picker: lib/schemas.ts pins BARANGAY_NAME = 'Barretto', the sign-up
+-- action writes it server-side, and the pre-registration import rejects rows for
+-- anywhere else. This migration makes the database agree with the application:
+--
+--   1. Normalizes legacy rows created while the 17-barangay dropdown existed.
+--      `residents` rows naming another barangay are relabelled to 'Barretto'
+--      (step 2a prints an audit trail of every value that changes);
+--      `pre_registered_residents` only has blanks and Barretto spellings
+--      normalized, so registry data for another area is left for a human review.
+--   2. Defaults `barangay` to 'Barretto' for new rows.
+--   3. Adds a CHECK constraint that keeps other barangays out of `residents`
+--      (accounts are only ever created by sign-up, so this is always safe). The
+--      same constraint is added to `pre_registered_residents` only once no
+--      out-of-area row remains, so this migration never silently rewrites or
+--      deletes registry data it cannot verify.
+--   4. Corrects the address defaults: Barretto is in Olongapo City, Zambales —
+--      not Metro Manila, which the old schema and the CSV example assumed.
+--
+-- Safe to re-run: every statement is idempotent.
+--
+-- Predicate used by the CHECK constraints and guards below:
+--   regexp_replace(lower(btrim(barangay)), '^(barangay|brgy\.?)[[:space:]]+', '') = 'barretto'
+-- i.e. the value is "barretto", optionally written as "Barangay Barretto" or
+-- "Brgy. Barretto" in any casing. That is the same set of spellings accepted by
+-- canonicalBarangayName() in lib/schemas.ts, and the application always writes
+-- the canonical 'Barretto'. The constraints therefore only ever reject a value
+-- that reaches the database outside the app (manual SQL), where a loud error is
+-- exactly what is wanted.
+
+-- ---------------------------------------------------------------------------
+-- 1. (Recommended) Review who is going to change before running the rest
+--    The constraint failed the first time because some `residents` rows still
+--    name another barangay from the dropdown era. Inspect them here first.
+-- ---------------------------------------------------------------------------
+-- SELECT id, first_name, last_name, email, barangay, created_at
+-- FROM public.residents
+-- WHERE barangay IS DISTINCT FROM 'Barretto'
+-- ORDER BY created_at;
+--
+-- SELECT 'residents' AS tbl, barangay, count(*) FROM public.residents GROUP BY 2
+-- UNION ALL
+-- SELECT 'pre_registered_residents', barangay, count(*) FROM public.pre_registered_residents GROUP BY 2
+-- ORDER BY 1, 3 DESC;
+
+-- ---------------------------------------------------------------------------
+-- 2a. Audit trail: list every value that is about to change, so the SQL editor
+--     output shows exactly what this migration relabels. Rows already stored as
+--     'Barretto' are left untouched and keep their updated_at.
+-- ---------------------------------------------------------------------------
+DO $$
+DECLARE
+  r RECORD;
+BEGIN
+  FOR r IN
+    SELECT barangay, count(*) AS rows_affected
+    FROM public.residents
+    WHERE barangay IS DISTINCT FROM 'Barretto'
+    GROUP BY barangay
+    ORDER BY 2 DESC
+  LOOP
+    RAISE NOTICE 'residents: relabelling % row(s) from "%" to Barretto.', r.rows_affected, r.barangay;
+  END LOOP;
+
+  FOR r IN
+    SELECT barangay, count(*) AS rows_affected
+    FROM public.pre_registered_residents
+    WHERE barangay IS DISTINCT FROM 'Barretto'
+      AND regexp_replace(lower(btrim(coalesce(barangay, ''))), '^(barangay|brgy\.?)[[:space:]]+', '') IN ('', 'barretto')
+    GROUP BY barangay
+    ORDER BY 2 DESC
+  LOOP
+    RAISE NOTICE 'pre_registered_residents: normalizing % row(s) from "%" to Barretto.', r.rows_affected, r.barangay;
+  END LOOP;
+END $$;
+
+-- ---------------------------------------------------------------------------
+-- 2b. residents — every account in this system belongs to Barangay Barretto.
+--     The sign-up form no longer offers a barangay and the server action pins
+--     the value, so a resident row naming another barangay can only be legacy
+--     data left over from the old dropdown. Those rows are relabelled here (the
+--     2a output above lists them for auditing); anyone registered for a
+--     different barangay would not be using this deployment in the first place.
+-- ---------------------------------------------------------------------------
+UPDATE public.residents
+SET barangay = 'Barretto',
+    updated_at = now()
+WHERE barangay IS DISTINCT FROM 'Barretto';
+
+-- ---------------------------------------------------------------------------
+-- 2c. pre_registered_residents — only blanks and Barretto spellings are
+--     normalized. A registry row naming another barangay is deliberately left
+--     in place for a human to review (step 1), because the registry decides
+--     identity matching and this migration must not silently relabel resident
+--     data of another area.
+-- ---------------------------------------------------------------------------
+UPDATE public.pre_registered_residents
+SET barangay = 'Barretto',
+    updated_at = now()
+WHERE barangay IS DISTINCT FROM 'Barretto'
+  AND regexp_replace(lower(btrim(coalesce(barangay, ''))), '^(barangay|brgy\.?)[[:space:]]+', '') IN ('', 'barretto');
+
+-- Anything left with a different barangay was imported for another area. Fix it
+-- here if that import was a mistake; the app rejects such rows from now on.
+-- UPDATE public.pre_registered_residents SET barangay = 'Barretto'
+-- WHERE regexp_replace(lower(btrim(barangay)), '^(barangay|brgy\.?)[[:space:]]+', '') <> 'barretto';
+
+-- ---------------------------------------------------------------------------
+-- 3. Defaults for new rows
+-- ---------------------------------------------------------------------------
+ALTER TABLE public.residents ALTER COLUMN barangay SET DEFAULT 'Barretto';
+ALTER TABLE public.pre_registered_residents ALTER COLUMN barangay SET DEFAULT 'Barretto';
+
+ALTER TABLE public.pre_registered_residents ALTER COLUMN city_municipality SET DEFAULT 'Olongapo City';
+ALTER TABLE public.pre_registered_residents ALTER COLUMN province SET DEFAULT 'Zambales';
+
+-- Rows the old 'Metro Manila' default already stamped are corrected when the
+-- address is (or was left blank as) Olongapo; other cities are left untouched.
+UPDATE public.pre_registered_residents
+SET province = 'Zambales',
+    updated_at = now()
+WHERE (province IS NULL OR btrim(province) = '' OR province ILIKE '%metro manila%')
+  AND (city_municipality IS NULL OR btrim(city_municipality) = '' OR city_municipality ILIKE '%olongapo%');
+
+-- ---------------------------------------------------------------------------
+-- 4. Enforce the single-barangay invariant
+-- ---------------------------------------------------------------------------
+DO $$
+DECLARE
+  v_out_of_area INTEGER;
+BEGIN
+  SELECT count(*) INTO v_out_of_area
+  FROM public.residents
+  WHERE regexp_replace(lower(btrim(coalesce(barangay, ''))), '^(barangay|brgy\.?)[[:space:]]+', '') <> 'barretto';
+
+  IF v_out_of_area > 0 THEN
+    RAISE NOTICE
+      'Skipped residents_barangay_is_barretto: % resident row(s) still reference another barangay. Relabel them (step 2b) and re-run this migration.',
+      v_out_of_area;
+    RETURN;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'residents_barangay_is_barretto'
+  ) THEN
+    ALTER TABLE public.residents
+      ADD CONSTRAINT residents_barangay_is_barretto
+      CHECK (regexp_replace(lower(btrim(barangay)), '^(barangay|brgy\.?)[[:space:]]+', '') = 'barretto');
+    RAISE NOTICE 'Added residents_barangay_is_barretto CHECK constraint.';
+  ELSE
+    RAISE NOTICE 'residents_barangay_is_barretto already present.';
+  END IF;
+END $$;
+
+DO $$
+DECLARE
+  v_out_of_area INTEGER;
+BEGIN
+  SELECT count(*) INTO v_out_of_area
+  FROM public.pre_registered_residents
+  WHERE barangay IS NULL
+     OR regexp_replace(lower(btrim(barangay)), '^(barangay|brgy\.?)[[:space:]]+', '') <> 'barretto';
+
+  IF v_out_of_area > 0 THEN
+    RAISE NOTICE
+      'Skipped pre_registered_residents_barangay_is_barretto: % row(s) still reference another barangay. Review them (step 1) and re-run this migration to enforce the constraint.',
+      v_out_of_area;
+    RETURN;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'pre_registered_residents_barangay_is_barretto'
+  ) THEN
+    ALTER TABLE public.pre_registered_residents
+      ADD CONSTRAINT pre_registered_residents_barangay_is_barretto
+      CHECK (regexp_replace(lower(btrim(barangay)), '^(barangay|brgy\.?)[[:space:]]+', '') = 'barretto');
+    RAISE NOTICE 'Added pre_registered_residents_barangay_is_barretto CHECK constraint.';
+  ELSE
+    RAISE NOTICE 'pre_registered_residents_barangay_is_barretto already present.';
+  END IF;
+END $$;
+
+-- ---------------------------------------------------------------------------
+-- 5. Verify
+-- ---------------------------------------------------------------------------
+-- SELECT count(*) AS residents_outside_barretto
+-- FROM public.residents
+-- WHERE regexp_replace(lower(btrim(barangay)), '^(barangay|brgy\.?)[[:space:]]+', '') <> 'barretto';
+--
+-- SELECT conname FROM pg_constraint
+-- WHERE conname IN ('residents_barangay_is_barretto', 'pre_registered_residents_barangay_is_barretto');
+
+-- ---------------------------------------------------------------------------
+-- 6. Rollback (schema only — the relabelled `barangay`/`province` values in
+--    step 2/3 are data changes and are not reverted by these statements)
+-- ---------------------------------------------------------------------------
+-- ALTER TABLE public.residents DROP CONSTRAINT IF EXISTS residents_barangay_is_barretto;
+-- ALTER TABLE public.pre_registered_residents DROP CONSTRAINT IF EXISTS pre_registered_residents_barangay_is_barretto;
+-- ALTER TABLE public.residents ALTER COLUMN barangay DROP DEFAULT;
+-- ALTER TABLE public.pre_registered_residents ALTER COLUMN barangay DROP DEFAULT;
+-- ALTER TABLE public.pre_registered_residents ALTER COLUMN city_municipality DROP DEFAULT;
+-- ALTER TABLE public.pre_registered_residents ALTER COLUMN province SET DEFAULT 'Metro Manila';
+
+--- Migration 35: Durable OCR Job Store ---
+-- Migration 35: Durable OCR verification job store
+-- The in-memory job store in lib/verification-jobs.ts is a process-local Map,
+-- so on a multi-instance deploy (serverless, or `next start` behind a load
+-- balancer) the /status poll can reach an instance that never saw the upload
+-- and the resident's verification hangs or fails even though OCR succeeded.
+-- This migration backs the store with Postgres so any instance can read a job.
+--
+-- RLS is enabled with NO policies: only the service-role key (which bypasses
+-- RLS) can read or write these rows. The endpoints all use the admin client, so
+-- no resident or admin needs direct access, and OCR results contain PII read
+-- off a government ID — keeping the table unreachable to `authenticated` is
+-- deliberate.
+--
+-- `expires_at` lets the cleanup below reap rows; an upload that is never polled
+-- does not accumulate forever.
+
+CREATE TABLE IF NOT EXISTS public.verification_ocr_jobs (
+  id UUID PRIMARY KEY,
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  status TEXT NOT NULL DEFAULT 'processing'
+    CHECK (status IN ('pending', 'processing', 'completed', 'failed')),
+  result JSONB,
+  error TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  expires_at TIMESTAMPTZ NOT NULL DEFAULT (now() + INTERVAL '1 hour')
+);
+
+-- The status endpoint looks jobs up by id; the owner check happens in the route.
+CREATE INDEX IF NOT EXISTS idx_verification_ocr_jobs_user
+  ON public.verification_ocr_jobs (user_id, created_at DESC);
+
+ALTER TABLE public.verification_ocr_jobs ENABLE ROW LEVEL SECURITY;
+
+-- Reap expired jobs on write. Cheap, and bounded by the one-hour expiry, so the
+-- table stays small without needing a scheduled job.
+--
+-- The trigger matters: `expires_at` alone does not delete anything, and these
+-- rows hold OCR output read off a resident's government ID. Without this the
+-- table grows without bound and PII is retained indefinitely, which is the
+-- opposite of what the `expires_at` column implies.
+--
+-- SECURITY DEFINER is required: the DELETE runs as the function owner (postgres)
+-- rather than the caller's role, so it is not subject to the RLS enabled above.
+--
+-- This is the body, kept as RETURNS VOID so it stays callable directly — the
+-- Supabase SQL Editor's "Run RPC" panel exposes it as
+-- /rpc/prune_verification_ocr_jobs, which makes the sweep a one-click manual
+-- recovery if the trigger is ever dropped.
+CREATE OR REPLACE FUNCTION public.prune_verification_ocr_jobs()
+RETURNS VOID
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  DELETE FROM public.verification_ocr_jobs
+  WHERE expires_at < now() - INTERVAL '1 day';
+$$;
+
+REVOKE ALL ON FUNCTION public.prune_verification_ocr_jobs()
+  FROM public, anon, authenticated;
+
+-- The trigger wrapper, which is what actually reaps rows on write.
+--
+-- It MUST be RETURNS TRIGGER: Postgres rejects a CREATE TRIGGER whose target
+-- function returns anything else (42P17: "function ... must return type
+-- trigger"). So the work lives in the VOID function above and this thin wrapper
+-- just calls it and returns NULL, which is what an AFTER trigger must do.
+--
+-- Statement-level on purpose. A job is inserted once then updated once or twice
+-- while the resident polls; a row-level trigger would run the DELETE a few extra
+-- times per verification for no benefit, since the table is bounded by the
+-- expiry either way.
+CREATE OR REPLACE FUNCTION public.trg_prune_verification_ocr_jobs()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  PERFORM public.prune_verification_ocr_jobs();
+  RETURN NULL;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.trg_prune_verification_ocr_jobs()
+  FROM public, anon, authenticated;
+
+DROP TRIGGER IF EXISTS trg_prune_verification_ocr_jobs
+  ON public.verification_ocr_jobs;
+
+CREATE TRIGGER trg_prune_verification_ocr_jobs
+  AFTER INSERT OR UPDATE ON public.verification_ocr_jobs
+  FOR EACH STATEMENT
+  EXECUTE FUNCTION public.trg_prune_verification_ocr_jobs();
+--- Migration 36: Verification Gate on Request Filing ---
+-- Migration 36: Require identity verification before filing a service request
+--
+-- Requests are inserted directly from the browser Supabase client
+-- (components/citizen/request-form-dialog.tsx), not through lib/db.ts, so the
+-- "Residents can create requests" RLS policy is the only enforcement point that
+-- cannot be bypassed by the client. A middleware redirect or a guard in
+-- lib/db.ts would not stop a crafted request against the REST API.
+--
+-- This replaces that policy with one that additionally requires the filing
+-- resident to be verified. Complaints are deliberately NOT gated: restricting a
+-- resident's ability to file a complaint could read as silencing them, which is
+-- the wrong trade for a public-safety channel.
+--
+-- Allowlist, not denylist: only `auto_verified` and `id_verified` pass, so any
+-- status added later is blocked until someone deliberately allows it. A pending
+-- (`needs_review`) or rejected resident must keep reaching /citizen/verify-id,
+-- the verification API routes, and the appeals endpoint — this policy only
+-- governs `requests` inserts, so those paths are unaffected.
+--
+-- Admin inserts and the representative proxy route
+-- (app/api/citizen/proxy-request) use the service-role key, which bypasses RLS;
+-- the proxy route performs its own authorization check against
+-- representative_authorizations.
+
+DROP POLICY IF EXISTS "Residents can create requests" ON public.requests;
+
+-- Also drop this migration's own policy. Without it the script only works on a
+-- database that has never run migration 36: Postgres raises
+--   ERROR: 42710: policy "Verified residents can create requests" already exists
+-- on a second run, because the DROP above targets the *old* policy name. Since
+-- migrate.js replays every migration, that made the whole batch abort partway
+-- through — leaving migrations 37-39 (including the admin authorization
+-- hardening) unapplied. Idempotent: safe to run any number of times.
+DROP POLICY IF EXISTS "Verified residents can create requests" ON public.requests;
+
+CREATE POLICY "Verified residents can create requests" ON public.requests
+  FOR INSERT WITH CHECK (
+    resident_id IN (
+      SELECT r.id
+      FROM public.residents r
+      WHERE r.user_id = auth.uid()
+        AND r.verification_status IN ('auto_verified', 'id_verified')
+    )
+  );
+--- Migration 37: Backfill Verification Claim ---
+-- Migration 37: Backfill verification_status into auth.users.user_metadata
+--
+-- lib/db.ts mirrors `verification_status` into `user_metadata` so middleware can
+-- read it without a database round-trip. That mirror only exists for accounts
+-- verified AFTER that change. Residents verified before it have no claim, so the
+-- middleware redirect in middleware.ts never fires for them and they meet the
+-- RLS gate (migration 36) as a raw Postgres policy error instead of being sent
+-- to /citizen/verify-id.
+--
+-- This backfills the claim from the authoritative source — the `residents` row
+-- — so the UX path works for pre-existing accounts.
+--
+-- Scope is deliberately narrow:
+--   * Only residents whose status is genuinely one of the five known values.
+--   * Only rows that do not already carry the claim, so re-running is a no-op
+--     and a status changed by an admin review afterwards is never overwritten
+--     with a stale value.
+--   * `jsonb_set` merges into the existing metadata document; this does not
+--     replace it, so `role`, `phone`, and `address` are preserved. That matters
+--     most for admins: middleware routes on `role`, and losing it would lock
+--     every admin out of /admin.
+--
+-- NOTE ON auth.users: this table is owned by Supabase's GoTrue, which is why
+-- lib/db.ts writes metadata through the admin API rather than SQL. A direct
+-- write is still done here deliberately and once, because there is no bulk
+-- equivalent of the admin API. Keep it idempotent and run it during a quiet
+-- period; GoTrue caches nothing that this would invalidate, but the change
+-- propagates to sessions on next token refresh.
+--
+-- Idempotent: safe to re-run.
+
+UPDATE auth.users AS au
+SET raw_user_meta_data = jsonb_set(
+      COALESCE(au.raw_user_meta_data, '{}'::jsonb),
+      '{verification_status}',
+      to_jsonb(r.verification_status),
+      true
+    )
+FROM public.residents AS r
+WHERE r.user_id = au.id
+  AND r.verification_status IS NOT NULL
+  AND r.verification_status IN ('unverified', 'auto_verified', 'id_verified', 'needs_review', 'rejected')
+  -- Never clobber a claim that is already present: it may be newer than the
+  -- residents row (an admin review can update the row via a path that does not
+  -- rewrite metadata, e.g. a direct SQL change).
+  AND NOT (au.raw_user_meta_data ? 'verification_status');
+
+-- Inspect what the backfill touched, and confirm no admin lost its role.
+-- Expect one row per resident that predates the metadata mirror.
+--
+-- SELECT r.first_name, r.last_name, r.verification_status,
+--        au.raw_user_meta_data->>'role' AS role,
+--        au.raw_user_meta_data->>'verification_status' AS claim
+-- FROM public.residents r
+-- JOIN auth.users au ON au.id = r.user_id
+-- ORDER BY r.last_name;
+
+-- Safety net: should return zero rows. Restricted to admins who also have a
+-- residents row, so ordinary staff accounts (no residents row) do not appear.
+-- A non-empty result means an account that should be an admin lost the role.
+--
+-- SELECT au.email, au.raw_user_meta_data
+-- FROM auth.users au
+-- JOIN public.residents r ON r.user_id = au.id
+-- WHERE (au.raw_user_meta_data->>'role') IN ('admin', 'super_admin')
+--   AND NOT (au.raw_user_meta_data ? 'verification_status');
+--- Migration 38: Fix Proxy Party Names ---
+-- ============================================================================
+-- Migration 38: Resolve proxy-filing counterparty names
+--
+-- Bug: the citizens' proxy pages showed "Unnamed resident" for the other party
+-- of an authorization, and the "File on behalf of" picker showed blank entries.
+--
+-- Cause: the residents table has a strict SELECT policy
+-- ("Residents can view their own data" -> USING (auth.uid() = user_id)).
+-- lib/representatives.ts loads authorizations through the caller's own Supabase
+-- client and embeds the other party with
+--   represented:residents!representative_authorizations_represented_resident_id_fkey(...)
+-- PostgREST applies the residents SELECT policy to that embedded join, so the
+-- counterparty's row is filtered out and the join resolves to NULL. The UI then
+-- fell back to its "Unnamed resident" placeholder.
+--
+-- We must not loosen the residents SELECT policy just to make a display work:
+-- that would expose every resident's full row (address, DOB, phone, ...) to
+-- anyone they ever authorized. Instead this SECURITY DEFINER helper exposes a
+-- deliberately narrow projection - id, first_name, last_name, email - and only
+-- for residents who share an authorization row with the caller. The resident id
+-- is the account's own primary key, the name is what the party already knows
+-- (they typed or picked it when granting), and the email is only ever used as a
+-- display fallback.
+-- ============================================================================
+
+CREATE OR REPLACE FUNCTION public.proxy_party_directory(p_resident_ids uuid[])
+RETURNS TABLE (
+  id uuid,
+  first_name text,
+  last_name text,
+  email text
+)
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT DISTINCT r.id, r.first_name, r.last_name, r.email
+  FROM public.residents r
+  JOIN public.representative_authorizations ra
+    ON ra.represented_resident_id = r.id
+    OR ra.representative_resident_id = r.id
+  WHERE r.id = ANY (p_resident_ids)
+    AND (
+      ra.represented_resident_id = public.current_resident_id()
+      OR ra.representative_resident_id = public.current_resident_id()
+    );
+$$;
+
+-- Only authenticated portal users may resolve their own proxy counterparties.
+REVOKE ALL ON FUNCTION public.proxy_party_directory(uuid[]) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.proxy_party_directory(uuid[]) TO authenticated;
+
+--- Migration 39: Harden Admin Authorization (drop user_metadata trust) ---
+-- Migration 39: stop trusting user_metadata for admin authorization
+--
+-- WHY THIS IS NEEDED
+-- ----------------------------------------------------------------------------
+-- `public.is_admin_user()` guards every admin RLS policy, and until now it
+-- accepted a role out of `auth.jwt() -> 'user_metadata'`. `user_metadata` is
+-- writable by the signed-in account itself:
+--
+--     supabase.auth.updateUser({ data: { role: 'admin' } })
+--
+-- so any resident could mint an admin claim, refresh their session, and then
+-- read or write every table whose policy calls is_admin_user() — residents,
+-- requests, complaints, feedback, officials, system_settings, audit logs.
+--
+-- The application layer was already hardened to read `app_metadata` only
+-- (lib/roles.ts, used by middleware.ts, lib/auth.ts, lib/admin-auth.ts and the
+-- /api/admin/* handlers). This migration makes the database agree, so the two
+-- can no longer disagree about who is an admin. A resident who forges
+-- `user_metadata.role` is then rejected at both layers.
+--
+-- ORDER OF OPERATIONS
+-- ----------------------------------------------------------------------------
+-- Step 1 first copies `user_metadata.role` into `app_metadata.role` for any
+-- account that only ever had the role in the writable place, so a legitimate
+-- admin provisioned before `scripts/setup_admin_account.js` started writing
+-- `app_metadata` keeps access. Step 2 then removes the fallback. Run the whole
+-- file; it is idempotent and safe to re-run.
+--
+-- NOTE ON auth.users: this table is owned by Supabase's GoTrue, which is why the
+-- app writes metadata through the admin API rather than SQL. The direct write in
+-- step 1 is deliberate and one-off because there is no bulk equivalent of the
+-- admin API. Run it during a quiet period; the change reaches a session on its
+-- next token refresh.
+
+-- ---------------------------------------------------------------------------
+-- Step 1: backfill app_metadata.role from user_metadata.role
+-- ---------------------------------------------------------------------------
+-- `jsonb_set` merges into the existing document instead of replacing it, so
+-- `provider`, `providers`, and any other app_metadata keys are preserved.
+UPDATE auth.users AS au
+SET raw_app_meta_data = jsonb_set(
+      COALESCE(au.raw_app_meta_data, '{}'::jsonb),
+      '{role}',
+      to_jsonb(au.raw_user_meta_data ->> 'role')
+    )
+WHERE (au.raw_user_meta_data ->> 'role') IN ('admin', 'super_admin')
+  AND COALESCE(au.raw_app_meta_data ->> 'role', '') NOT IN ('admin', 'super_admin');
+
+-- ---------------------------------------------------------------------------
+-- Step 2: replace the admin helpers — admin_users membership + app_metadata
+-- ---------------------------------------------------------------------------
+-- Only the user_metadata branch is dropped; the admin_users lookup and the
+-- app_metadata branch behave exactly as before.
+CREATE OR REPLACE FUNCTION public.is_admin_user(target_user_id uuid)
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.admin_users
+    WHERE user_id = target_user_id
+    AND role IN ('admin', 'super_admin')
+  )
+  OR coalesce((auth.jwt() -> 'app_metadata' ->> 'role') IN ('admin', 'super_admin'), false);
+$$;
+
+CREATE OR REPLACE FUNCTION public.is_super_admin_user(target_user_id uuid)
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.admin_users
+    WHERE user_id = target_user_id
+    AND role = 'super_admin'
+  )
+  OR coalesce((auth.jwt() -> 'app_metadata' ->> 'role') = 'super_admin', false);
+$$;
+
+-- ---------------------------------------------------------------------------
+-- Verification (run these by hand; they are intentionally not executed)
+-- ---------------------------------------------------------------------------
+-- 1. Accounts that still carry an admin role ONLY in the writable metadata.
+--    After step 1 this list should be empty, except for accounts you intend to
+--    demote. Anyone left here is now treated as a plain resident.
+--
+-- SELECT au.id,
+--        au.email,
+--        au.raw_user_meta_data ->> 'role' AS user_metadata_role,
+--        au.raw_app_meta_data  ->> 'role' AS app_metadata_role,
+--        (SELECT count(*) FROM public.admin_users a WHERE a.user_id = au.id) AS admin_rows
+-- FROM auth.users au
+-- WHERE (au.raw_user_meta_data ->> 'role') IN ('admin', 'super_admin');
+--
+-- 2. Confirm the helpers no longer reference user_metadata. Neither body should
+--    contain the text "user_metadata".
+--
+-- SELECT proname, prosrc FROM pg_proc
+-- WHERE proname IN ('is_admin_user', 'is_super_admin_user');
+--
+-- 3. Prove a forged claim no longer grants access. Run once as a resident
+--    (returns false) after calling
+--    supabase.auth.updateUser({ data: { role: 'admin' } }) from the browser:
+--
+-- SELECT public.is_admin_user(auth.uid());
+
+--- Migration 40: Pre-Registered Residents Without Email ---
+-- Migration 40: Allow pre-registered residents without an email address
+--
+-- The registry is seeded from barangay household records (census sheets), which
+-- routinely list a name, birth date and address but no email. Migration 16 made
+-- `email` NOT NULL, so every such row was rejected by the bulk importer and the
+-- admin saw "0 residents imported successfully".
+--
+-- Identity verification still works without an email: findPreRegisteredCandidates
+-- matches on phone / national ID and falls back to a name lookup, and
+-- calculateMatchScore simply scores the missing email signal as zero.
+--
+-- The UNIQUE constraint on `email` is kept: PostgreSQL treats NULLs as distinct,
+-- so any number of email-less rows are allowed while real addresses stay unique.
+
+ALTER TABLE public.pre_registered_residents
+  ALTER COLUMN email DROP NOT NULL;
+
+COMMENT ON COLUMN public.pre_registered_residents.email IS
+  'Contact email captured at registration, when known. NULL for household records imported without one.';
+
+--- Migration 41: Structured Name Parts on Officials ---
+-- Migration 41: Structured name parts on officials
+--
+-- The officials table stored a single `full_name` string, while every other
+-- person record in the system (residents, accounts) keeps first/middle/last.
+-- One string cannot be alphabetised by surname or printed as "Dela Cruz, Juan",
+-- and splitting it later is unreliable because Filipino surnames are often
+-- compound ("Dela Cruz", "Macapagal", "Santos Benitez").
+--
+-- `full_name` is kept as the display column every existing query reads: the app
+-- composes it from the parts on save, so no display, report or sort code needs
+-- to change. The new columns are nullable on purpose - existing rows are NOT
+-- parsed automatically (a wrong guess is worse than a blank), they simply stay
+-- empty until an admin re-saves the record from the Edit dialog.
+--
+-- Note: unlike residents (who keep a full `middle_name`), officials are
+-- recorded with a middle INITIAL only, hence `middle_initial`.
+
+ALTER TABLE public.officials
+  ADD COLUMN IF NOT EXISTS first_name TEXT,
+  ADD COLUMN IF NOT EXISTS middle_initial TEXT,
+  ADD COLUMN IF NOT EXISTS last_name TEXT,
+  ADD COLUMN IF NOT EXISTS suffix TEXT;
+
+COMMENT ON COLUMN public.officials.first_name IS 'Given name. NULL for rows created before migration 41.';
+COMMENT ON COLUMN public.officials.middle_initial IS 'Middle initial only, stored as a capitalised letter with a period (e.g. S.). Officials are recorded with initials, not full middle names.';
+COMMENT ON COLUMN public.officials.last_name IS 'Family name / surname. NULL for rows created before migration 41.';
+COMMENT ON COLUMN public.officials.suffix IS 'Name extension such as Jr. or III, optional.';
+--- Migration 42: Rename Designation priority_order to rank + auto-assign ---
+-- Migration 42: Rename `priority_order` to `rank` and make it automatic
+--
+-- Two problems with `designations.priority_order`:
+--
+--   1. It was a hand-typed integer that only affected display sorting, so it
+--      drifted and duplicates inside a category were silently accepted.
+--   2. The name collided with two unrelated columns in this schema -
+--      `requests.priority` and `complaints.priority_level` - which mean triage
+--      urgency on a specific item, not the standing rank of an office. A
+--      column named `rank` cannot be mistaken for either.
+--
+-- The rename is folded into this migration rather than shipped separately so a
+-- deployment applies it in one step. `RENAME COLUMN` also carries the existing
+-- index across automatically; it is renamed afterwards to match.
+--
+-- Steps:
+--   1. Rename the column and the index that references it.
+--   2. Renumber existing rows densely per category, preserving the current
+--      relative order (old rank, then name). Gaps collapse; relative ranking
+--      is unchanged.
+--   3. Enforce UNIQUE (category, rank) so ties cannot be created.
+--
+-- Numbering is per category on purpose: a Barangay Captain and an SK
+-- Chairperson are both rank 1, because they head separate groups that are
+-- never compared against each other. Officials are sorted within a category.
+--
+-- New designations get max(rank) + 1 for their category, assigned by the app
+-- (see getNextRank in lib/governance.ts). An admin may still type an explicit
+-- number to override.
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- DIAGNOSTIC (read-only, safe to run at any time)
+--
+-- Paste this on its own to confirm what state the table is actually in. The
+-- RENAME is transactional, so a failure either leaves the column fully renamed
+-- or fully untouched - never half done.
+--
+-- Expect ONE row: the column is named "rank" (NOT NULL, default 999).
+-- If it reports priority_order instead, the rename never ran.
+-- ─────────────────────────────────────────────────────────────────────────────
+-- SELECT column_name, is_nullable, column_default
+-- FROM information_schema.columns
+-- WHERE table_schema = 'public'
+--   AND table_name = 'designations'
+--   AND column_name IN ('priority_order', 'rank');
+
+-- 1a. Rename the column. `"rank"` is quoted because RANK is also a window
+--     function name in Postgres (non-reserved, but quoting avoids ambiguity).
+--
+--     Postgres has no `RENAME COLUMN IF EXISTS`, so the rename is wrapped in a
+--     DO block that checks pg_attribute first. This matters because
+--     migrate.js emits the whole migration history and Supabase's SQL editor is
+--     re-runnable: without the guard, a second run of an already-migrated
+--     database aborts with `column "priority_order" does not exist` and takes
+--     every statement after it down with it.
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_attribute
+    WHERE attrelid = 'public.designations'::regclass
+      AND attname = 'priority_order'
+      AND NOT attisdropped
+  ) THEN
+    ALTER TABLE public.designations RENAME COLUMN priority_order TO "rank";
+    RAISE NOTICE 'designations.priority_order renamed to rank';
+  ELSE
+    RAISE NOTICE 'designations.priority_order already renamed - skipping';
+  END IF;
+END
+$$;
+
+-- 1b. The 2026-06 index from migration 05 follows the renamed column; give it a
+--     name that matches. Both directions are guarded so re-running is safe.
+DROP INDEX IF EXISTS public.designations_priority_order_idx;
+CREATE INDEX IF NOT EXISTS designations_rank_idx ON public.designations("rank" ASC, name ASC);
+
+-- 2. Renumber densely per category, keeping the existing relative order.
+WITH ranked AS (
+  SELECT
+    id,
+    ROW_NUMBER() OVER (
+      PARTITION BY category
+      ORDER BY "rank" ASC, name ASC
+    ) AS new_rank
+  FROM public.designations
+)
+UPDATE public.designations d
+SET "rank" = r.new_rank,
+    updated_at = NOW()
+FROM ranked r
+WHERE d.id = r.id
+  AND d."rank" IS DISTINCT FROM r.new_rank;
+
+-- 3. Enforce uniqueness within a category (idempotent).
+DROP INDEX IF EXISTS public.designations_category_priority_order_key;
+CREATE UNIQUE INDEX IF NOT EXISTS designations_category_rank_key
+  ON public.designations(category ASC, "rank" ASC);
+
+COMMENT ON COLUMN public.designations."rank" IS
+  'Standing rank within the designation''s category (1 = highest). Unique per category; assigned as max+1 when the admin leaves the field blank. Not to be confused with requests.priority / complaints.priority_level, which are per-item triage urgency.';
+--- Migration 43: Derive Designation Badge Color From Category ---
+-- Migration 43: Derive designation badge color from the category
+--
+-- `designations.badge_color` was a hand-picked color stored per designation.
+-- Two problems:
+--
+--   1. It invited arbitrary values. The seeded barangay set was four unrelated
+--      shades (dark green #166534, green #28A745, teal #0f766e, sky blue
+--      #0ea5e9) implying a distinction between Captain and Treasurer that does
+--      not exist in practice. Nothing told an admin which color to pick, so any
+--      value from the swatch control was equally "correct".
+--
+--   2. Nothing on the citizen-facing side used it. Only two admin tables render
+--      a badge; the public directory (app/citizen/offices) reads from
+--      charter_services and has never shown a color. So the column was
+--      maintained by hand for the benefit of two admin tables.
+--
+-- The one distinction that IS real is category: SK officials are visually
+-- distinct from barangay officials, and staff are neither. So the color is now
+-- derived from the category in getDesignationBadgeColor() (lib/governance.ts)
+-- and the column is dropped. The four barangay shades collapse to one honest
+-- green, SK keeps the purple that genuinely separates it, staff keeps the gray.
+--
+-- This also removes the only NOT NULL, defaulted column the app had to supply
+-- on every designation write, which is a class of insert failure this schema
+-- has been bitten by before (see scripts/_check_schema.mjs).
+
+ALTER TABLE public.designations
+  DROP COLUMN IF EXISTS badge_color;
 --- Finalize Complaints Schema ---
 -- Post-setup: Configure evidence storage bucket and policies
 -- This script adds the storage bucket configuration for file uploads
@@ -2122,90 +3307,4 @@ $$;
 UPDATE public.complaints
 SET tracking_number = COALESCE(tracking_number, 'RPT-' || UPPER(SUBSTRING(id::text, 1, 8)))
 WHERE tracking_number IS NULL;
-
---- Migration 25: Fix verification_attempts RLS (INSERT/UPDATE) ---
--- Migration 25: Fix verification_attempts RLS (INSERT/UPDATE policies)
--- Migration 16 enabled RLS on verification_attempts but only created SELECT
--- policies. Without INSERT/UPDATE policies, user-session writes were rejected:
---   * Residents' OCR attempts were silently dropped, so the admin review queue
---     never received `needs_review` entries.
---   * Admin approve/reject failed with a permission error (HTTP 500).
-
--- Residents can log verification attempts for their own profile (OCR uploads,
--- re-submissions, and rejected-verification appeals).
-DROP POLICY IF EXISTS "Residents can log their own verification attempts" ON public.verification_attempts;
-CREATE POLICY "Residents can log their own verification attempts" ON public.verification_attempts
-  FOR INSERT WITH CHECK (
-    resident_id IN (
-      SELECT id FROM public.residents WHERE residents.user_id = auth.uid()
-    )
-  );
-
--- Admins can update attempts when reviewing them (status, reviewer, timestamp).
-DROP POLICY IF EXISTS "Admins can review verification attempts" ON public.verification_attempts;
-CREATE POLICY "Admins can review verification attempts" ON public.verification_attempts
-  FOR UPDATE USING (public.is_admin_user(auth.uid()))
-  WITH CHECK (public.is_admin_user(auth.uid()));
-
---- Migration 26: Add published_at to announcements ---
--- Migration 26: Add published_at to announcements
--- Records the real publish time. Before this, the UI reused created_at, so a
--- draft written weeks earlier displayed a stale "Published on" date the moment
--- it went live. Cleared back to NULL when an announcement is unpublished.
-
-ALTER TABLE public.announcements
-  ADD COLUMN IF NOT EXISTS published_at TIMESTAMP WITH TIME ZONE;
-
-COMMENT ON COLUMN public.announcements.published_at IS 'When the announcement was most recently published; NULL while it is a draft';
-
--- Backfill: announcements that are already live were published when created.
-UPDATE public.announcements
-   SET published_at = created_at
- WHERE is_published = TRUE
-   AND published_at IS NULL;
-
--- Supports the citizen feed (published newest-first) and admin status filters.
-CREATE INDEX IF NOT EXISTS announcements_published_feed_idx
-  ON public.announcements (is_published, published_at DESC NULLS LAST);
-
---- Migration 27: Announcement pinning and expiry ---
--- Migration 27: Announcement pinning and expiry
--- `pinned` keeps an important announcement at the top of the citizen feed.
--- `expires_at` hides time-bound notices automatically (e.g. a maintenance window),
--- so they do not linger on the dashboard once they stop applying.
---
--- No scheduled job is needed: migration 26's `published_at` doubles as the
--- publish schedule (a future value means "publish later"), and visibility is
--- resolved at read time.
-
-ALTER TABLE public.announcements
-  ADD COLUMN IF NOT EXISTS pinned BOOLEAN NOT NULL DEFAULT FALSE;
-
-ALTER TABLE public.announcements
-  ADD COLUMN IF NOT EXISTS expires_at TIMESTAMP WITH TIME ZONE;
-
-COMMENT ON COLUMN public.announcements.pinned IS 'Pins the announcement above unpinned ones in the citizen feed';
-COMMENT ON COLUMN public.announcements.expires_at IS 'Optional time after which the announcement is hidden from residents (NULL = never expires)';
-
--- Supports the citizen feed: visible rows, pinned first, newest publish first.
-CREATE INDEX IF NOT EXISTS announcements_feed_idx
-  ON public.announcements (is_published, pinned DESC, published_at DESC);
-
--- ============================================================================
--- Migration 40: Allow pre-registered residents without an email address
--- ============================================================================
--- The registry is seeded from barangay household records (census sheets), which
--- routinely list a name, birth date and address but no email. Migration 16 made
--- `email` NOT NULL, so every such row was rejected by the bulk importer.
---
--- The UNIQUE constraint on `email` is kept: PostgreSQL treats NULLs as distinct,
--- so any number of email-less rows are allowed while real addresses stay unique.
-
-ALTER TABLE public.pre_registered_residents
-  ALTER COLUMN email DROP NOT NULL;
-
-COMMENT ON COLUMN public.pre_registered_residents.email IS
-  'Contact email captured at registration, when known. NULL for household records imported without one.';
-
-
 

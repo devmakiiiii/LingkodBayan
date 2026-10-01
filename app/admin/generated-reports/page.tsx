@@ -82,8 +82,7 @@ type DesignationRecord = {
   id: string
   name: string
   category: string
-  priority_order: number
-  badge_color: string | null
+  rank: number
 }
 
 function stringValue(value: unknown, fallback = '') {
@@ -319,7 +318,7 @@ export default function AdminGeneratedReportsPage() {
         if (officialData) {
           const designationIds = officialData.map((row: RawReportRow) => stringValue(row.designation_id)).filter(Boolean)
           if (designationIds.length) {
-            const designationResult = await supabase.from('designations').select('id, name, category, priority_order, badge_color').in('id', designationIds)
+            const designationResult = await supabase.from('designations').select('id, name, category, rank').in('id', designationIds)
             if (designationResult.error) sourceErrors.push(designationResult.error.message)
             designationRows.push(...((designationResult.data as DesignationRecord[] | undefined) ?? []))
           }

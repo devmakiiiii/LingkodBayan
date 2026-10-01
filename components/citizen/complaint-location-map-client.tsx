@@ -4,6 +4,14 @@ import { useMemo } from 'react'
 import { MapContainer, TileLayer, Marker } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
+import { BarangayBoundary } from '@/components/maps/barangay-boundary'
+import {
+  BARANGAY_BARRETTO_MAX_BOUNDS,
+  BARANGAY_BARRETTO_MAX_ZOOM,
+  BARANGAY_BARRETTO_MIN_ZOOM,
+  BARANGAY_MAP_TILE_ATTRIBUTION,
+  BARANGAY_MAP_TILE_URL,
+} from '@/lib/barangay-map'
 
 interface ComplaintLocationMapClientProps {
   latitude: number
@@ -27,16 +35,21 @@ export default function ComplaintLocationMapClient({ latitude, longitude }: Comp
   return (
     <MapContainer
       center={position}
-      zoom={17}
+      zoom={16}
+      minZoom={BARANGAY_BARRETTO_MIN_ZOOM}
+      maxZoom={BARANGAY_BARRETTO_MAX_ZOOM}
+      maxBounds={BARANGAY_BARRETTO_MAX_BOUNDS}
+      maxBoundsViscosity={1}
       style={{ height: '200px', width: '100%' }}
       scrollWheelZoom={false}
       dragging={false}
       doubleClickZoom={false}
     >
       <TileLayer
-        attribution='&copy; OpenStreetMap'
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        attribution={BARANGAY_MAP_TILE_ATTRIBUTION}
+        url={BARANGAY_MAP_TILE_URL}
       />
+      <BarangayBoundary />
       <Marker
         position={position}
         icon={defaultIcon}

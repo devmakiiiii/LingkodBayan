@@ -1,6 +1,6 @@
 import { getRequestTypeTitle } from './request-types'
 import { complaintCategories as canonicalComplaintCategories, type ComplaintCategory as CanonicalComplaintCategory } from './complaint-categories'
-import { getDesignationCategoryShortLabel, getDesignationCategoryLabel, getOfficialTermDuration, normalizeBadgeColor } from './governance'
+import { getDesignationCategoryShortLabel, getDesignationCategoryLabel, getOfficialTermDuration } from './governance'
 
 export const adminReportTypes = ['requests', 'residents', 'officials', 'audit'] as const
 export type AdminReportType = (typeof adminReportTypes)[number]
@@ -102,8 +102,7 @@ export interface OfficialReportRow {
     id: string
     name: string
     category: string
-    priority_order: number
-    badge_color: string | null
+    rank: number
   } | null
 }
 
@@ -236,9 +235,9 @@ export function getOfficialCategoryShortLabel(row: OfficialReportRow) {
   return getDesignationCategoryShortLabel(row.designations?.category)
 }
 
-export function getOfficialBadgeColor(row: OfficialReportRow) {
-  return normalizeBadgeColor(row.designations?.badge_color)
-}
+// getOfficialBadgeColor() was removed in migration 43. It had no callers, and
+// the stored badge_color it read is gone - colors now come from
+// getDesignationBadgeColor(row.designations?.category).
 
 export function buildCsv(rows: PrintableRow[], columns: PrintableColumn[]) {
   // Neutralize spreadsheet formula injection (OWASP): a cell starting with

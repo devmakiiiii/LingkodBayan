@@ -137,6 +137,103 @@ describe('suggestAssignee', () => {
   })
 })
 
+describe('suggestAssignee seniority tiebreaker (migration 42)', () => {
+  /**
+   * Two officials, identical and empty load. Seniority is the only thing that
+   * can separate them, which is exactly the case hierarchy is meant to decide.
+   * Names are chosen so alphabetical order CONTRADICTS seniority: if the
+   * tiebreaker were missing, "Alice" would win over the Captain.
+   */
+  const ranked = [
+    { id: 'junior', name: 'Alice Cruz', designationLabel: 'Kagawad', designationRank: 2, status: 'active' },
+    { id: 'senior', name: 'Zeta Santos', designationLabel: 'Captain', designationRank: 1, status: 'active' },
+  ]
+
+  it('prefers the more senior designation when loads are equal', () => {
+    const workloads = computeOfficialWorkloads(ranked, [])
+    assert.equal(suggestAssignee(workloads)?.officialId, 'senior')
+  })
+
+  it('does NOT let seniority override a genuinely lower load', () => {
+    // The Captain is busy, the Kagawad is not. Fairness wins: piling work on
+    // the Captain because they outrank is the failure mode this guards against.
+    const workloads = computeOfficialWorkloads(ranked, [
+      { assignedOfficialId: 'senior', status: 'open', priority: 'critical' },
+    ])
+
+    assert.equal(suggestAssignee(workloads)?.officialId, 'junior')
+  })
+
+  it('treats a missing rank as least senior, never most senior', () => {
+    // An official whose designation row predates migration 42 must not be
+    // promoted above a Captain just because the column is null.
+    const workloads = computeOfficialWorkloads(
+      [
+        { id: 'unranked', name: 'Alice Cruz', designationLabel: 'Official', status: 'active' },
+        { id: 'senior', name: 'Zeta Santos', designationLabel: 'Captain', designationRank: 1, status: 'active' },
+      ],
+      [],
+    )
+
+    assert.equal(suggestAssignee(workloads)?.officialId, 'senior')
+  })
+
+  it('falls back to alphabetical order when seniority is also tied', () => {
+    const workloads = computeOfficialWorkloads(
+      [
+        { id: 'b', name: 'Bob Santos', designationRank: 1, status: 'active' },
+        { id: 'a', name: 'Amy Reyes', designationRank: 1, status: 'active' },
+      ],
+      [],
+    )
+
+    assert.equal(suggestAssignee(workloads)?.officialId, 'a')
+  })
+
+  it('is deterministic across repeated calls and input order', () => {
+    const workloads = computeOfficialWorkloads(ranked, [])
+    const reversed = computeOfficialWorkloads([...ranked].reverse(), [])
+
+    assert.equal(suggestAssignee(workloads)?.officialId, 'senior')
+    assert.equal(suggestAssignee(reversed)?.officialId, 'senior')
+  })
+})
+
+describe('planEvenDistribution seniority tiebreaker (migration 42)', () => {
+  it('gives the first equal-load placement to the more senior official', () => {
+    const workloads = computeOfficialWorkloads(
+      [
+        { id: 'junior', name: 'Alice Cruz', designationRank: 2, status: 'active' },
+        { id: 'senior', name: 'Zeta Santos', designationRank: 1, status: 'active' },
+      ],
+      [],
+    )
+
+    const plan = planEvenDistribution([{ id: 'a', priority: 'low' }], workloads)
+    assert.equal(plan[0].officialId, 'senior')
+  })
+
+  it('still spreads work evenly rather than funnelling it to the Captain', () => {
+    // Two identical items across a Captain and a Kagawad: each should end up
+    // with one, not both with the senior official.
+    const workloads = computeOfficialWorkloads(
+      [
+        { id: 'senior', name: 'Zeta Santos', designationRank: 1, status: 'active' },
+        { id: 'junior', name: 'Alice Cruz', designationRank: 2, status: 'active' },
+      ],
+      [],
+    )
+
+    const plan = planEvenDistribution(
+      [{ id: 'a', priority: 'low' }, { id: 'b', priority: 'low' }],
+      workloads,
+    )
+
+    const ids = plan.map((entry) => entry.officialId).sort()
+    assert.deepEqual(ids, ['junior', 'senior'])
+  })
+})
+
 describe('planEvenDistribution', () => {
   it('spreads items across assignable officials without exceeding a one-item gap', () => {
     const workloads = computeOfficialWorkloads(OFFICIALS, [])

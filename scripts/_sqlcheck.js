@@ -1,7 +1,10 @@
 // Temporary structural validator for charter SQL migrations.
 // Splits statements at semicolons that are OUTSIDE strings/comments/dollar-quotes,
 // then checks paren balance and quote parity per statement.
-const fs = require('fs')
+//
+// ES module (package.json sets "type": "module"), so this uses import rather
+// than require - the CommonJS form threw on startup and silently never ran.
+import fs from 'node:fs'
 
 let problems = 0
 for (const file of process.argv.slice(2)) {

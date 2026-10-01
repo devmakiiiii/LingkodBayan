@@ -136,7 +136,7 @@ export default function AdminDashboard() {
           // falls back to complaint load only.
           supabase.from('requests').select('status, assigned_official_id, priority', { count: 'exact' }).limit(STATUS_ROW_LIMIT),
           supabase.from('complaints').select('status, assigned_official_id, priority_level, archived_at', { count: 'exact' }).limit(STATUS_ROW_LIMIT),
-          supabase.from('officials').select('id, full_name, status, designations(name)').order('full_name', { ascending: true }),
+          supabase.from('officials').select('id, full_name, status, designations(name, rank)').order('full_name', { ascending: true }),
         ])
 
         // Normalize legacy aliases ("in-progress", "under_review", ...) so every
@@ -161,6 +161,9 @@ export default function AdminDashboard() {
             id: official.id,
             name: official.full_name || 'Official',
             designationLabel: official.designations?.name || 'Official',
+            // Seniority tiebreaker for assignment (migration 42). Older rows
+            // with no designation fall back to "least senior".
+            designationRank: official.designations?.rank ?? null,
             status: official.status,
           })),
           (complaintRows ?? []).map((row: any) => ({

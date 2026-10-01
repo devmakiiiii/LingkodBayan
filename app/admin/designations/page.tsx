@@ -13,17 +13,18 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Plus, Pencil, Search, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { DesignationActions, type DesignationRecord } from '@/components/admin/designations-actions'
-import { getDesignationCategoryShortLabel, normalizeBadgeColor } from '@/lib/governance'
+import { getDesignationCategoryShortLabel, getDesignationBadgeColor } from '@/lib/governance'
+import { logAdminActionClient } from '@/lib/audit-log-client'
 import { formatDate } from '@/lib/format-date'
 
 const defaultDesignations = [
-  { name: 'Barangay Captain', category: 'barangay', priority_order: 1, badge_color: '#166534' },
-  { name: 'Barangay Kagawad', category: 'barangay', priority_order: 2, badge_color: '#28A745' },
-  { name: 'Barangay Secretary', category: 'barangay', priority_order: 3, badge_color: '#0f766e' },
-  { name: 'Barangay Treasurer', category: 'barangay', priority_order: 4, badge_color: '#0ea5e9' },
-  { name: 'SK Chairperson', category: 'sk', priority_order: 1, badge_color: '#7c3aed' },
-  { name: 'SK Kagawad', category: 'sk', priority_order: 2, badge_color: '#8b5cf6' },
-  { name: 'Staff Member', category: 'staff', priority_order: 1, badge_color: '#6b7280' },
+  { name: 'Barangay Captain', category: 'barangay', rank: 1 },
+  { name: 'Barangay Kagawad', category: 'barangay', rank: 2 },
+  { name: 'Barangay Secretary', category: 'barangay', rank: 3 },
+  { name: 'Barangay Treasurer', category: 'barangay', rank: 4 },
+  { name: 'SK Chairperson', category: 'sk', rank: 1 },
+  { name: 'SK Kagawad', category: 'sk', rank: 2 },
+  { name: 'Staff Member', category: 'staff', rank: 1 },
 ] as const
 
 export default function AdminDesignationsPage() {
@@ -47,7 +48,7 @@ export default function AdminDesignationsPage() {
       const { data: designationData, error: designationError } = await supabase
         .from('designations')
         .select('*')
-        .order('priority_order', { ascending: true })
+        .order('rank', { ascending: true })
         .order('name', { ascending: true })
 
       if (designationError) throw designationError
@@ -62,7 +63,7 @@ export default function AdminDesignationsPage() {
         const { data: seededDesignations, error: refetchError } = await supabase
           .from('designations')
           .select('*')
-          .order('priority_order', { ascending: true })
+          .order('rank', { ascending: true })
           .order('name', { ascending: true })
 
         if (refetchError) throw refetchError
@@ -84,8 +85,7 @@ export default function AdminDesignationsPage() {
       id: row.id,
       name: row.name,
       category: row.category,
-      priorityOrder: row.priority_order,
-      badgeColor: row.badge_color,
+      rank: row.rank,
       created_at: row.created_at,
       updated_at: row.updated_at,
     }
@@ -117,6 +117,19 @@ export default function AdminDesignationsPage() {
         throw error
       }
 
+      // Deleting a designation removes an office from the hierarchy, which
+      // changes assignment order just as surely as re-ranking does.
+      void logAdminActionClient({
+        action: 'designation_deleted',
+        resourceType: 'designation',
+        resourceId: designation.id,
+        oldValues: {
+          name: designation.name,
+          category: designation.category,
+          rank: designation.rank ?? null,
+        },
+      })
+
       toast.success(`${designation.name} has been deleted.`)
       setDeleteTarget(null)
       loadData()
@@ -132,6 +145,7 @@ export default function AdminDesignationsPage() {
         isOpen={isModalOpen}
         mode={modalMode}
         designation={selectedDesignation}
+        designations={designations}
         onClose={() => {
           setIsModalOpen(false)
           setSelectedDesignation(null)
@@ -209,22 +223,23 @@ export default function AdminDesignationsPage() {
               <TableRow>
                 <TableHead>Designation Name</TableHead>
                 <TableHead>Category</TableHead>
-                <TableHead>Priority Order</TableHead>
-                <TableHead>Badge Color</TableHead>
+                <TableHead>Rank</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredDesignations.map((designation) => (
                 <TableRow key={designation.id}>
-                  <TableCell className="font-medium">{designation.name}</TableCell>
-                  <TableCell>{getDesignationCategoryShortLabel(designation.category)}</TableCell>
-                  <TableCell>{designation.priorityOrder}</TableCell>
-                  <TableCell>
-                    <Badge className="text-white" style={{ backgroundColor: normalizeBadgeColor(designation.badgeColor) }}>
-                      {designation.badgeColor}
+                  <TableCell className="font-medium">
+                    <Badge
+                      className="text-white"
+                      style={{ backgroundColor: getDesignationBadgeColor(designation.category) }}
+                    >
+                      {designation.name}
                     </Badge>
                   </TableCell>
+                  <TableCell>{getDesignationCategoryShortLabel(designation.category)}</TableCell>
+                  <TableCell>{designation.rank}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
                       <Button

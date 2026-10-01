@@ -35,6 +35,17 @@ export interface WorkloadOfficialInput {
   id: string
   name: string
   designationLabel?: string | null
+  /**
+   * Standing rank of the official's designation within its category
+   * (designations."rank", migration 42). 1 = highest.
+   *
+   * Used only as a tiebreaker between officials carrying an equal load, so
+   * seniority decides who picks up the next equally-busy case without ever
+   * overriding fairness. Missing = treated as lowest seniority (see
+   * DEFAULT_DESIGNATION_RANK), which keeps pre-migration or unranked rows
+   * behaving exactly as they did before this field existed.
+   */
+  designationRank?: number | null
   /** Official status: 'active' | 'archived' (missing = active). Legacy 'inactive' rows are treated as non-assignable. */
   status?: string | null
 }
@@ -49,10 +60,34 @@ export interface WorkloadItemInput {
   archivedAt?: string | null
 }
 
+/**
+ * Sentinels for comparing designation rank. Ranks are 1-based and unique per
+ * category, so 999 can never be a real rank, and Infinity reliably sorts after
+ * every finite value.
+ */
+export const DEFAULT_DESIGNATION_RANK = 999
+const UNRANKED_SENIORITY = Infinity
+
+/**
+ * Normalize a stored rank for sorting. Absent, unparseable or non-positive
+ * values sort last rather than first, so an official missing a designation is
+ * never treated as the most senior person in the room.
+ */
+function normalizeDesignationRank(rank?: number | null): number {
+  const value = Number(rank)
+  if (!Number.isFinite(value) || value < 1) return UNRANKED_SENIORITY
+  return value
+}
+
 export interface OfficialWorkload {
   officialId: string
   name: string
   designationLabel: string
+  /**
+   * Lower is more senior; `Infinity` when the designation rank is unknown.
+   * Compare via `normalizeDesignationRank`, not with `<`.
+   */
+  designationRank: number
   /** Active officials can receive new assignments. */
   isAssignable: boolean
   activeComplaints: number
@@ -105,6 +140,7 @@ export function computeOfficialWorkloads(
     officialId: official.id,
     name: official.name,
     designationLabel: official.designationLabel || 'Official',
+    designationRank: normalizeDesignationRank(official.designationRank),
     isAssignable: isActiveOfficialStatus(official.status),
     activeComplaints: 0,
     activeRequests: 0,
@@ -153,9 +189,15 @@ export function computeOfficialWorkloads(
 }
 
 /**
- * Pick the least-loaded assignable official. Ties break toward fewer
- * active items, then alphabetically, so the result is deterministic.
+ * Pick the least-loaded assignable official. Ties break toward fewer active
+ * items, then the more senior designation (lower rank, migration 42), then
+ * alphabetically - so the result is deterministic.
  * Returns null when no official can take work.
+ *
+ * Rank is deliberately consulted only after load ties are exhausted. Making a
+ * Captain outrank a Kagawad regardless of workload would reintroduce exactly the
+ * pile-up that workload balancing exists to prevent; here seniority merely
+ * decides who takes the next case when nobody is busier than anybody else.
  */
 export function suggestAssignee(
   workloads: readonly OfficialWorkload[] | null | undefined,
@@ -170,6 +212,7 @@ export function suggestAssignee(
   return [...candidates].sort((a, b) =>
     a.weightedLoad - b.weightedLoad
     || a.activeTotal - b.activeTotal
+    || a.designationRank - b.designationRank
     || a.name.localeCompare(b.name)
     || a.officialId.localeCompare(b.officialId),
   )[0]
@@ -189,7 +232,6 @@ export function planEvenDistribution(
   if (candidates.length === 0) return []
 
   const simulatedLoads = new Map(candidates.map((workload) => [workload.officialId, workload.weightedLoad]))
-  const byId = new Map(candidates.map((workload) => [workload.officialId, workload]))
 
   const queue = [...(items ?? [])].sort(
     (a, b) =>
@@ -200,22 +242,32 @@ export function planEvenDistribution(
 
   const plan: AssignmentPlanEntry[] = []
   for (const item of queue) {
-    let bestId: string | null = null
+    // Least simulated load wins; equal loads are settled by seniority (lower
+    // designation rank) before name, matching suggestAssignee.
+    let best: OfficialWorkload | null = null
     let bestLoad = Infinity
     for (const workload of candidates) {
       const load = simulatedLoads.get(workload.officialId) ?? 0
+      if (best === null) {
+        best = workload
+        bestLoad = load
+        continue
+      }
       if (
         load < bestLoad
-        || (load === bestLoad && bestId !== null && workload.name.localeCompare(byId.get(bestId)?.name ?? '') < 0)
+        || (load === bestLoad
+          && (workload.designationRank < best.designationRank
+            || (workload.designationRank === best.designationRank
+              && workload.name.localeCompare(best.name) < 0)))
       ) {
-        bestId = workload.officialId
+        best = workload
         bestLoad = load
       }
     }
-    if (bestId === null) break
+    if (best === null) break
 
-    simulatedLoads.set(bestId, bestLoad + PRIORITY_WEIGHTS[normalizeWorkloadPriority(item.priority)])
-    plan.push({ itemId: item.id, officialId: bestId, officialName: byId.get(bestId)?.name ?? '' })
+    simulatedLoads.set(best.officialId, bestLoad + PRIORITY_WEIGHTS[normalizeWorkloadPriority(item.priority)])
+    plan.push({ itemId: item.id, officialId: best.officialId, officialName: best.name })
   }
 
   return plan
