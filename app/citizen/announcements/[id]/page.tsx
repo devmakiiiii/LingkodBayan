@@ -9,6 +9,7 @@ import { Calendar, ArrowLeft } from 'lucide-react'
 import Link from 'next/link'
 import { getAnnouncementCategoryColor } from '@/lib/announcement-categories'
 import { sanitizeRichText } from '@/lib/html-sanitize'
+import { AnnouncementImage } from '@/components/announcement-image'
 
 interface Announcement {
   id: string
@@ -65,17 +66,7 @@ export default async function AnnouncementDetailPage({ params }: { params: Promi
 
       <Card className="overflow-hidden">
         {announcementData.image_url && (
-          <div className="relative aspect-video bg-gray-100 dark:bg-muted">
-            <img
-              src={announcementData.image_url}
-              alt={announcementData.title}
-              className="w-full h-full object-cover"
-              onError={(e) => {
-                const parent = e.currentTarget.parentElement
-                if (parent) parent.innerHTML = ''
-              }}
-            />
-          </div>
+          <AnnouncementImage src={announcementData.image_url} alt={announcementData.title} />
         )}
         <CardHeader className="pb-3">
           <div className="flex items-start justify-between gap-4">

@@ -10,6 +10,7 @@ import { getAnnouncementCategoryColor } from '@/lib/announcement-categories'
 import { sanitizeRichText } from '@/lib/html-sanitize'
 import { formatDate } from '@/lib/format-date'
 import { BARANGAY_DISPLAY_NAME } from '@/lib/barangay'
+import { AnnouncementImage } from '@/components/announcement-image'
 
 export const revalidate = 60
 
@@ -104,17 +105,7 @@ export default async function PublicAnnouncementPage({
 
         <Card className="overflow-hidden">
           {announcementData.image_url && (
-            <div className="relative aspect-video bg-gray-100 dark:bg-muted">
-              <img
-                src={announcementData.image_url}
-                alt={announcementData.title}
-                className="w-full h-full object-cover"
-                onError={(e) => {
-                  const parent = e.currentTarget.parentElement
-                  if (parent) parent.innerHTML = ''
-                }}
-              />
-            </div>
+            <AnnouncementImage src={announcementData.image_url} alt={announcementData.title} />
           )}
           <CardHeader className="pb-3">
             <div className="flex items-start justify-between gap-4">

@@ -19,7 +19,7 @@ import { z } from 'zod'
 const COLUMNS = `
   id, request_id, resident_id, status, pickup_code, document_title, scheduled_date,
   ready_at, claimed_at, notes, created_at, updated_at,
-  requests(id, title, category, status, tracking_number),
+  requests(id, title, category, status),
   residents(id, first_name, last_name, email, user_id, address, phone)
 `
 

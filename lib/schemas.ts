@@ -103,8 +103,12 @@ export const officialSchema = z.object({
   designationId: z.string().uuid('Designation is required'),
   contactNumber: z.string().min(5, 'Contact number is required').optional().or(z.literal('')),
   email: z.string().email('Invalid email address').optional().or(z.literal('')),
-  termStart: z.string().min(1, 'Term start date is required'),
-  termEnd: z.string().min(1, 'Term end date is required'),
+  // Tenure dates are OPTIONAL. Officials are frequently recorded before the
+  // term is known, and nothing downstream requires the value: the officials
+  // list, view modal and reports all render a blank term as "N/A" through
+  // getOfficialTermDuration(). Requiring them only blocked record creation.
+  termStart: z.string().optional().or(z.literal('')),
+  termEnd: z.string().optional().or(z.literal('')),
   status: z.enum(officialStatuses),
   photo: z.string().optional().or(z.literal('')),
 })
@@ -269,6 +273,18 @@ export const complaintReplySchema = z.object({
   complaintId: z.string().uuid('Invalid complaint ID'),
   message: z.string().min(1, 'Message is required').max(2000, 'Message must be 2000 characters or less'),
 })
+
+/**
+ * Admin-authored complaint messages (replies and automatic status/assignment
+ * activity notes) submitted through /api/admin/complaint-messages.
+ */
+export const adminComplaintMessageSchema = z.object({
+  complaintId: z.string().uuid('Invalid complaint ID'),
+  message: z.string().min(1, 'Message is required').max(2000, 'Message must be 2000 characters or less'),
+  messageType: z.enum(['reply', 'system']).default('reply'),
+})
+
+export type AdminComplaintMessageInput = z.infer<typeof adminComplaintMessageSchema>
 
 export const processIdVerificationSchema = z.object({
   signedUrl: z.string().url('Invalid signed URL'),

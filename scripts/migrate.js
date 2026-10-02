@@ -154,6 +154,9 @@ const sql = readMigrationScript()
   + '--- Migration 43: Derive Designation Badge Color From Category ---\n'
   + readMigrationFile('43_derive_designation_badge_color.sql')
   + '\n'
+  + '--- Migration 44: Enable Realtime for Citizen Notifications ---\n'
+  + readMigrationFile('44_enable_notifications_realtime.sql')
+  + '\n'
   + '--- Finalize Complaints Schema ---\n'
   + readMigrationFile('finalize_complaints_schema.sql');
 console.log(sql);

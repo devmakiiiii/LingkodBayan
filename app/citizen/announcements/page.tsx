@@ -8,6 +8,7 @@ import Link from 'next/link'
 import { getPublishedAnnouncements } from '@/lib/db'
 import { getAnnouncementCategoryColor } from '@/lib/announcement-categories'
 import { BARANGAY_DISPLAY_NAME } from '@/lib/barangay'
+import { AnnouncementImage } from '@/components/announcement-image'
 
 interface Announcement {
   id: string
@@ -105,17 +106,7 @@ if (dbAnnouncements.length === 0) {
           >
             <Card className="overflow-hidden hover:shadow-lg transition-shadow cursor-pointer flex flex-col h-full">
               {announcement.image_url && (
-                <div className="relative aspect-video bg-gray-100 dark:bg-muted">
-                  <img
-                    src={announcement.image_url}
-                    alt={announcement.title}
-                    className="w-full h-full object-cover"
-                    onError={(e) => {
-                      const parent = e.currentTarget.parentElement
-                      if (parent) parent.innerHTML = ''
-                    }}
-                  />
-                </div>
+                <AnnouncementImage src={announcement.image_url} alt={announcement.title} />
               )}
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between gap-4">

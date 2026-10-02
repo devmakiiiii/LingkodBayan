@@ -63,6 +63,37 @@ import { logAdminActionClient } from '@/lib/audit-log-client'
 import { canTransitionComplaint, getAllowedComplaintTransitions } from '@/lib/status-machine'
 import { computeOfficialWorkloads, planEvenDistribution, suggestAssignee } from '@/lib/workload'
 
+/**
+ * Records an admin-authored complaint message through the server route, which
+ * resolves the resident, writes the thread row with the service-role client and
+ * sends an SMS. Returns `ok: false` (with a reason) when the write failed so
+ * callers can surface it instead of silently dropping the notice.
+ */
+async function postComplaintMessage(
+  complaintId: string,
+  message: string,
+  messageType: 'reply' | 'system',
+): Promise<{ ok: boolean; residentHasAccount: boolean; error?: string }> {
+  try {
+    const response = await fetch('/api/admin/complaint-messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ complaintId, message, messageType }),
+    })
+    const payload = await response.json().catch(() => ({}))
+    if (!response.ok) {
+      return { ok: false, residentHasAccount: false, error: payload?.error || 'Failed to record the message' }
+    }
+    return { ok: true, residentHasAccount: Boolean(payload?.residentHasAccount) }
+  } catch (error) {
+    return {
+      ok: false,
+      residentHasAccount: false,
+      error: error instanceof Error ? error.message : 'Failed to record the message',
+    }
+  }
+}
+
 type CanonicalStatus = 'pending' | 'under_review' | 'resolved' | 'rejected'
 type CanonicalPriority = 'low' | 'medium' | 'high' | 'critical'
 
@@ -713,8 +744,8 @@ evidenceUrls: extractEvidenceUrls(row),
     setSavingAction(true)
     try {
       const supabase = createClient()
-      const reportsById = new Map(reports.map((report) => [report.id, report]))
       let assignedCount = 0
+      let messageFailures = 0
 
       for (const entry of plan) {
         const { error } = await supabase
@@ -728,7 +759,6 @@ evidenceUrls: extractEvidenceUrls(row),
         }
 
         assignedCount += 1
-        const report = reportsById.get(entry.itemId)
         void logAdminActionClient({
           action: 'complaint_updated',
           resourceType: 'complaint',
@@ -737,23 +767,23 @@ evidenceUrls: extractEvidenceUrls(row),
           newValues: { assigned_official_id: entry.officialId },
         })
 
-        if (report?.residentUserId && profileUser?.id) {
-          await supabase.from('complaint_messages').insert([
-            {
-              complaint_id: entry.itemId,
-              recipient_user_id: report.residentUserId,
-              sender_id: profileUser.id,
-              message: `Your report has been assigned to ${entry.officialName}.`,
-              message_type: 'system',
-              is_read: false,
-            },
-          ])
-        }
+        // Notify the resident their report was assigned. The server resolves the
+        // resident (no dependency on this page's cached list) and reports
+        // failures, so a rejected write is counted instead of disappearing.
+        const notice = await postComplaintMessage(
+          entry.itemId,
+          `Your report has been assigned to ${entry.officialName}.`,
+          'system',
+        )
+        if (!notice.ok) messageFailures += 1
       }
 
       await loadReports(false)
       if (assignedCount > 0) {
         toast.success(`Auto-assigned ${assignedCount} report${assignedCount === 1 ? '' : 's'} across the least-loaded officials.`)
+      }
+      if (messageFailures > 0) {
+        toast.error(`${messageFailures} resident alert${messageFailures === 1 ? '' : 's'} could not be sent.`)
       }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to auto-assign reports')
@@ -835,19 +865,12 @@ evidenceUrls: extractEvidenceUrls(row),
         newValues: Object.keys(changedValues).length > 0 ? changedValues : undefined,
       })
 
-      if (systemMessage && profileUser?.id && report.residentUserId) {
-        const { error: msgError } = await supabase.from('complaint_messages').insert([
-          {
-            complaint_id: report.id,
-            recipient_user_id: report.residentUserId,
-            sender_id: profileUser.id,
-            message: systemMessage,
-            message_type: 'system',
-            is_read: false,
-          },
-        ])
-        if (msgError) {
-          toast.error(`Changes saved, but the activity message could not be recorded: ${msgError.message}`)
+      if (systemMessage) {
+        const notice = await postComplaintMessage(report.id, systemMessage, 'system')
+        if (!notice.ok) {
+          toast.error(`Changes saved, but the activity message could not be recorded: ${notice.error}`)
+        } else if (!notice.residentHasAccount) {
+          toast.info('The resident has no linked portal account yet, so no in-app alert was sent.')
         }
       }
 
@@ -865,39 +888,18 @@ evidenceUrls: extractEvidenceUrls(row),
   async function sendReply() {
     if (!selectedReport || !replyDraft.trim()) return
 
-    if (!profileUser?.id) {
-      toast.error('Unable to identify your admin account. Please refresh the page and try again.')
-      return
-    }
-
-    const recipientId = selectedReport.residentUserId || null
-
-    if (!recipientId) {
-      toast.error('Unable to find the resident account linked to this report. The resident may not have a verified account yet.')
-      return
-    }
-
     setSavingAction(true)
     try {
-      const supabase = createClient()
+      const notice = await postComplaintMessage(selectedReport.id, replyDraft.trim(), 'reply')
 
-      const { error } = await supabase.from('complaint_messages').insert([
-        {
-          complaint_id: selectedReport.id,
-          recipient_user_id: recipientId,
-          sender_id: profileUser.id,
-          message: replyDraft.trim(),
-          message_type: 'reply',
-          is_read: false,
-        },
-      ])
-
-      if (error) {
-        console.error('Supabase insert error:', error)
-        throw new Error(error.message || 'Database insert failed')
+      if (!notice.ok) {
+        throw new Error(notice.error || 'Failed to send reply')
       }
 
       toast.success('Response sent successfully')
+      if (!notice.residentHasAccount) {
+        toast.info('The resident has no linked portal account yet, so no in-app alert was sent.')
+      }
       setReplyDraft('')
       await loadReports(false)
     } catch (error) {

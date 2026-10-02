@@ -15,6 +15,7 @@ import {
   ComplaintStatusIcon,
 } from '@/components/citizen/complaint-status-badge'
 import { StatusTracker } from '@/components/citizen/status-tracker'
+import { useNotifications } from '@/hooks/use-notifications'
 import { toast } from 'sonner'
 
 interface Complaint {
@@ -50,6 +51,8 @@ export default function ComplaintDetailPage({ params }: { params: Promise<{ id: 
   const [replyText, setReplyText] = useState('')
   const [sendingReply, setSendingReply] = useState(false)
 
+  const { refreshUnreadCount } = useNotifications()
+
   useEffect(() => {
     async function loadComplaint() {
       try {
@@ -79,7 +82,25 @@ export default function ComplaintDetailPage({ params }: { params: Promise<{ id: 
               .eq('complaint_id', id)
               .order('created_at', { ascending: true })
 
-            setMessages(messagesData || [])
+            const rows = (messagesData || []) as ComplaintMessage[]
+            setMessages(rows)
+
+            // Opening the thread counts as reading it, so clear the bell badge
+            // for the admin messages this resident can actually receive. Their
+            // own replies carry a null recipient_user_id and are never counted.
+            const unreadIds = rows
+              .filter((message) => !message.is_read && message.recipient_user_id === user.id)
+              .map((message) => message.id)
+
+            if (unreadIds.length > 0) {
+              await supabase.from('complaint_messages').update({ is_read: true }).in('id', unreadIds)
+              setMessages((prev) =>
+                prev.map((message) =>
+                  unreadIds.includes(message.id) ? { ...message, is_read: true } : message,
+                ),
+              )
+              await refreshUnreadCount()
+            }
           }
         }
       } catch (error) {
@@ -90,7 +111,7 @@ export default function ComplaintDetailPage({ params }: { params: Promise<{ id: 
     }
 
     loadComplaint()
-  }, [id])
+  }, [id, refreshUnreadCount])
 
   const handleSendReply = async () => {
     if (!replyText.trim() || !userId || !complaint) return

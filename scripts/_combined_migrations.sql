@@ -3308,3 +3308,39 @@ UPDATE public.complaints
 SET tracking_number = COALESCE(tracking_number, 'RPT-' || UPPER(SUBSTRING(id::text, 1, 8)))
 WHERE tracking_number IS NULL;
 
+-- =====================================================================
+-- Migration 44: Enable Realtime for citizen notifications
+-- (see scripts/44_enable_notifications_realtime.sql for the full rationale)
+-- =====================================================================
+
+ALTER TABLE public.complaint_messages REPLICA IDENTITY FULL;
+
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_publication WHERE pubname = 'supabase_realtime')
+     AND NOT EXISTS (
+       SELECT 1 FROM pg_publication_tables
+       WHERE pubname = 'supabase_realtime'
+         AND schemaname = 'public'
+         AND tablename = 'complaint_messages'
+     ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.complaint_messages;
+  END IF;
+END
+$$;
+
+ALTER TABLE public.user_notifications REPLICA IDENTITY FULL;
+
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_publication WHERE pubname = 'supabase_realtime')
+     AND NOT EXISTS (
+       SELECT 1 FROM pg_publication_tables
+       WHERE pubname = 'supabase_realtime'
+         AND schemaname = 'public'
+         AND tablename = 'user_notifications'
+     ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.user_notifications;
+  END IF;
+END
+$$;

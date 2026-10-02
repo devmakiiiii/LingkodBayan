@@ -195,11 +195,10 @@ function normalizeName(value?: string | null) {
   return (value || '').trim().toLowerCase().replace(/\s+/g, ' ')
 }
 
-// officialSchema is the source of truth for field formats, but it deliberately
-// allows an empty contact/email/photo because other callers treat them as
-// optional. This form requires all three, so those rules are layered on top of
-// the schema's checks, together with the term-date ordering rule the schema
-// does not cover.
+// officialSchema is the source of truth for field formats and already treats
+// contact/email/photo as optional. Only the name parts and designation are
+// required here; this adds the phone-shape rule and the term-date ordering
+// rule the schema does not cover.
 function collectFieldErrors(input: {
   firstName: string
   middleInitial: string
@@ -211,7 +210,6 @@ function collectFieldErrors(input: {
   termStart: string
   termEnd: string
   photo: string
-  hasPhotoFile: boolean
   status: 'active' | 'archived'
 }): FieldErrors {
   const errors: FieldErrors = {}
@@ -240,19 +238,12 @@ function collectFieldErrors(input: {
     }
   }
 
+  // Contact number, email and profile photo are optional: the barangay roster
+  // is frequently recorded without them. A value that IS supplied is still
+  // validated - the email format by officialSchema above, the phone shape here.
   const contactNumber = input.contactNumber.trim()
-  if (!contactNumber) {
-    errors.contactNumber = 'Contact number is required'
-  } else if (contactNumber.length < 5 || !/^[0-9+()\-\s]+$/.test(contactNumber)) {
+  if (contactNumber && (contactNumber.length < 5 || !/^[0-9+()\-\s]+$/.test(contactNumber))) {
     errors.contactNumber = 'Enter a valid contact number'
-  }
-
-  if (!input.email.trim()) {
-    errors.email = 'Email address is required'
-  }
-
-  if (!input.hasPhotoFile && !input.photo) {
-    errors.photo = 'Profile photo is required'
   }
 
   if (!input.firstName.trim()) {
@@ -586,7 +577,6 @@ export function OfficialActions({ isOpen, mode, official, designations, official
       termStart,
       termEnd,
       photo,
-      hasPhotoFile: Boolean(photoFile),
       status: official?.status === 'archived' ? 'archived' : 'active',
     })
     setErrors(nextErrors)
@@ -761,7 +751,7 @@ export function OfficialActions({ isOpen, mode, official, designations, official
               </div>
               <div>
                 <p className="text-xs uppercase tracking-wide text-muted-foreground">Term</p>
-                <p className="font-medium">{(official.termStart || '').replaceAll('-', '/')} - {(official.termEnd || '').replaceAll('-', '/')}</p>
+                <p className="font-medium">{getOfficialTermDuration(official.termStart, official.termEnd)}</p>
               </div>
               {isCaptainDesignation(official.designation?.name) && (
                 <div className="flex items-center">
@@ -814,7 +804,7 @@ export function OfficialActions({ isOpen, mode, official, designations, official
         <form noValidate onSubmit={handleSave} className="space-y-4">
         <div className="grid gap-4 md:grid-cols-2">
           <div className="space-y-2 md:col-span-2">
-            <RequiredLabel htmlFor="official-photo">Profile Photo</RequiredLabel>
+            <Label htmlFor="official-photo">Profile Photo (optional)</Label>
             <div className="flex items-center gap-4">
               <div className="h-20 w-20 overflow-hidden rounded-2xl border border-dashed border-emerald-200 bg-emerald-50">
                 {photoFile && photoPreviewUrl ? (
@@ -957,7 +947,7 @@ export function OfficialActions({ isOpen, mode, official, designations, official
           </div>
 
           <div className="space-y-2">
-            <RequiredLabel htmlFor="official-contact">Contact Number</RequiredLabel>
+            <Label htmlFor="official-contact">Contact Number (optional)</Label>
             <Input
               id="official-contact"
               type="tel"
@@ -974,7 +964,7 @@ export function OfficialActions({ isOpen, mode, official, designations, official
           </div>
 
           <div className="space-y-2">
-            <RequiredLabel htmlFor="official-email">Email Address</RequiredLabel>
+            <Label htmlFor="official-email">Email Address (optional)</Label>
             <Input
               id="official-email"
               type="email"
@@ -992,7 +982,7 @@ export function OfficialActions({ isOpen, mode, official, designations, official
           </div>
 
           <div className="space-y-2">
-            <RequiredLabel htmlFor="official-term-start">Term Start Date</RequiredLabel>
+            <Label htmlFor="official-term-start">Term Start Date (optional)</Label>
             <Input
               id="official-term-start"
               type="date"
@@ -1008,7 +998,7 @@ export function OfficialActions({ isOpen, mode, official, designations, official
           </div>
 
           <div className="space-y-2">
-            <RequiredLabel htmlFor="official-term-end">Term End Date</RequiredLabel>
+            <Label htmlFor="official-term-end">Term End Date (optional)</Label>
             <Input
               id="official-term-end"
               type="date"

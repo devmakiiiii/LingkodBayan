@@ -22,6 +22,7 @@ import {
   isInServiceArea,
   loginSchema,
   MIN_PASSWORD_LENGTH,
+  officialSchema,
   resetPasswordSchema,
   signUpBarangaySchema,
   signUpSchema,
@@ -165,5 +166,72 @@ describe('password policy', () => {
     if (!mismatch.success) {
       assert.match(mismatch.error.issues[0]?.message ?? '', /don't match/)
     }
+  })
+})
+
+describe('officialSchema tenure dates', () => {
+  // The barrio records officials before it knows their term, so the term dates
+  // must be optional. Blank/omitted dates cannot block adding an official,
+  // while the fields that are genuinely required stay required.
+  const baseOfficial = {
+    fullName: 'Juan Dela Cruz',
+    designationId: '11111111-1111-1111-1111-111111111111',
+    contactNumber: '09171234567',
+    email: 'juan@example.com',
+    status: 'active',
+  }
+
+  it('accepts an official whose term dates are left blank', () => {
+    assert.equal(officialSchema.safeParse({ ...baseOfficial, termStart: '', termEnd: '' }).success, true)
+  })
+
+  it('accepts an official with the term dates omitted entirely', () => {
+    assert.equal(officialSchema.safeParse(baseOfficial).success, true)
+  })
+
+  it('still accepts a fully specified term', () => {
+    const result = officialSchema.safeParse({
+      ...baseOfficial,
+      termStart: '2025-01-01',
+      termEnd: '2028-01-01',
+    })
+
+    assert.equal(result.success, true)
+  })
+
+  it('still enforces the fields that really are required', () => {
+    assert.equal(officialSchema.safeParse({ ...baseOfficial, fullName: '' }).success, false)
+    assert.equal(officialSchema.safeParse({ ...baseOfficial, designationId: 'not-a-uuid' }).success, false)
+    assert.equal(officialSchema.safeParse({ ...baseOfficial, email: 'not-an-email' }).success, false)
+  })
+})
+
+describe('officialSchema optional contact details', () => {
+  // The barangay roster often arrives without contact details or photos, so
+  // those fields must not block saving. A malformed value supplied anyway must
+  // still be rejected.
+  const baseOfficial = {
+    fullName: 'Maria Santos',
+    designationId: '22222222-2222-2222-2222-222222222222',
+    status: 'active',
+  }
+
+  it('accepts an official with no contact number, email or photo', () => {
+    assert.equal(officialSchema.safeParse(baseOfficial).success, true)
+  })
+
+  it('accepts blank contact number and email strings', () => {
+    assert.equal(
+      officialSchema.safeParse({ ...baseOfficial, contactNumber: '', email: '' }).success,
+      true,
+    )
+  })
+
+  it('still rejects a malformed email when one is provided', () => {
+    assert.equal(officialSchema.safeParse({ ...baseOfficial, email: 'not-an-email' }).success, false)
+  })
+
+  it('still rejects a too-short contact number when one is provided', () => {
+    assert.equal(officialSchema.safeParse({ ...baseOfficial, contactNumber: '123' }).success, false)
   })
 })
