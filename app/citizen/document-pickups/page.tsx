@@ -17,6 +17,7 @@ import { createClient } from '@/lib/supabase/client'
 import { getOrCreateResidentProfile } from '@/lib/residents'
 import { BARANGAY_CITY, BARANGAY_DISPLAY_NAME, BARANGAY_PROVINCE } from '@/lib/barangay'
 import { buildRequestTrackingNumber } from '@/lib/tracking'
+import { useLocale } from '@/hooks/use-locale'
 
 /**
  * Citizen view of document pickups. Shows the claim code and status for each
@@ -47,6 +48,9 @@ const STATUS_LABELS: Record<string, string> = {
   ready: 'Ready for pickup',
   claimed: 'Claimed',
 }
+
+// These labels go through the dictionary at render time; the English strings
+// above are the translation keys.
 
 function formatDate(value: string | null) {
   if (!value) return '—'
@@ -200,7 +204,11 @@ function buildClaimSlipBody(
       <p class="printed-note">Printed from LingkodBayan on ${escapeSlipText(printedAt ?? '—')} · Keep this slip until the document is claimed.</p>`
 }
 
-async function printClaimSlip(pickup: PickupRow, residentName: string) {
+async function printClaimSlip(
+  pickup: PickupRow,
+  residentName: string,
+  popupBlockedMessage: string,
+) {
   // QR deep link is generated lazily on print so the `qrcode` bundle is never
   // part of the initial page load (same approach as the public track page).
   let qrDataUrl: string | null = null
@@ -219,7 +227,7 @@ async function printClaimSlip(pickup: PickupRow, residentName: string) {
 
   const printWindow = window.open('', '_blank', 'width=760,height=980')
   if (!printWindow) {
-    window.alert('Your browser blocked the claim-slip window. Please allow pop-ups for this site and try again.')
+    window.alert(popupBlockedMessage)
     return
   }
 
@@ -237,6 +245,7 @@ async function printClaimSlip(pickup: PickupRow, residentName: string) {
 }
 
 export default function DocumentPickupsPage() {
+  const { t } = useLocale()
   const [pickups, setPickups] = useState<PickupRow[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -267,7 +276,7 @@ export default function DocumentPickupsPage() {
           // Older deployments without migration 31 land here — show an empty
           // state instead of an error wall.
           if (!/document_pickups/i.test(loadError?.message ?? '')) {
-            setError('Could not load your document pickups. Please refresh the page.')
+            setError(t('Could not load your document pickups. Please refresh the page.'))
           }
         }
       } finally {
@@ -282,10 +291,9 @@ export default function DocumentPickupsPage() {
   return (
     <div className="p-6 md:p-8 max-w-4xl mx-auto space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-foreground">Document Pickups</h1>
+        <h1 className="text-2xl font-bold text-foreground">{t('Document Pickups')}</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Documents being processed for you. When a document is ready, present the claim code at the
-          barangay hall — or share it with the person picking it up for you.
+          {t('Documents being processed for you. When a document is ready, present the claim code at the barangay hall — or share it with the person picking it up for you.')}
         </p>
       </div>
 
@@ -302,9 +310,10 @@ export default function DocumentPickupsPage() {
           <CardContent className="py-8 text-center">
             <PackageCheck className="mx-auto h-8 w-8 text-muted-foreground" />
             <p className="mt-3 text-sm text-muted-foreground">
-              No document pickups yet. When barangay staff process one of your document requests, it
-              will appear here. You can file one from{' '}
-              <Link href="/citizen/request-service" className="underline hover:text-foreground">Request Service</Link>.
+              {t('No document pickups yet. When barangay staff process one of your document requests, it will appear here.')}{' '}
+              <Link href="/citizen/request-service" className="underline hover:text-foreground">
+                {t('File one from Request Service')}
+              </Link>.
             </p>
           </CardContent>
         </Card>
@@ -320,29 +329,43 @@ export default function DocumentPickupsPage() {
                   <CardDescription className="font-mono text-sm">{pickup.pickup_code}</CardDescription>
                 </div>
                 <Badge variant="outline" className={STATUS_BADGES[pickup.status]}>
-                  {STATUS_LABELS[pickup.status]}
+                  {t(STATUS_LABELS[pickup.status])}
                 </Badge>
               </div>
             </CardHeader>
             <CardContent className="space-y-3 text-sm">
               <div>
-                <p className="text-xs uppercase tracking-wide text-muted-foreground">Expected ready</p>
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">{t('Expected ready')}</p>
                 <p className="font-medium text-foreground">{formatDate(pickup.scheduled_date)}</p>
               </div>
               {pickup.status === 'ready' ? (
                 <p className="rounded-md border border-sky-500/30 bg-sky-500/10 px-3 py-2 text-sky-800 dark:text-sky-300">
-                  Present claim code <span className="font-mono font-semibold">{pickup.pickup_code}</span> at the
-                  barangay hall to release your document.
+                  {t('Present claim code {code} at the barangay hall to release your document.', {
+                    code: pickup.pickup_code,
+                  })}
                 </p>
               ) : null}
               {pickup.status === 'claimed' ? (
-                <p className="text-muted-foreground">Claimed on {formatDate(pickup.claimed_at)}.</p>
+                <p className="text-muted-foreground">
+                  {t('Claimed on {date}', { date: formatDate(pickup.claimed_at) })}.
+                </p>
               ) : null}
               {pickup.notes ? <p className="text-xs text-muted-foreground">{pickup.notes}</p> : null}
               {pickup.status === 'ready' ? (
-                <Button type="button" size="sm" variant="outline" onClick={() => void printClaimSlip(pickup, residentName)}>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() =>
+                    void printClaimSlip(
+                      pickup,
+                      residentName,
+                      t('Your browser blocked the claim-slip window. Please allow pop-ups for this site and try again.'),
+                    )
+                  }
+                >
                   <Printer className="mr-2 h-4 w-4" />
-                  Print claim slip
+                  {t('Print claim slip')}
                 </Button>
               ) : null}
             </CardContent>

@@ -29,6 +29,7 @@ import {
   type FeedbackEntry,
 } from '@/lib/feedback'
 import { feedbackStatusMachine, normalizeFeedbackLifecycleStatus } from '@/lib/status-machine'
+import { useLocale } from '@/hooks/use-locale'
 
 const pipeline = feedbackStatusMachine.states
 
@@ -78,6 +79,7 @@ export default function FeedbackPage() {
   const [contactName, setContactName] = useState('')
   const [contactInfo, setContactInfo] = useState('')
   const [isAnonymous, setIsAnonymous] = useState(false)
+  const { t } = useLocale()
 
   useEffect(() => {
     loadFeedback()
@@ -111,11 +113,11 @@ export default function FeedbackPage() {
     if (submitting) return
 
     if (subject.trim().length < 5) {
-      toast.error('Please provide a subject (at least 5 characters).')
+      toast.error(t('Please provide a subject (at least 5 characters).'))
       return
     }
     if (message.trim().length < 10) {
-      toast.error('Please provide more details (at least 10 characters).')
+      toast.error(t('Please provide more details (at least 10 characters).'))
       return
     }
 
@@ -123,10 +125,10 @@ export default function FeedbackPage() {
     try {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw new Error('You must be signed in to submit feedback.')
+      if (!user) throw new Error(t('You must be signed in to submit feedback.'))
 
       const resident = await getOrCreateResidentProfile(supabase, user)
-      if (!resident) throw new Error('Resident profile not found.')
+      if (!resident) throw new Error(t('Resident profile not found.'))
 
       const { error } = await supabase.from('feedback').insert({
         tracking_number: generateFeedbackTrackingNumber(),
@@ -142,7 +144,7 @@ export default function FeedbackPage() {
 
       if (error) throw error
 
-      toast.success('Feedback submitted. The barangay will acknowledge it within 2 working days.')
+      toast.success(t('Feedback submitted. The barangay will acknowledge it within 2 working days.'))
       setSubject('')
       setMessage('')
       setContactName('')
@@ -152,7 +154,7 @@ export default function FeedbackPage() {
       await loadFeedback()
     } catch (error) {
       console.error('Error submitting feedback:', error)
-      toast.error(error instanceof Error ? error.message : 'Failed to submit feedback.')
+      toast.error(error instanceof Error ? error.message : t('Failed to submit feedback.'))
     } finally {
       setSubmitting(false)
     }
@@ -163,7 +165,7 @@ export default function FeedbackPage() {
         <div className="min-h-screen p-6 md:p-8 space-y-8">
           <div>
             <h1 className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-foreground mb-2">
-              Feedback
+              {t('Feedback')}
             </h1>
             <p className="text-gray-600 dark:text-muted-foreground">
               Share feedback with the barangay. Per the Citizen&apos;s Charter, feedback is acknowledged
@@ -177,7 +179,7 @@ export default function FeedbackPage() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <MessageSquarePlus className="h-5 w-5 text-[#28A745]" aria-hidden="true" />
-                  Submit Feedback
+                  {t('Submit Feedback')}
                 </CardTitle>
                 <CardDescription>
                   Suggestions, commendations, concerns, and inquiries are all welcome.
@@ -186,10 +188,10 @@ export default function FeedbackPage() {
               <CardContent>
                 <form onSubmit={handleSubmit} className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="feedback-category">Category</Label>
+                    <Label htmlFor="feedback-category">{t('Category')}</Label>
                     <Select value={category} onValueChange={setCategory}>
                       <SelectTrigger id="feedback-category">
-                        <SelectValue placeholder="Select a category" />
+                        <SelectValue placeholder={t('Select a category')} />
                       </SelectTrigger>
                       <SelectContent>
                         {feedbackCategories.map((option) => (
@@ -202,24 +204,24 @@ export default function FeedbackPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="feedback-subject">Subject</Label>
+                    <Label htmlFor="feedback-subject">{t('Subject')}</Label>
                     <Input
                       id="feedback-subject"
                       value={subject}
                       onChange={(e) => setSubject(e.target.value)}
-                      placeholder="Brief summary of your feedback"
+                      placeholder={t('Brief summary of your feedback')}
                       maxLength={120}
                       required
                     />
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="feedback-message">Details</Label>
+                    <Label htmlFor="feedback-message">{t('Details')}</Label>
                     <Textarea
                       id="feedback-message"
                       value={message}
                       onChange={(e) => setMessage(e.target.value)}
-                      placeholder="Describe your feedback…"
+                      placeholder={t('Describe your feedback…')}
                       rows={5}
                       required
                     />
@@ -227,9 +229,9 @@ export default function FeedbackPage() {
 
                   <div className="flex items-center justify-between rounded-lg border border-gray-200 dark:border-border p-3">
                     <div>
-                      <Label htmlFor="feedback-anonymous" className="font-medium">Submit anonymously</Label>
+                      <Label htmlFor="feedback-anonymous" className="font-medium">{t('Submit anonymously')}</Label>
                       <p className="text-xs text-muted-foreground mt-0.5">
-                        Your name will be hidden from barangay staff.
+                        {t('Your name will be hidden from barangay staff.')}
                       </p>
                     </div>
                     <Switch
@@ -242,21 +244,21 @@ export default function FeedbackPage() {
                   {!isAnonymous && (
                     <div className="grid sm:grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label htmlFor="feedback-contact-name">Contact Name (optional)</Label>
+                        <Label htmlFor="feedback-contact-name">{t('Contact Name (optional)')}</Label>
                         <Input
                           id="feedback-contact-name"
                           value={contactName}
                           onChange={(e) => setContactName(e.target.value)}
-                          placeholder="Your name"
+                          placeholder={t('Your name')}
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="feedback-contact-info">Contact Info (optional)</Label>
+                        <Label htmlFor="feedback-contact-info">{t('Contact Info (optional)')}</Label>
                         <Input
                           id="feedback-contact-info"
                           value={contactInfo}
                           onChange={(e) => setContactInfo(e.target.value)}
-                          placeholder="Mobile number or email"
+                          placeholder={t('Mobile number or email')}
                         />
                       </div>
                     </div>
@@ -267,7 +269,7 @@ export default function FeedbackPage() {
                     disabled={submitting}
                     className="w-full bg-[#28A745] hover:bg-[#228039] text-white font-medium"
                   >
-                    {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Submit Feedback'}
+                    {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : t('Submit Feedback')}
                   </Button>
                 </form>
               </CardContent>
@@ -275,15 +277,15 @@ export default function FeedbackPage() {
 
             {/* My feedback list */}
             <div className="space-y-4">
-              <h2 className="text-xl font-semibold text-gray-900 dark:text-foreground">My Feedback</h2>
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-foreground">{t('My Feedback')}</h2>
               {loading ? (
                 <div className="flex items-center gap-2 text-muted-foreground py-8 justify-center">
-                  <Loader2 className="h-5 w-5 animate-spin" /> Loading feedback…
+                  <Loader2 className="h-5 w-5 animate-spin" /> {t('Loading feedback…')}
                 </div>
               ) : entries.length === 0 ? (
                 <Card>
                   <CardContent className="py-10 text-center text-muted-foreground">
-                    You haven&apos;t submitted any feedback yet.
+                    {t("You haven't submitted any feedback yet.")}
                   </CardContent>
                 </Card>
               ) : (
@@ -296,12 +298,12 @@ export default function FeedbackPage() {
                           <div>
                             <CardTitle className="text-base">{entry.subject}</CardTitle>
                             <CardDescription className="mt-1">
-                              {entry.tracking_number ?? 'No tracking number'} &middot; {formatDate(entry.created_at)}
+                              {entry.tracking_number ?? t('No tracking number')} &middot; {formatDate(entry.created_at)}
                             </CardDescription>
                           </div>
                           <div className="flex gap-1.5 shrink-0">
                             <Badge variant="secondary">{getFeedbackCategoryLabel(entry.category)}</Badge>
-                            {entry.is_anonymous && <Badge variant="outline">Anonymous</Badge>}
+                            {entry.is_anonymous && <Badge variant="outline">{t('Anonymous')}</Badge>}
                           </div>
                         </div>
                       </CardHeader>
@@ -316,12 +318,12 @@ export default function FeedbackPage() {
                         {entry.admin_response && (
                           <div className="rounded-lg bg-[#28A745]/5 border border-[#28A745]/20 p-3">
                             <p className="text-xs font-semibold uppercase tracking-wide text-[#228039] mb-1">
-                              Barangay Response
+                              {t('Barangay Response')}
                             </p>
                             <p className="text-sm whitespace-pre-wrap">{entry.admin_response}</p>
                             {entry.responded_at && (
                               <p className="text-xs text-muted-foreground mt-1">
-                                Responded on {formatDate(entry.responded_at)}
+                                {t('Responded on')} {formatDate(entry.responded_at)}
                               </p>
                             )}
                           </div>

@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { AlertTriangle, Facebook, Loader2, Mail, MapPin, Phone } from 'lucide-react'
 import { NOT_SPECIFIED, type Office } from '@/lib/charter-services'
+import { useLocale } from '@/hooks/use-locale'
 
 function ContactRow({ icon, value }: { icon: React.ReactNode; value?: string | null }) {
   const display = value && value.trim() !== '' ? value : NOT_SPECIFIED
@@ -41,6 +42,7 @@ function OfficeCard({ office }: { office: Office }) {
 export default function OfficesPage() {
   const [offices, setOffices] = useState<Office[]>([])
   const [loading, setLoading] = useState(true)
+  const { t } = useLocale()
 
   useEffect(() => {
     async function loadOffices() {
@@ -70,10 +72,10 @@ export default function OfficesPage() {
         <div className="min-h-screen p-6 md:p-8 space-y-8">
           <div>
             <h1 className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-foreground mb-2">
-              Offices Directory
+              {t('Offices Directory')}
             </h1>
             <p className="text-gray-600 dark:text-muted-foreground">
-              Contact details and service hours for barangay offices, based on the Citizen&apos;s Charter 2025.
+              {t("Contact details and service hours for barangay offices, based on the Citizen's Charter 2025.")}
             </p>
           </div>
 
@@ -81,7 +83,7 @@ export default function OfficesPage() {
           <div className="flex items-start gap-3 rounded-xl border border-[#DC3545]/30 bg-[#DC3545]/5 p-4">
             <AlertTriangle className="h-5 w-5 shrink-0 text-[#DC3545] mt-0.5" aria-hidden="true" />
             <div>
-              <p className="font-semibold text-[#DC3545]">For emergencies, call first</p>
+              <p className="font-semibold text-[#DC3545]">{t('For emergencies, call first')}</p>
               <p className="text-sm text-gray-700 dark:text-muted-foreground mt-1">
                 BBFRU Hotline <strong>0946-214-2438</strong> &middot; BPAT{' '}
                 <strong>0938-949-5840</strong> &middot; National Emergency{' '}
@@ -92,7 +94,7 @@ export default function OfficesPage() {
 
           {loading ? (
             <div className="flex items-center gap-2 text-muted-foreground py-12 justify-center">
-              <Loader2 className="h-5 w-5 animate-spin" /> Loading offices…
+              <Loader2 className="h-5 w-5 animate-spin" /> {t('Loading offices…')}
             </div>
           ) : (
             <>
@@ -100,10 +102,10 @@ export default function OfficesPage() {
               <section className="space-y-4">
                 <div>
                   <h2 className="text-xl font-semibold text-gray-900 dark:text-foreground">
-                    Emergency Units
+                    {t('Emergency Units')}
                   </h2>
                   <p className="text-sm text-gray-600 dark:text-muted-foreground">
-                    Call these numbers directly for urgent assistance.
+                    {t('Call these numbers directly for urgent assistance.')}
                   </p>
                 </div>
                 <div className="grid gap-4 md:grid-cols-2">
@@ -117,10 +119,10 @@ export default function OfficesPage() {
               <section className="space-y-4">
                 <div>
                   <h2 className="text-xl font-semibold text-gray-900 dark:text-foreground">
-                    Barangay Offices
+                    {t('Barangay Offices')}
                   </h2>
                   <p className="text-sm text-gray-600 dark:text-muted-foreground">
-                    {directoryOffices.length} offices listed.
+                    {directoryOffices.length} {t('offices listed.')}
                   </p>
                 </div>
                 <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">

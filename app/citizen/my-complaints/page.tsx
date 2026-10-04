@@ -16,6 +16,7 @@ import { ChevronRight, Search, X } from 'lucide-react'
 import { getOrCreateResidentProfile } from '@/lib/residents'
 import { formatDate } from '@/lib/format-date'
 import { BARANGAY_DISPLAY_NAME } from '@/lib/barangay'
+import { useLocale } from '@/hooks/use-locale'
 import {
   complaintStatusFilterOptions,
   getComplaintStatus,
@@ -34,6 +35,7 @@ interface Complaint {
 }
 
 export default function MyComplaintsPage() {
+  const { t } = useLocale()
   const [complaints, setComplaints] = useState<Complaint[]>([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
@@ -97,11 +99,13 @@ export default function MyComplaintsPage() {
     <div className="p-4 md:p-6 space-y-4">
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-bold">My Complaints</h1>
-          <p className="text-muted-foreground text-sm mt-1">Track all complaints you&apos;ve filed with {BARANGAY_DISPLAY_NAME}</p>
+          <h1 className="text-2xl font-bold">{t('My Complaints')}</h1>
+          <p className="text-muted-foreground text-sm mt-1">
+            {t('Track all complaints you\'ve filed with {barangay}', { barangay: BARANGAY_DISPLAY_NAME })}
+          </p>
         </div>
         <Link href="/citizen/file-complaint">
-          <Button size="sm">File Complaint</Button>
+          <Button size="sm">{t('File Complaint')}</Button>
         </Link>
       </div>
 
@@ -110,7 +114,7 @@ export default function MyComplaintsPage() {
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Search complaints..."
+            placeholder={t('Search complaints...')}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-9 h-9"
@@ -123,7 +127,7 @@ export default function MyComplaintsPage() {
         >
           {complaintStatusFilterOptions.map((option) => (
             <option key={option.value} value={option.value}>
-              {option.label}
+              {option.value === 'all' ? t('All Status') : t(option.label)}
             </option>
           ))}
         </select>
@@ -132,7 +136,7 @@ export default function MyComplaintsPage() {
           onChange={(e) => setCategoryFilter(e.target.value)}
           className="h-9 px-3 rounded-md border bg-background text-sm"
         >
-          <option value="all">All Categories</option>
+          <option value="all">{t('All Categories')}</option>
           {uniqueCategories.map((cat) => (
             <option key={cat} value={cat}>{cat}</option>
           ))}
@@ -140,7 +144,7 @@ export default function MyComplaintsPage() {
         {(searchQuery || statusFilter !== 'all' || categoryFilter !== 'all') && (
           <Button variant="ghost" size="sm" onClick={clearFilters} className="h-9 px-2">
             <X className="h-4 w-4" />
-            <span className="sr-only">Clear filters</span>
+            <span className="sr-only">{t('Clear filters')}</span>
           </Button>
         )}
       </div>
@@ -148,25 +152,25 @@ export default function MyComplaintsPage() {
 {/* Complaints List */}
       {loading ? (
         <div className="text-center py-8">
-          <p className="text-muted-foreground text-sm">Loading complaints...</p>
+          <p className="text-muted-foreground text-sm">{t('Loading complaints...')}</p>
         </div>
       ) : complaints.length === 0 ? (
         <Empty
-          title="No complaints filed"
-          description="File your first complaint to report an issue"
+          title={t('No complaints filed')}
+          description={t('File your first complaint to report an issue')}
           action={
             <Link href="/citizen/file-complaint">
-              <Button size="sm">File Complaint</Button>
+              <Button size="sm">{t('File Complaint')}</Button>
             </Link>
           }
         />
       ) : filteredComplaints.length === 0 ? (
         <Empty
-          title="No complaints match your search"
-          description="Try adjusting your search or filter criteria"
+          title={t('No complaints match your search')}
+          description={t('Try adjusting your search or filter criteria')}
           action={
             <Button variant="outline" size="sm" onClick={clearFilters}>
-              Clear Filters
+              {t('Clear Filters')}
             </Button>
           }
         />
@@ -208,11 +212,11 @@ export default function MyComplaintsPage() {
                   </div>
                   {complaint.evidence_url && (
                     <div className="mt-3 pt-3 border-t border-gray-100 dark:border-border">
-                      <p className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1.5">Attached Evidence:</p>
+                      <p className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1.5">{t('Attached Evidence:')}</p>
                       <a href={complaint.evidence_url} target="_blank" rel="noopener noreferrer" className="block w-32 h-20 rounded-md overflow-hidden border shadow-sm group">
                         <img
                           src={complaint.evidence_url}
-                          alt="Evidence preview"
+                          alt={t('Evidence preview')}
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform"
                           onError={(e) => console.error('[DEBUG] Image load error:', complaint.evidence_url, e)}
                         />

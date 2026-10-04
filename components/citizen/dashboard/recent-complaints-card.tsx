@@ -16,6 +16,7 @@ import {
 } from '@/components/ui/card'
 import { Empty } from '@/components/ui/empty'
 import { Skeleton } from '@/components/ui/skeleton'
+import { useLocale } from '@/hooks/use-locale'
 import {
   getComplaintStatusClassName,
   getComplaintStatusLabel,
@@ -38,12 +39,14 @@ interface RecentComplaintsCardProps {
 }
 
 function TrackingNumber({ value }: { value: string }) {
+  const { t } = useLocale()
+
   async function handleCopy() {
     try {
       await navigator.clipboard.writeText(value)
-      toast.success('Tracking number copied')
+      toast.success(t('Tracking number copied'))
     } catch {
-      toast.error('Could not copy the tracking number')
+      toast.error(t('Could not copy the tracking number'))
     }
   }
 
@@ -66,17 +69,19 @@ export function RecentComplaintsCard({
   complaints,
   loading,
 }: RecentComplaintsCardProps) {
+  const { t } = useLocale()
+
   return (
     <Card>
       <CardHeader className="flex flex-row items-start justify-between space-y-0">
         <div>
-          <CardTitle className="text-base">Recent Complaints</CardTitle>
-          <CardDescription>Your latest complaints</CardDescription>
+          <CardTitle className="text-base">{t('Recent Complaints')}</CardTitle>
+          <CardDescription>{t('Your latest complaints')}</CardDescription>
         </div>
         {complaints.length > 0 ? (
           <Link href="/citizen/my-complaints">
             <Button variant="ghost" size="sm">
-              View all
+              {t('View all')}
             </Button>
           </Link>
         ) : null}
@@ -93,12 +98,12 @@ export function RecentComplaintsCard({
         ) : complaints.length === 0 ? (
           <Empty
             className="p-6 md:p-6"
-            title="No complaints filed"
+            title={t('No complaints filed')}
             description={`Report an issue in ${BARANGAY_DISPLAY_NAME} and track how it is resolved.`}
             action={
               <Link href="/citizen/file-complaint">
                 <Button size="sm" variant="outline">
-                  File a Complaint
+                  {t('File a Complaint')}
                 </Button>
               </Link>
             }
@@ -134,7 +139,7 @@ export function RecentComplaintsCard({
             ))}
             <Link href="/citizen/my-complaints" className="block pt-2">
               <Button variant="ghost" size="sm" className="w-full">
-                View All Complaints
+                {t('View All Complaints')}
               </Button>
             </Link>
           </>

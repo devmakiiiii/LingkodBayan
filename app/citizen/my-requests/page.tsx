@@ -21,6 +21,7 @@ import {
   type RequestPayload,
 } from '@/lib/request-types'
 import { getSlaBadgeClassName, getSlaStatus } from '@/lib/sla'
+import { useLocale } from '@/hooks/use-locale'
 
 interface Request {
   id: string
@@ -39,6 +40,7 @@ export default function MyRequestsPage() {
   const [requests, setRequests] = useState<Request[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedRequest, setSelectedRequest] = useState<Request | null>(null)
+  const { t } = useLocale()
 
   useEffect(() => {
     async function loadRequests() {
@@ -98,7 +100,7 @@ return (
               <DialogHeader>
                 <DialogTitle className="text-2xl">{getRequestTypeTitle(selectedRequest.request_type, selectedRequest.title)}</DialogTitle>
                 <DialogDescription>
-                  Review the full request details submitted for processing.
+                  {t('Review the full request details submitted for processing.')}
                 </DialogDescription>
               </DialogHeader>
 
@@ -116,12 +118,12 @@ return (
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">My Service Requests</h1>
-          <p className="text-muted-foreground mt-2">Track all your submitted service requests</p>
+          <h1 className="text-3xl font-bold">{t('My Service Requests')}</h1>
+          <p className="text-muted-foreground mt-2">{t('Track all your submitted service requests')}</p>
         </div>
         <Link href="/citizen/request-service">
           <Button className="bg-primary hover:bg-primary/90">
-            + New Request
+            {t('+ New Request')}
           </Button>
         </Link>
       </div>
@@ -129,16 +131,16 @@ return (
       {/* Requests List */}
       {loading ? (
         <div className="text-center py-12">
-          <p className="text-muted-foreground">Loading requests...</p>
+          <p className="text-muted-foreground">{t('Loading requests...')}</p>
         </div>
       ) : requests.length === 0 ? (
         <Empty
-          title="No requests yet"
-          description="Submit your first service request to get started"
+          title={t('No requests yet')}
+          description={t('Submit your first service request to get started')}
           action={
             <Link href="/citizen/request-service">
               <Button className="bg-primary hover:bg-primary/90">
-                Create Request
+                {t('Create Request')}
               </Button>
             </Link>
           }
@@ -170,7 +172,7 @@ return (
                     {getRequestStatusLabel(request.status)}
                   </Badge>
                   <Badge variant="secondary">
-                    Priority: {request.priority.charAt(0).toUpperCase() + request.priority.slice(1)}
+                    {t('Priority:')} {request.priority.charAt(0).toUpperCase() + request.priority.slice(1)}
                   </Badge>
                   {(() => {
                     const sla = getSlaStatus(request)
@@ -184,12 +186,12 @@ return (
                 </div>
                 <div className="mt-4 flex items-center justify-between gap-3">
                   <span className="text-xs text-muted-foreground">
-                    Submitted {new Date(request.created_at).toLocaleDateString()}
+                    {t('Submitted')} {new Date(request.created_at).toLocaleDateString()}
                     {(() => {
                       const sla = getSlaStatus(request)
 
                       return sla.dueDate
-                        ? ` · Expected completion ${sla.dueDate.toLocaleDateString('en-PH', {
+                        ? ` · ${t('Expected completion')} ${sla.dueDate.toLocaleDateString('en-PH', {
                             month: 'short',
                             day: 'numeric',
                             year: 'numeric',
@@ -203,7 +205,7 @@ return (
                     onClick={() => setSelectedRequest(request)}
                   >
                     <Eye className="mr-2 h-4 w-4" />
-                    View Details
+                    {t('View Details')}
                   </Button>
                 </div>
               </CardContent>

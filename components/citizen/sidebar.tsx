@@ -44,7 +44,6 @@ export function Sidebar() {
   const { t } = useLocale()
   const pathname = usePathname()
   const router = useRouter()
-
   useEffect(() => {
     async function loadUser() {
       const supabase = createClient()
@@ -90,7 +89,7 @@ export function Sidebar() {
       {/* Mobile menu button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        aria-label={isOpen ? 'Close navigation menu' : 'Open navigation menu'}
+        aria-label={isOpen ? t('Close navigation menu') : t('Open navigation menu')}
         aria-expanded={isOpen}
         aria-controls="citizen-sidebar"
         className="md:hidden fixed top-4 left-4 z-50 p-2 rounded-lg bg-sidebar text-sidebar-foreground border border-sidebar-border shadow-md"
@@ -178,15 +177,15 @@ export function Sidebar() {
                   <LogOut className="h-6 w-6 text-red-600" aria-hidden="true" />
                 </div>
                 <DialogHeader className="flex flex-col items-center">
-                  <DialogTitle className="text-xl">Confirm Logout</DialogTitle>
+                  <DialogTitle className="text-xl">{t('Confirm Logout')}</DialogTitle>
                   <DialogDescription className="text-center text-base pt-2">
-                    Are you sure you want to log out of your account?
+                    {t('Are you sure you want to log out of your account?')}
                   </DialogDescription>
                 </DialogHeader>
                 <DialogFooter className="sm:justify-center w-full gap-3 mt-4">
                   <DialogClose asChild>
                     <Button variant="outline" disabled={isLoggingOut} className="flex-1">
-                      Cancel
+                      {t('Cancel')}
                     </Button>
                   </DialogClose>
                   <Button
@@ -198,7 +197,7 @@ export function Sidebar() {
                     {isLoggingOut ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
                     ) : null}
-                    Logout
+                    {t('Logout')}
                   </Button>
                 </DialogFooter>
               </div>

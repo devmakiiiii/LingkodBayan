@@ -24,6 +24,7 @@ import {
   type ServiceRequirement,
   type ServiceStep,
 } from '@/lib/charter-services'
+import { useLocale } from '@/hooks/use-locale'
 
 interface ServiceDetailDialogProps {
   service: CharterService | null
@@ -47,6 +48,7 @@ function DetailRow({ label, value }: { label: string; value?: string | null }) {
 }
 
 export function ServiceDetailDialog({ service, office, open, onOpenChange, onRequest }: ServiceDetailDialogProps) {
+  const { t } = useLocale()
   const [requirements, setRequirements] = useState<ServiceRequirement[]>([])
   const [steps, setSteps] = useState<ServiceStep[]>([])
   const [loading, setLoading] = useState(false)
@@ -91,7 +93,7 @@ export function ServiceDetailDialog({ service, office, open, onOpenChange, onReq
 
   const emergency = isEmergencyService(service)
   const classificationLabel =
-    service.classification === 'highly_technical' ? 'Highly Technical' : service.classification === 'simple' ? 'Simple' : null
+    service.classification === 'highly_technical' ? t('Highly Technical') : service.classification === 'simple' ? t('Simple') : null
 
 
   return (
@@ -100,7 +102,7 @@ export function ServiceDetailDialog({ service, office, open, onOpenChange, onReq
         <DialogHeader>
           <div className="flex items-start justify-between gap-3 pr-6">
             <DialogTitle className="text-xl">{service.title}</DialogTitle>
-            <Badge variant="secondary" className="shrink-0">{getServiceTypeLabel(service.category_type)}</Badge>
+            <Badge variant="secondary" className="shrink-0">{t(getServiceTypeLabel(service.category_type))}</Badge>
           </div>
           <DialogDescription>{service.description}</DialogDescription>
         </DialogHeader>
@@ -111,14 +113,14 @@ export function ServiceDetailDialog({ service, office, open, onOpenChange, onReq
             <AlertTriangle className="h-5 w-5 text-red-600 shrink-0 mt-0.5" aria-hidden="true" />
             <div className="text-sm">
               <p className="font-semibold text-red-700 dark:text-red-400">
-                For emergencies, call first — response begins immediately.
+                {t('For emergencies, call first — response begins immediately.')}
               </p>
               <p className="text-red-700/90 dark:text-red-300 mt-0.5 flex items-center gap-1.5">
                 <Phone className="h-3.5 w-3.5" aria-hidden="true" />
-                BBFRU Hotline: 0946-214-2438 &middot; BPAT Hotline: 0938-949-5840 &middot; National Emergency: 911
+                {t('BBFRU Hotline: 0946-214-2438 · BPAT Hotline: 0938-949-5840 · National Emergency: 911')}
               </p>
               <p className="text-red-700/80 dark:text-red-300/80 text-xs mt-1">
-                Use the online request only for follow-up or documentation after contacting the hotline.
+                {t('Use the online request only for follow-up or documentation after contacting the hotline.')}
               </p>
             </div>
           </div>
@@ -126,15 +128,15 @@ export function ServiceDetailDialog({ service, office, open, onOpenChange, onReq
 
         {/* Key facts */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <DetailRow label="Office" value={office?.name ?? service.charter_section} />
-          <DetailRow label="Classification" value={classificationLabel} />
+          <DetailRow label={t('Office')} value={office?.name ?? service.charter_section} />
+          <DetailRow label={t('Classification')} value={classificationLabel} />
           <DetailRow
-            label="Type of Transaction"
+            label={t('Type of Transaction')}
             value={service.transaction_types && service.transaction_types.length > 0 ? service.transaction_types.join(', ') : null}
           />
-          <DetailRow label="Who May Avail" value={service.who_may_avail} />
-          <DetailRow label="Responsible Personnel" value={service.responsible_personnel} />
-          {service.charter_section && <DetailRow label="Citizen's Charter Section" value={service.charter_section} />}
+          <DetailRow label={t('Who May Avail')} value={service.who_may_avail} />
+          <DetailRow label={t('Responsible Personnel')} value={service.responsible_personnel} />
+          {service.charter_section && <DetailRow label={t('Citizen\'s Charter Section')} value={service.charter_section} />}
         </div>
 
         {/* Fees & processing time */}
@@ -142,18 +144,18 @@ export function ServiceDetailDialog({ service, office, open, onOpenChange, onReq
           <div className="rounded-lg border border-gray-200 dark:border-border p-3 flex gap-2.5 items-start">
             <PhilippinePeso className="h-4 w-4 mt-0.5 text-[#28A745]" aria-hidden="true" />
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Fees to be Paid</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t('Fees to be Paid')}</p>
               <p className={`text-sm font-medium ${formatServiceFee(service) === NOT_SPECIFIED ? 'italic text-muted-foreground font-normal' : ''}`}>
-                {formatServiceFee(service)}
+                {formatServiceFee(service) === NOT_SPECIFIED ? t(NOT_SPECIFIED) : formatServiceFee(service)}
               </p>
             </div>
           </div>
           <div className="rounded-lg border border-gray-200 dark:border-border p-3 flex gap-2.5 items-start">
             <Clock className="h-4 w-4 mt-0.5 text-[#28A745]" aria-hidden="true" />
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Processing Time</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t('Processing Time')}</p>
               <p className={`text-sm font-medium ${formatProcessingTime(service) === NOT_SPECIFIED ? 'italic text-muted-foreground font-normal' : ''}`}>
-                {formatProcessingTime(service)}
+                {formatProcessingTime(service) === NOT_SPECIFIED ? t(NOT_SPECIFIED) : formatProcessingTime(service)}
               </p>
             </div>
           </div>
@@ -164,13 +166,13 @@ export function ServiceDetailDialog({ service, office, open, onOpenChange, onReq
 
         {/* Requirements */}
         <div>
-          <h4 className="text-sm font-semibold mb-2">Checklist of Requirements</h4>
+          <h4 className="text-sm font-semibold mb-2">{t('Checklist of Requirements')}</h4>
           {loading ? (
             <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
-              <Loader2 className="h-4 w-4 animate-spin" /> Loading requirements…
+              <Loader2 className="h-4 w-4 animate-spin" /> {t('Loading requirements…')}
             </div>
           ) : requirements.length === 0 ? (
-            <p className="text-sm italic text-muted-foreground">{NOT_SPECIFIED}</p>
+            <p className="text-sm italic text-muted-foreground">{t(NOT_SPECIFIED)}</p>
           ) : (
             <ul className="space-y-1.5">
               {requirements.map((req) => (
@@ -179,7 +181,7 @@ export function ServiceDetailDialog({ service, office, open, onOpenChange, onReq
                   <span>
                     {req.requirement_label}
                     {!req.is_required && (
-                      <span className="text-muted-foreground text-xs ml-1">(optional)</span>
+                      <span className="text-muted-foreground text-xs ml-1">{t('(optional)')}</span>
                     )}
                   </span>
                 </li>
@@ -187,7 +189,7 @@ export function ServiceDetailDialog({ service, office, open, onOpenChange, onReq
             </ul>
           )}
           <p className="text-xs text-muted-foreground mt-2 italic">
-            Where to secure these requirements: {NOT_SPECIFIED}
+            {t('Where to secure these requirements:')} {t(NOT_SPECIFIED)}
           </p>
         </div>
 
@@ -196,10 +198,9 @@ export function ServiceDetailDialog({ service, office, open, onOpenChange, onReq
           <>
             <Separator />
             <div>
-              <h4 className="text-sm font-semibold mb-2">Official Process (from the Citizen&apos;s Charter)</h4>
+              <h4 className="text-sm font-semibold mb-2">{t('Official Process (from the Citizen\u2019s Charter)')}</h4>
               <p className="text-xs text-muted-foreground mb-3 italic">
-                These are the barangay&apos;s official process steps. Submitting a request online is a
-                system convenience — the office still follows the process below.
+                {t('These are the barangay\u2019s official process steps. Submitting a request online is a system convenience — the office still follows the process below.')}
               </p>
               <ol className="space-y-2">
                 {steps.map((step) => (
@@ -211,7 +212,7 @@ export function ServiceDetailDialog({ service, office, open, onOpenChange, onReq
                       {step.description}
                       <span className="ml-1.5 inline-flex items-center gap-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
                         <User className="h-2.5 w-2.5" aria-hidden="true" />
-                        {step.actor === 'client' ? 'You' : 'Barangay'}
+                        {step.actor === 'client' ? t('You') : t('Barangay')}
                       </span>
                     </span>
                   </li>
@@ -231,7 +232,7 @@ export function ServiceDetailDialog({ service, office, open, onOpenChange, onReq
               }}
               className="w-full bg-[#28A745] hover:bg-[#228039] text-white font-medium py-2.5 rounded-lg"
             >
-              {emergency ? 'File a Request (Follow-up / Documentation)' : 'Request This Service'}
+              {emergency ? t('File a Request (Follow-up / Documentation)') : t('Request This Service')}
             </Button>
           </div>
         )}

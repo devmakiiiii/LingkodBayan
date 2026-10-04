@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { Loader2, Printer, Search, ShieldCheck } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { ArrowLeft, Loader2, Printer, Search, ShieldCheck } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -14,6 +15,7 @@ import {
 } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { LocaleToggle } from '@/components/citizen/locale-toggle'
 
 // QR codes encode a deep link back to this page (?code=...) so a scanned stub
 // re-opens the status lookup. The library is imported lazily inside the search
@@ -81,6 +83,7 @@ type BarangayContact = {
 }
 
 export default function TrackPage() {
+  const router = useRouter()
   const [code, setCode] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -162,11 +165,30 @@ export default function TrackPage() {
     ? (STATUS_TONES[result.statusLabel] ?? 'bg-slate-500/10 text-slate-700 border-slate-500/20')
     : ''
 
+  // Go back to wherever the citizen came from (homepage, services, citizen
+  // portal…). If the page was opened directly — e.g. a QR code scan — there is
+  // no in-app history, so fall back to the homepage instead of a dead end.
+  function handleBack() {
+    if (window.history.length > 1) {
+      router.back()
+    } else {
+      router.push('/')
+    }
+  }
+
   return (
     <main className="min-h-screen bg-slate-50 dark:bg-background py-10 px-4">
       <div className="mx-auto w-full max-w-xl space-y-6">
+        <div className="flex items-center justify-between">
+          <Button variant="ghost" size="sm" onClick={handleBack} className="-ml-2 text-muted-foreground hover:text-foreground">
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Back
+          </Button>
+          <LocaleToggle />
+        </div>
         <div className="text-center space-y-2">
           <h1 className="text-2xl font-bold text-slate-900 dark:text-foreground">Track My Submission</h1>
+
           <p className="text-sm text-muted-foreground">
             Enter the tracking code from your claim stub to check the status of a service request,
             complaint, or feedback — no account needed.

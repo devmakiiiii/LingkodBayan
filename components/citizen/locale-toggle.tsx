@@ -17,6 +17,18 @@ export function LocaleToggle() {
     setLocale(next)
     setLocaleState(next)
     window.dispatchEvent(new CustomEvent('lb-locale-changed'))
+
+    // Persist the preference on the resident row (fire-and-forget) so
+    // server-side SMS notifications use the same language. The portal works
+    // with cookie/localStorage alone when this fails (e.g. migration 45 not
+    // applied yet, or the visitor is not signed in).
+    void fetch('/api/citizen/locale-preference', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ locale: next }),
+    }).catch(() => {
+      // Non-fatal: cookie + localStorage still drive the UI.
+    })
   }
 
   return (

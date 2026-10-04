@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/card'
 import { Empty } from '@/components/ui/empty'
 import { Skeleton } from '@/components/ui/skeleton'
+import { useLocale } from '@/hooks/use-locale'
 import { formatRelativeDate } from '@/lib/format-date'
 import { getSlaBadgeClassName, getSlaStatus } from '@/lib/sla'
 import {
@@ -37,17 +38,19 @@ interface RecentRequestsCardProps {
 }
 
 export function RecentRequestsCard({ requests, loading }: RecentRequestsCardProps) {
+  const { t } = useLocale()
+
   return (
     <Card>
       <CardHeader className="flex flex-row items-start justify-between space-y-0">
         <div>
-          <CardTitle className="text-base">Recent Requests</CardTitle>
-          <CardDescription>Your latest service requests</CardDescription>
+          <CardTitle className="text-base">{t('Recent Requests')}</CardTitle>
+          <CardDescription>{t('Your latest service requests')}</CardDescription>
         </div>
         {requests.length > 0 ? (
           <Link href="/citizen/my-requests">
             <Button variant="ghost" size="sm">
-              View all
+              {t('View all')}
             </Button>
           </Link>
         ) : null}
@@ -64,11 +67,11 @@ export function RecentRequestsCard({ requests, loading }: RecentRequestsCardProp
         ) : requests.length === 0 ? (
           <Empty
             className="p-6 md:p-6"
-            title="No requests yet"
-            description="Request a barangay clearance, certificate of residency, or any other service."
+            title={t('No requests yet')}
+            description={t('Request a barangay clearance, certificate of residency, or any other service.')}
             action={
               <Link href="/citizen/request-service">
-                <Button size="sm">Request a Service</Button>
+                <Button size="sm">{t('Request a Service')}</Button>
               </Link>
             }
           />
@@ -93,7 +96,7 @@ export function RecentRequestsCard({ requests, loading }: RecentRequestsCardProp
                             {request.category} · {formatRelativeDate(request.created_at)}
                           </p>
                           <p className="text-xs text-muted-foreground">
-                            Expected completion:{' '}
+                            {t('Expected completion:')}{' '}
                             {sla.dueDate
                               ? sla.dueDate.toLocaleDateString('en-PH', {
                                   month: 'short',
@@ -122,7 +125,7 @@ export function RecentRequestsCard({ requests, loading }: RecentRequestsCardProp
             ))}
             <Link href="/citizen/my-requests" className="block pt-2">
               <Button variant="ghost" size="sm" className="w-full">
-                View All Requests
+                {t('View All Requests')}
               </Button>
             </Link>
           </>

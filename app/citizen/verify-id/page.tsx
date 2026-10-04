@@ -13,7 +13,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge'
 import { Upload, FileText, CheckCircle2, AlertCircle, Clock, X, Loader2, Info } from 'lucide-react'
 import { toast } from 'sonner'
+import { useLocale } from '@/hooks/use-locale'
 
+// The English labels below are the i18n dictionary keys.
 const ID_TYPE_OPTIONS = [
   { value: 'philsys', label: 'PhilSys (National ID)' },
   { value: 'drivers_license', label: "Driver's License" },
@@ -22,9 +24,10 @@ const ID_TYPE_OPTIONS = [
   { value: 'umid', label: 'UMID' },
   { value: 'sss', label: 'SSS ID' },
   { value: 'tin', label: 'TIN ID' },
-]
+] as const
 
-// Must mirror REJECTION_REASONS in app/admin/verification/page.tsx.
+// Must mirror REJECTION_REASONS in app/admin/verification/page.tsx. The
+// English sentences are the i18n dictionary keys, translated at render time.
 const REJECTION_REASON_LABELS: Record<string, string> = {
   unreadable_photo: 'The photo is blurry, dark, or unreadable. Please retake it in good lighting.',
   name_mismatch: 'The name on your ID does not match your account. Update your profile or contact the barangay office.',
@@ -36,6 +39,7 @@ const REJECTION_REASON_LABELS: Record<string, string> = {
 }
 
 export default function VerifyIdPage() {
+  const { t } = useLocale()
   const router = useRouter()
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
@@ -117,12 +121,12 @@ export default function VerifyIdPage() {
     if (!file) return
 
     if (!file.type.startsWith('image/')) {
-      toast.error('Please upload a valid image file (JPG, PNG, WEBP)')
+      toast.error(t('Please upload a valid image file (JPG, PNG, WEBP)'))
       return
     }
 
     if (file.size > 5 * 1024 * 1024) {
-      toast.error('File size must be less than 5MB')
+      toast.error(t('File size must be less than 5MB'))
       return
     }
 
@@ -133,7 +137,7 @@ export default function VerifyIdPage() {
 
   const handleUpload = async () => {
     if (!selectedFile) {
-      toast.error('Please select an ID document first')
+      toast.error(t('Please select an ID document first'))
       return
     }
 
@@ -153,7 +157,7 @@ export default function VerifyIdPage() {
 
       const timeoutPromise = new Promise<Response>((_, reject) => {
         uploadTimeoutId = setTimeout(
-          () => reject(new Error('Upload timed out. Please try again.')),
+          () => reject(new Error(t('Upload timed out. Please try again.'))),
           90000,
         )
       })
@@ -162,7 +166,7 @@ export default function VerifyIdPage() {
 
       if (!res.ok) {
         const data = await res.json()
-        throw new Error(data.error || 'Upload failed')
+        throw new Error(data.error || t('Upload failed'))
       }
 
       const data = await res.json()
@@ -171,7 +175,7 @@ export default function VerifyIdPage() {
       setIsUploading(false)
       await processId(data.signedUrl, data.idType)
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Upload failed'
+      const message = err instanceof Error ? err.message : t('Upload failed')
       toast.error(message)
     } finally {
       if (uploadTimeoutId) clearTimeout(uploadTimeoutId)
@@ -187,7 +191,7 @@ export default function VerifyIdPage() {
       const { data: { user } } = await supabase.auth.getUser()
 
       if (!user) {
-        throw new Error('You must be signed in to verify your ID. Please sign in again.')
+        throw new Error(t('You must be signed in to verify your ID. Please sign in again.'))
       }
 
       const resident = await getOrCreateResidentProfile(supabase, user)
@@ -212,7 +216,7 @@ export default function VerifyIdPage() {
 
       if (!expectedValues.firstName || !expectedValues.lastName || !expectedValues.email) {
         throw new Error(
-          'Your account is missing your name or email, so we cannot verify your ID. Please complete your profile first.',
+          t('Your account is missing your name or email, so we cannot verify your ID. Please complete your profile first.'),
         )
       }
 
@@ -227,14 +231,14 @@ export default function VerifyIdPage() {
       })
 
       const processTimeoutPromise = new Promise<Response>((_, reject) =>
-        setTimeout(() => reject(new Error('ID processing timed out. Please try again.')), 30000)
+        setTimeout(() => reject(new Error(t('ID processing timed out. Please try again.'))), 30000)
       )
 
       const res = await Promise.race([processPromise, processTimeoutPromise])
 
       if (!res.ok) {
         const data = await res.json()
-        throw new Error(data.error || 'OCR processing failed')
+        throw new Error(data.error || t('OCR processing failed'))
       }
 
       const data = await res.json()
@@ -257,15 +261,15 @@ export default function VerifyIdPage() {
       setVerificationStatus(data.verificationStatus)
 
       if (data.action === 'auto_verify') {
-        toast.success('Your ID has been verified automatically!')
+        toast.success(t('Your ID has been verified automatically!'))
         setTimeout(() => router.push('/citizen/dashboard'), 1500)
       } else if (data.action === 'id_verify') {
-        toast.success('Your ID has been verified! You now have full access.')
+        toast.success(t('Your ID has been verified! You now have full access.'))
       } else {
-        toast('Your ID requires manual review. An admin will review it shortly.')
+        toast(t('Your ID requires manual review. An admin will review it shortly.'))
       }
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'OCR processing failed'
+      const message = err instanceof Error ? err.message : t('OCR processing failed')
       toast.error(message)
     } finally {
       setIsProcessing(false)
@@ -290,7 +294,7 @@ export default function VerifyIdPage() {
         // failing the whole verification on the first 404.
         if (statusRes.status === 404) continue
         const data = await statusRes.json()
-        throw new Error(data.error || 'Failed to check processing status')
+        throw new Error(data.error || t('Failed to check processing status'))
       }
 
       const statusData = await statusRes.json()
@@ -310,22 +314,22 @@ export default function VerifyIdPage() {
         setVerificationStatus(result.verificationStatus)
 
         if (result.action === 'auto_verify') {
-          toast.success('Your ID has been verified automatically!')
+          toast.success(t('Your ID has been verified automatically!'))
           setTimeout(() => router.push('/citizen/dashboard'), 1500)
         } else if (result.action === 'id_verify') {
-          toast.success('Your ID has been verified! You now have full access.')
+          toast.success(t('Your ID has been verified! You now have full access.'))
         } else {
-          toast('Your ID requires manual review. An admin will review it shortly.')
+          toast(t('Your ID requires manual review. An admin will review it shortly.'))
         }
         return
       }
 
       if (statusData.status === 'failed') {
-        throw new Error(statusData.error || 'OCR processing failed')
+        throw new Error(statusData.error || t('OCR processing failed'))
       }
     }
 
-    throw new Error('ID processing timed out. Please try again.')
+    throw new Error(t('ID processing timed out. Please try again.'))
   }
 
   const handleRemoveFile = () => {
@@ -351,14 +355,14 @@ export default function VerifyIdPage() {
       const data = await res.json()
 
       if (!res.ok) {
-        throw new Error(data.error || 'Failed to submit appeal')
+        throw new Error(data.error || t('Failed to submit appeal'))
       }
 
       setVerificationStatus('needs_review')
       setAppealNote('')
-      toast.success('Your appeal was submitted. An administrator will review your verification.')
+      toast.success(t('Your appeal was submitted. An administrator will review your verification.'))
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Failed to submit appeal'
+      const message = err instanceof Error ? err.message : t('Failed to submit appeal')
       toast.error(message)
     } finally {
       setIsAppealing(false)
@@ -369,13 +373,13 @@ export default function VerifyIdPage() {
     switch (status) {
       case 'auto_verified':
       case 'id_verified':
-        return <Badge className="bg-green-100 text-green-800"><CheckCircle2 className="h-3 w-3 mr-1" /> Verified</Badge>
+        return <Badge className="bg-green-100 text-green-800"><CheckCircle2 className="h-3 w-3 mr-1" /> {t('Verified')}</Badge>
       case 'needs_review':
-        return <Badge className="bg-yellow-100 text-yellow-800"><Clock className="h-3 w-3 mr-1" /> Under Review</Badge>
+        return <Badge className="bg-yellow-100 text-yellow-800"><Clock className="h-3 w-3 mr-1" /> {t('Under Review (badge)')}</Badge>
       case 'rejected':
-        return <Badge className="bg-red-100 text-red-800"><X className="h-3 w-3 mr-1" /> Rejected</Badge>
+        return <Badge className="bg-red-100 text-red-800"><X className="h-3 w-3 mr-1" /> {t('Rejected')}</Badge>
       default:
-        return <Badge className="bg-gray-100 dark:bg-muted text-gray-800 dark:text-foreground"><AlertCircle className="h-3 w-3 mr-1" /> Not Verified</Badge>
+        return <Badge className="bg-gray-100 dark:bg-muted text-gray-800 dark:text-foreground"><AlertCircle className="h-3 w-3 mr-1" /> {t('Not Verified')}</Badge>
     }
   }
 
@@ -383,9 +387,9 @@ export default function VerifyIdPage() {
     <div className="space-y-6 p-6 md:p-8">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Identity Verification</h1>
+          <h1 className="text-3xl font-bold">{t('Identity Verification')}</h1>
           <p className="text-muted-foreground mt-1">
-            Upload a valid government ID to verify your identity
+            {t('Upload a valid government ID to verify your identity')}
           </p>
         </div>
         {getStatusBadge(verificationStatus)}
@@ -395,12 +399,10 @@ export default function VerifyIdPage() {
         <div className="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded-lg mb-4">
           <div className="flex items-center gap-2">
             <Info className="h-5 w-5" />
-            <span className="font-semibold">Verification is required to file a service request</span>
+            <span className="font-semibold">{t('Verification is required to file a service request')}</span>
           </div>
           <p className="text-sm mt-1">
-            You were redirected here because your identity is not verified yet. Upload a valid
-            government ID below to unlock service requests. You can still browse announcements,
-            track your existing requests, and file complaints.
+            {t('You were redirected here because your identity is not verified yet. Upload a valid government ID below to unlock service requests. You can still browse announcements, track your existing requests, and file complaints.')}
           </p>
         </div>
       )}
@@ -409,18 +411,18 @@ export default function VerifyIdPage() {
         <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg mb-4">
           <div className="flex items-center gap-2">
             <CheckCircle2 className="h-5 w-5" />
-            <span className="font-semibold">Your account is verified!</span>
+            <span className="font-semibold">{t('Your account is verified!')}</span>
           </div>
-          <p className="text-sm mt-1">You can now access all citizen portal features.</p>
+          <p className="text-sm mt-1">{t('You can now access all citizen portal features.')}</p>
         </div>
       )}
 
       {verificationStatus === 'needs_review' && (
         <Card className="border-yellow-200 bg-yellow-50">
           <CardHeader>
-            <CardTitle className="text-yellow-800">Under Manual Review</CardTitle>
+            <CardTitle className="text-yellow-800">{t('Under Manual Review')}</CardTitle>
             <CardDescription className="text-yellow-700">
-              Your verification is being reviewed by an administrator. You will be notified once it&apos;s approved.
+              {t('Your verification is being reviewed by an administrator. You will be notified once it\'s approved.')}
             </CardDescription>
           </CardHeader>
         </Card>
@@ -429,31 +431,30 @@ export default function VerifyIdPage() {
       {verificationStatus === 'rejected' && (
         <Card className="border-red-200 bg-red-50">
           <CardHeader>
-            <CardTitle className="text-red-800">Verification Rejected</CardTitle>
+            <CardTitle className="text-red-800">{t('Verification Rejected')}</CardTitle>
             <CardDescription className="text-red-700">
-              Your ID submission was rejected. You can upload a clearer image to try again, or
-              request a manual review by an administrator.
+              {t('Your ID submission was rejected. You can upload a clearer image to try again, or request a manual review by an administrator.')}
             </CardDescription>
           </CardHeader>
           {rejectionReason && (
             <CardContent className="pb-0">
               <div className="rounded-md border border-red-200 bg-white p-3">
-                <p className="text-sm font-medium text-red-900">Reason from the reviewer:</p>
-                <p className="mt-1 text-sm text-red-800">{rejectionReason}</p>
-                {adminNotes && <p className="mt-2 text-sm text-red-700 italic">Reviewer note: {adminNotes}</p>}
+                <p className="text-sm font-medium text-red-900">{t('Reason from the reviewer:')}</p>
+                <p className="mt-1 text-sm text-red-800">{t(rejectionReason)}</p>
+                {adminNotes && <p className="mt-2 text-sm text-red-700 italic">{t('Reviewer note:')} {adminNotes}</p>}
               </div>
             </CardContent>
           )}
           <CardContent className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="appeal-note" className="text-sm font-medium text-red-900">
-                Message for the reviewer (optional)
+                {t('Message for the reviewer (optional)')}
               </Label>
               <Textarea
                 id="appeal-note"
                 value={appealNote}
                 onChange={(e) => setAppealNote(e.target.value)}
-                placeholder="Explain why your verification should be re-reviewed..."
+                placeholder={t('Explain why your verification should be re-reviewed...')}
                 rows={3}
                 maxLength={1000}
                 className="bg-white"
@@ -461,7 +462,7 @@ export default function VerifyIdPage() {
             </div>
             <div className="flex flex-wrap gap-3">
               <Button onClick={() => setVerificationStatus('unverified')} variant="outline">
-                Try Again (Re-upload ID)
+                {t('Try Again (Re-upload ID)')}
               </Button>
               <Button
                 onClick={handleAppeal}
@@ -471,10 +472,10 @@ export default function VerifyIdPage() {
                 {isAppealing ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                    Submitting...
+                    {t('Submitting...')}
                   </>
                 ) : (
-                  'Request Human Review'
+                  t('Request Human Review')
                 )}
               </Button>
             </div>
@@ -487,17 +488,17 @@ export default function VerifyIdPage() {
           {/* ID Type Selection */}
           <Card>
             <CardHeader>
-              <CardTitle>Step 1: Select Your ID Type</CardTitle>
-              <CardDescription>Choose the government-issued ID you will upload</CardDescription>
+              <CardTitle>{t('Step 1: Select Your ID Type')}</CardTitle>
+              <CardDescription>{t('Choose the government-issued ID you will upload')}</CardDescription>
             </CardHeader>
             <CardContent>
               <Select value={idType} onValueChange={setIdType}>
                 <SelectTrigger className="w-full md:w-80">
-                  <SelectValue placeholder="Select ID type" />
+                  <SelectValue placeholder={t('Select ID type')} />
                 </SelectTrigger>
                 <SelectContent>
                   {ID_TYPE_OPTIONS.map((opt) => (
-                    <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                    <SelectItem key={opt.value} value={opt.value}>{t(opt.label)}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -507,10 +508,11 @@ export default function VerifyIdPage() {
           {/* File Upload */}
           <Card>
             <CardHeader>
-              <CardTitle>Step 2: Upload Your ID</CardTitle>
+              <CardTitle>{t('Step 2: Upload Your ID')}</CardTitle>
               <CardDescription>
-                Upload a clear, well-lit photo of your {ID_TYPE_OPTIONS.find((o) => o.value === idType)?.label || 'ID'}.
-                Supported formats: JPG, PNG, WEBP (max 5MB).
+                {t('Upload a clear, well-lit photo of your {idType}. Supported formats: JPG, PNG, WEBP (max 5MB).', {
+                  idType: t(ID_TYPE_OPTIONS.find((o) => o.value === idType)?.label || 'ID'),
+                })}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -520,7 +522,7 @@ export default function VerifyIdPage() {
                   onClick={() => fileInputRef.current?.click()}
                 >
                   <Upload className="h-12 w-12 text-gray-400 dark:text-muted-foreground mx-auto mb-4" />
-                  <p className="text-sm text-gray-600 dark:text-muted-foreground">Click to upload or drag and drop your ID image</p>
+                  <p className="text-sm text-gray-600 dark:text-muted-foreground">{t('Click to upload or drag and drop your ID image')}</p>
                   <input
                     ref={fileInputRef}
                     type="file"
@@ -533,7 +535,7 @@ export default function VerifyIdPage() {
                 <div className="relative inline-block">
                   <img
                     src={previewUrl}
-                    alt="ID preview"
+                    alt={t('ID preview')}
                     className="max-w-xs max-h-64 object-contain rounded-lg border border-gray-200 dark:border-border"
                   />
                   <button
@@ -558,17 +560,17 @@ export default function VerifyIdPage() {
                 {isUploading ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                    Uploading...
+                    {t('Uploading...')}
                   </>
                 ) : isProcessing ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                    Processing ID (OCR)...
+                    {t('Processing ID (OCR)...')}
                   </>
                 ) : (
                   <>
                     <FileText className="h-4 w-4 mr-2" />
-                    Verify My ID
+                    {t('Verify My ID')}
                   </>
                 )}
               </Button>
@@ -579,9 +581,9 @@ export default function VerifyIdPage() {
           {ocrResult && (verificationStatus !== "rejected" && verificationStatus !== "unverified") && (
             <Card>
               <CardHeader>
-                <CardTitle>Verification Results</CardTitle>
+                <CardTitle>{t('Verification Results')}</CardTitle>
                 <CardDescription>
-                  System extracted the following fields from your ID and compared them with your account data.
+                  {t('System extracted the following fields from your ID and compared them with your account data.')}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -589,7 +591,7 @@ export default function VerifyIdPage() {
                   {Object.entries(ocrResult.extractedFields).map(([key, value]) => (
                     <div key={key} className="space-y-1">
                       <Label className="text-xs font-medium text-gray-500 dark:text-muted-foreground uppercase">{key}</Label>
-                      <p className="text-sm font-medium">{value || 'N/A'}</p>
+                      <p className="text-sm font-medium">{value || t('N/A')}</p>
                     </div>
                   ))}
                 </div>
@@ -598,8 +600,8 @@ export default function VerifyIdPage() {
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium">
                       {ocrResult.scoreSource === 'document_consistency'
-                        ? 'ID vs. account match'
-                        : 'Match Score'}
+                        ? t('ID vs. account match')
+                        : t('Match Score')}
                     </span>
                     <Badge variant={ocrResult.matchScore >= 75 ? 'default' : 'secondary'}>
                       {Math.round(ocrResult.matchScore)}%
@@ -607,20 +609,20 @@ export default function VerifyIdPage() {
                   </div>
                   {ocrResult.scoreSource === 'document_consistency' && (
                     <p className="text-xs text-gray-500 dark:text-muted-foreground mt-1">
-                      Compared against your account details
-                      {ocrResult.comparedFields && ocrResult.comparedFields.length > 0
-                        ? ` (${ocrResult.comparedFields.join(', ')})`
-                        : ''}
-                      . No pre-registered barangay record was found for you.
+                      {t('Compared against your account details{fields}. No pre-registered barangay record was found for you.', {
+                        fields: ocrResult.comparedFields && ocrResult.comparedFields.length > 0
+                          ? ` (${ocrResult.comparedFields.join(', ')})`
+                          : '',
+                      })}
                     </p>
                   )}
                   <div className="flex items-center justify-between mt-2">
-                    <span className="text-sm font-medium">Result</span>
+                    <span className="text-sm font-medium">{t('Result')}</span>
                     <span className="text-sm">
-                      {ocrResult.action === 'auto_verify' ? 'Auto-verified' :
-                       ocrResult.action === 'id_verify' ? 'ID verified' :
-                       ocrResult.action === 'needs_review' ? 'Needs manual review' :
-                       'No match'}
+                      {ocrResult.action === 'auto_verify' ? t('Auto-verified') :
+                       ocrResult.action === 'id_verify' ? t('ID verified') :
+                       ocrResult.action === 'needs_review' ? t('Needs manual review') :
+                       t('No match')}
                     </span>
                   </div>
                 </div>
@@ -635,7 +637,7 @@ export default function VerifyIdPage() {
                 {ocrResult.action === 'needs_review' && (
                   <div className="bg-yellow-50 border border-yellow-200 text-yellow-700 px-4 py-3 rounded-lg text-sm">
                     <AlertCircle className="h-4 w-4 inline mr-2" />
-                    Your verification requires manual review. An administrator will check your ID and approve it within 24-48 hours.
+                    {t('Your verification requires manual review. An administrator will check your ID and approve it within 24-48 hours.')}
                   </div>
                 )}
               </CardContent>

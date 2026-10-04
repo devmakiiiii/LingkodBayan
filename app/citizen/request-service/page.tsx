@@ -23,6 +23,7 @@ import {
 } from '@/lib/charter-services'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { useLocale } from '@/hooks/use-locale'
 
 type ServiceCategory = CharterService
 
@@ -45,6 +46,7 @@ export default function RequestServicePage() {
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const router = useRouter()
+  const { t } = useLocale()
 
   async function loadServices() {
     try {
@@ -179,13 +181,13 @@ export default function RequestServicePage() {
           {/* Header */}
           <div className="mb-8">
             <h1 className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-foreground mb-2">
-              Request Services
+              {t('Request Services')}
             </h1>
             <p className="text-gray-600 dark:text-muted-foreground">
-              Browse and request available barangay services and documents
+              {t('Browse and request available barangay services and documents')}
             </p>
             {loadError && (
-              <p className="text-amber-600 text-sm mt-2">Note: Showing default services. Database unavailable.</p>
+              <p className="text-amber-600 text-sm mt-2">{t('Note: Showing default services. Database unavailable.')}</p>
             )}
           </div>
 
@@ -198,7 +200,7 @@ export default function RequestServicePage() {
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 dark:text-muted-foreground w-5 h-5" />
                   <Input
                     type="text"
-                    placeholder="Search services..."
+                    placeholder={t('Search services...')}
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="pl-10 pr-4 py-2.5 rounded-lg border border-gray-300 dark:border-input bg-white dark:bg-card focus:ring-2 focus:ring-[#28A745] focus:border-transparent"
@@ -217,12 +219,16 @@ export default function RequestServicePage() {
               {/* Filter Dropdown */}
               <Select value={selectedFilter} onValueChange={setSelectedFilter}>
                 <SelectTrigger className="rounded-lg border border-gray-300 dark:border-input bg-white dark:bg-card focus:ring-2 focus:ring-[#28A745]">
-                  <SelectValue placeholder="Filter by category" />
+                  <SelectValue placeholder={t('Filter by category')} />
                 </SelectTrigger>
                 <SelectContent>
                   {filterOptions.map((option) => (
                     <SelectItem key={option.value} value={option.value}>
-                      {option.label}
+                      {option.value === 'all'
+                        ? t('All Services')
+                        : option.value === 'general'
+                          ? t('General Services')
+                          : option.label}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -234,7 +240,8 @@ export default function RequestServicePage() {
               <div className="mt-4 flex flex-wrap gap-2">
                 {searchQuery && (
                   <span className="inline-flex items-center gap-2 bg-[#28A745]/10 text-[#228039] px-3 py-1 rounded-full text-sm">
-                    Search: {searchQuery}
+                    {t('Search:')} {searchQuery}
+
                     <button
                       onClick={() => setSearchQuery('')}
                       className="hover:text-[#228039]/70"
@@ -245,7 +252,7 @@ export default function RequestServicePage() {
                 )}
                 {selectedFilter !== 'all' && (
                   <span className="inline-flex items-center gap-2 bg-[#28A745]/10 text-[#228039] px-3 py-1 rounded-full text-sm">
-                    Category: {filterOptions.find((o) => o.value === selectedFilter)?.label}
+                    {t('Category:')} {filterOptions.find((o) => o.value === selectedFilter)?.label}
                     <button
                       onClick={() => setSelectedFilter('all')}
                       className="hover:text-[#228039]/70"
@@ -265,7 +272,7 @@ export default function RequestServicePage() {
                 <Loader2 className="w-12 h-12 mx-auto opacity-50 animate-spin" />
               </div>
               <h3 className="text-lg font-semibold text-gray-900 dark:text-foreground mb-2">
-                Loading services...
+                {t('Loading services...')}
               </h3>
             </div>
           ) : filteredServices.length > 0 ? (
@@ -294,10 +301,10 @@ export default function RequestServicePage() {
                 <Search className="w-12 h-12 mx-auto opacity-50" />
               </div>
               <h3 className="text-lg font-semibold text-gray-900 dark:text-foreground mb-2">
-                No services found
+                {t('No services found')}
               </h3>
               <p className="text-gray-600 dark:text-muted-foreground mb-6">
-                Try adjusting your search or filters
+                {t('Try adjusting your search or filters')}
               </p>
               <Button
                 onClick={() => {
@@ -306,7 +313,7 @@ export default function RequestServicePage() {
                 }}
                 className="bg-[#28A745] hover:bg-[#228039] text-white"
               >
-                Reset Filters
+                {t('Reset Filters')}
               </Button>
             </div>
           )}

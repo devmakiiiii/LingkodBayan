@@ -22,6 +22,7 @@ import { getOrCreateResidentProfile } from '@/lib/residents'
 import { complaintCategories, type ComplaintCategory, analyzeComplaintPriority, complaintCategoryFallbackPriorities, complaintCategoryKeywords } from '@/lib/complaint-categories'
 import { Badge } from '@/components/ui/badge'
 import { formatCoordinates } from '@/lib/address'
+import { useLocale } from '@/hooks/use-locale'
 
 interface IncidentCategory {
   id: string
@@ -32,6 +33,7 @@ interface IncidentCategory {
 }
 
 export default function FileComplaintPage() {
+  const { t } = useLocale()
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [category, setCategory] = useState<string>('')
@@ -151,10 +153,10 @@ export default function FileComplaintPage() {
 
     try {
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw new Error('Not authenticated')
+      if (!user) throw new Error(t('Not authenticated'))
 
       const resident = await getOrCreateResidentProfile(supabase, user)
-      if (!resident) throw new Error('Resident profile not found')
+      if (!resident) throw new Error(t('Resident profile not found'))
 
       let evidenceUrl = null
 
@@ -169,7 +171,7 @@ export default function FileComplaintPage() {
 
         if (!uploadResponse.ok) {
           const errorData = await uploadResponse.json()
-          throw new Error('Failed to upload evidence image: ' + errorData.error)
+          throw new Error(t('Failed to upload evidence image: {error}', { error: errorData.error }))
         }
 
         const uploadResult = await uploadResponse.json()
@@ -202,12 +204,12 @@ export default function FileComplaintPage() {
 
       if (insertError) {
         console.error('Complaint insert error:', insertError)
-        throw new Error(insertError.message || 'Failed to create complaint')
+        throw new Error(insertError.message || t('Failed to create complaint'))
       }
 
-      router.push('/citizen/my-complaints?success=Complaint filed successfully')
+      router.push('/citizen/my-complaints?success=' + encodeURIComponent(t('Complaint filed successfully')))
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to file complaint')
+      setError(err instanceof Error ? err.message : t('Failed to file complaint'))
     } finally {
       setIsLoading(false)
     }
@@ -216,24 +218,24 @@ export default function FileComplaintPage() {
   return (
 <div className="p-4 md:p-6 max-w-5xl space-y-4">
       <div>
-        <h1 className="text-2xl font-bold">File a Complaint</h1>
-        <p className="text-muted-foreground text-sm mt-1">Report issues or concerns with government services</p>
+        <h1 className="text-2xl font-bold">{t('File a Complaint')}</h1>
+        <p className="text-muted-foreground text-sm mt-1">{t('Report issues or concerns with government services')}</p>
       </div>
 
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-base">Complaint Details</CardTitle>
+          <CardTitle className="text-base">{t('Complaint Details')}</CardTitle>
           <CardDescription className="text-xs">
-            Provide detailed information to help us address your concern promptly
+            {t('Provide detailed information to help us address your concern promptly')}
           </CardDescription>
         </CardHeader>
         <CardContent className="px-4 py-3">
           <form onSubmit={handleSubmit} className="space-y-3">
             <div className="space-y-1">
-              <Label htmlFor="title" className="text-xs font-semibold">Complaint Title</Label>
+              <Label htmlFor="title" className="text-xs font-semibold">{t('Complaint Title')}</Label>
               <Input
                 id="title"
-                placeholder="Brief summary of your complaint"
+                placeholder={t('Brief summary of your complaint')}
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 required
@@ -242,10 +244,10 @@ export default function FileComplaintPage() {
             </div>
 
             <div className="space-y-1">
-              <Label htmlFor="description" className="text-xs font-semibold">Detailed Description</Label>
+              <Label htmlFor="description" className="text-xs font-semibold">{t('Detailed Description')}</Label>
               <Textarea
                 id="description"
-                placeholder="Explain your complaint in detail. Include dates, names, and specific incidents..."
+                placeholder={t('Explain your complaint in detail. Include dates, names, and specific incidents...')}
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 required
@@ -255,10 +257,10 @@ export default function FileComplaintPage() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label htmlFor="category" className="text-xs font-semibold">Category</Label>
+                <Label htmlFor="category" className="text-xs font-semibold">{t('Category')}</Label>
                 <Select value={category} onValueChange={setCategory} required>
                   <SelectTrigger className="h-9">
-                    <SelectValue placeholder="Select a category" />
+                    <SelectValue placeholder={t('Select a category')} />
                   </SelectTrigger>
                   <SelectContent>
                     {activeCategories.map((cat) => (
@@ -273,7 +275,7 @@ export default function FileComplaintPage() {
               <div className="flex items-center justify-between h-9 px-3 rounded-md bg-gray-50/50 dark:bg-muted/50 border">
                 <Label className="flex items-center gap-1.5 mb-0 text-xs font-semibold">
                   <Zap size={16} className="text-amber-600" />
-                  Detected Priority
+                  {t('Detected Priority')}
                 </Label>
                 <Badge
                   variant="secondary"
@@ -287,7 +289,7 @@ export default function FileComplaintPage() {
                       : 'border-slate-200 bg-slate-50 text-slate-700 dark:text-slate-300'
                   }`}
                 >
-                  {detectedPriority.charAt(0).toUpperCase() + detectedPriority.slice(1)}
+                  {t(detectedPriority.charAt(0).toUpperCase() + detectedPriority.slice(1))}
                 </Badge>
               </div>
             </div>
@@ -296,10 +298,10 @@ export default function FileComplaintPage() {
               <div className="space-y-1">
                 <Label className="flex items-center gap-1.5 text-xs font-semibold">
                   <MapPin size={16} />
-                  Pinpoint Complaint Location
+                  {t('Pinpoint Complaint Location')}
                 </Label>
                 <div>
-                  <Suspense fallback={<div className="h-[200px] bg-gray-100 dark:bg-muted rounded-md flex items-center justify-center text-xs">Loading map...</div>}>
+                  <Suspense fallback={<div className="h-[200px] bg-gray-100 dark:bg-muted rounded-md flex items-center justify-center text-xs">{t('Loading map...')}</div>}>
                     <MapPicker
                       onLocationSelect={(lat, lng, picked) => {
                         setLatitude(lat)
@@ -319,7 +321,7 @@ export default function FileComplaintPage() {
                   <div className="space-y-1.5 rounded-md border border-blue-200 bg-blue-50 p-2">
                     <div className="space-y-1">
                       <Label htmlFor="location-street" className="text-xs font-semibold text-blue-900">
-                        House no. &amp; street
+                        {t('House no. & street')}
                       </Label>
                       <Input
                         id="location-street"
@@ -329,18 +331,18 @@ export default function FileComplaintPage() {
                           // Enter inside the form would submit the complaint early.
                           if (e.key === 'Enter') e.preventDefault()
                         }}
-                        placeholder="e.g. 123 Zambales Highway"
+                        placeholder={t('e.g. 123 Zambales Highway')}
                         className="h-8 bg-white text-xs"
                       />
                       <p className="text-[11px] text-blue-800/80">
-                        Add your house or unit number so responders can find you.
+                        {t('Add your house or unit number so responders can find you.')}
                       </p>
                     </div>
 
                     {showLocalities && (
                       <div className="border-t border-blue-200 pt-1.5">
                         <p className="text-[11px] font-semibold uppercase tracking-wide text-blue-800/70">
-                          Barangay, city &amp; ZIP
+                          {t('Barangay, city & ZIP')}
                         </p>
                         <p className="text-xs text-blue-900">{locationLocalities}</p>
                       </div>
@@ -356,17 +358,17 @@ export default function FileComplaintPage() {
               <div className="space-y-1">
                 <Label className="flex items-center gap-1.5 text-xs font-semibold">
                   <ImageIcon size={16} />
-                  Evidence Photo (Optional)
+                  {t('Evidence Photo (Optional)')}
                 </Label>
                 <p className="text-xs text-muted-foreground">
-                  Attach an image to support your complaint (max 5MB)
+                  {t('Attach an image to support your complaint (max 5MB)')}
                 </p>
 
                 {!evidencePreview ? (
                   <div className="relative border-2 border-dashed rounded-lg p-3 h-24 flex flex-col items-center justify-center bg-gray-50/50 dark:bg-muted/50 hover:bg-gray-50 dark:hover:bg-muted dark:hover:bg-muted transition-colors">
                     <Upload className="h-4 w-4 text-gray-400 dark:text-muted-foreground mb-0.5" />
-                    <p className="text-xs text-gray-600 dark:text-muted-foreground font-medium">Click to upload</p>
-                    <p className="text-xs text-gray-500 dark:text-muted-foreground">PNG, JPG or WEBP</p>
+                    <p className="text-xs text-gray-600 dark:text-muted-foreground font-medium">{t('Click to upload')}</p>
+                    <p className="text-xs text-gray-500 dark:text-muted-foreground">{t('PNG, JPG or WEBP')}</p>
                     <Input
                       id="evidence"
                       type="file"
@@ -376,7 +378,7 @@ export default function FileComplaintPage() {
                         const file = e.target.files?.[0]
                         if (file) {
                           if (file.size > 5 * 1024 * 1024) {
-                            setError('File size must be less than 5MB')
+                            setError(t('File size must be less than 5MB'))
                             return
                           }
                           setError(null)
@@ -392,7 +394,7 @@ export default function FileComplaintPage() {
                   </div>
                 ) : (
                   <div className="relative rounded-lg overflow-hidden border">
-                    <img src={evidencePreview} alt="Evidence preview" className="w-full h-24 object-cover" />
+                    <img src={evidencePreview} alt={t('Evidence preview')} className="w-full h-24 object-cover" />
                     <Button
                       type="button"
                       variant="destructive"
@@ -425,7 +427,7 @@ export default function FileComplaintPage() {
                 className="flex-1"
                 disabled={isLoading}
               >
-                {isLoading ? 'Filing...' : 'File Complaint'}
+                {isLoading ? t('Filing...') : t('File Complaint')}
               </Button>
               <Button
                 type="button"
@@ -433,7 +435,7 @@ export default function FileComplaintPage() {
                 size="sm"
                 onClick={() => router.back()}
               >
-                Cancel
+                {t('Cancel')}
               </Button>
             </div>
           </form>

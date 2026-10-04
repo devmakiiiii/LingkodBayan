@@ -1,5 +1,6 @@
 export const revalidate = 60
 
+import { cookies } from 'next/headers'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Empty, EmptyMedia } from '@/components/ui/empty'
@@ -9,6 +10,7 @@ import { getPublishedAnnouncements } from '@/lib/db'
 import { getAnnouncementCategoryColor } from '@/lib/announcement-categories'
 import { BARANGAY_DISPLAY_NAME } from '@/lib/barangay'
 import { AnnouncementImage } from '@/components/announcement-image'
+import { t as translate, normalizeLocale, LOCALE_HTML_LANG, type Locale } from '@/lib/i18n'
 
 interface Announcement {
   id: string
@@ -32,8 +34,8 @@ function getPreviewText(announcement: Announcement): string {
   return stripHtml(announcement.content)
 }
 
-const formatDate = (dateString: string) => {
-  return new Date(dateString).toLocaleDateString('en-US', {
+const formatDate = (dateString: string, locale: Locale) => {
+  return new Date(dateString).toLocaleDateString(LOCALE_HTML_LANG[locale], {
     year: 'numeric',
     month: 'long',
     day: 'numeric',
@@ -41,6 +43,15 @@ const formatDate = (dateString: string) => {
 }
 
 export default async function AnnouncementsPage() {
+  // Server-side locale: the citizen locale toggle writes an `lb-locale`
+  // cookie (path=/, 1 year) on every change, so SSR can translate without a
+  // client round-trip. The cookie is a plain request value, not a secret, so
+  // reading it here is safe; unknown/absent values degrade to English.
+  const cookieStore = await cookies()
+  const locale = normalizeLocale(cookieStore.get('lb-locale')?.value)
+  const t = (key: string, params?: Record<string, string | number>) =>
+    translate(key, locale, params)
+
   let dbAnnouncements: Announcement[] = []
   
   try {
@@ -65,15 +76,19 @@ if (dbAnnouncements.length === 0) {
               <Megaphone className="h-6 w-6 text-primary" />
             </div>
             <div>
-              <h1 className="text-3xl font-bold">Announcements</h1>
-              <p className="text-muted-foreground mt-1">Latest news and updates from {BARANGAY_DISPLAY_NAME}</p>
+              <h1 className="text-3xl font-bold">{t('Announcements')}</h1>
+              <p className="text-muted-foreground mt-1">
+                {t('Latest news and updates from {barangay}', { barangay: BARANGAY_DISPLAY_NAME })}
+              </p>
             </div>
           </div>
         </div>
 
         <Empty
-          title="No announcements yet"
-          description={`Check back later for updates from ${BARANGAY_DISPLAY_NAME}`}
+          title={t('No announcements yet')}
+          description={t('Check back later for updates from {barangay}', {
+            barangay: BARANGAY_DISPLAY_NAME,
+          })}
         >
           <EmptyMedia variant="icon">
             <Megaphone className="h-5 w-5" />
@@ -91,8 +106,10 @@ if (dbAnnouncements.length === 0) {
             <Megaphone className="h-6 w-6 text-primary" />
           </div>
           <div>
-            <h1 className="text-3xl font-bold">Announcements</h1>
-            <p className="text-muted-foreground mt-1">Latest news and updates from {BARANGAY_DISPLAY_NAME}</p>
+            <h1 className="text-3xl font-bold">{t('Announcements')}</h1>
+            <p className="text-muted-foreground mt-1">
+              {t('Latest news and updates from {barangay}', { barangay: BARANGAY_DISPLAY_NAME })}
+            </p>
           </div>
         </div>
       </div>
@@ -115,7 +132,7 @@ if (dbAnnouncements.length === 0) {
                     {announcement.pinned && (
                       <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20">
                         <Pin className="mr-1 h-3 w-3" aria-hidden="true" />
-                        Pinned
+                        {t('Pinned')}
                       </Badge>
                     )}
                     <Badge className={getAnnouncementCategoryColor(announcement.category)} variant="outline">
@@ -130,7 +147,7 @@ if (dbAnnouncements.length === 0) {
                 </p>
                 <div className="flex items-center gap-2 text-xs text-muted-foreground pt-2 border-t mt-auto">
                   <Calendar className="h-3 w-3" />
-                  <span>{formatDate(announcement.published_at || announcement.created_at)}</span>
+                  <span>{formatDate(announcement.published_at || announcement.created_at, locale)}</span>
                 </div>
               </CardContent>
             </Card>

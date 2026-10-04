@@ -38,6 +38,7 @@ import {
   type RequestPaymentMethod,
   type RequestPaymentSnapshot,
 } from '@/lib/request-payment'
+import { useLocale } from '@/hooks/use-locale'
 
 type RequestFormDialogProps = {
   open: boolean
@@ -83,6 +84,7 @@ function fileToDataUrl(file: File) {
 
 export function RequestFormDialog({ open, onOpenChange, requestType, serviceInfo }: RequestFormDialogProps) {
   const router = useRouter()
+  const { t } = useLocale()
   const config = getRequestTypeConfigAny(requestType, serviceInfo)
   const paymentFee: RequestPaymentFeeInfo | null = serviceInfo
     ? {
@@ -279,7 +281,9 @@ export function RequestFormDialog({ open, onOpenChange, requestType, serviceInfo
     const missingRequiredFields = getMissingRequiredFields()
 
     if (missingRequiredFields.length > 0) {
-      setErrorMessage(`Please complete the required fields first: ${missingRequiredFields.join(', ')}.`)
+      setErrorMessage(t('Please complete the required fields first: {fields}.', {
+        fields: missingRequiredFields.join(', '),
+      }))
       return
     }
 
@@ -293,13 +297,13 @@ export function RequestFormDialog({ open, onOpenChange, requestType, serviceInfo
       } = await supabase.auth.getUser()
 
       if (!user) {
-        throw new Error('Please sign in to submit a request.')
+        throw new Error(t('Please sign in to submit a request.'))
       }
 
       const resident = await getOrCreateResidentProfile(supabase, user)
 
       if (!resident) {
-        throw new Error('Your resident profile is incomplete. Please finish registration first.')
+        throw new Error(t('Your resident profile is incomplete. Please finish registration first.'))
       }
 
       // Proxy filing: resolve the beneficiary. The RLS policy on requests
@@ -308,7 +312,7 @@ export function RequestFormDialog({ open, onOpenChange, requestType, serviceInfo
         ? authorizedResidents.find((candidate) => candidate.id === onBehalfOf)
         : null
       if (onBehalfOf && !beneficiary) {
-        throw new Error('The authorization for that resident is no longer active. Please refresh and try again.')
+        throw new Error(t('The authorization for that resident is no longer active. Please refresh and try again.'))
       }
       const filingResidentId = beneficiary ? beneficiary.id : resident.id
 
@@ -339,11 +343,11 @@ export function RequestFormDialog({ open, onOpenChange, requestType, serviceInfo
 
         if (isPerPageFee) {
           if (paymentPages.trim() !== '' && perPageTotal == null) {
-            setErrorMessage('Please enter a whole number of pages (1 or more) so the fee can be computed.')
+            setErrorMessage(t('Please enter a whole number of pages (1 or more) so the fee can be computed.'))
             return
           }
           if (paymentPagesRequired && perPageTotal == null) {
-            setErrorMessage('Please enter the number of pages so the total fee can be computed.')
+            setErrorMessage(t('Please enter the number of pages so the total fee can be computed.'))
             return
           }
           draftAmount = perPageTotal != null ? String(perPageTotal) : ''
@@ -384,11 +388,13 @@ export function RequestFormDialog({ open, onOpenChange, requestType, serviceInfo
         })
         const result = await response.json().catch(() => null)
         if (!response.ok) {
-          throw new Error(result?.error || 'Failed to file the request on behalf of the resident.')
+          throw new Error(result?.error || t('Failed to file the request on behalf of the resident.'))
         }
         setSubmittedState({
           requestId: result.requestId,
-          message: `${config.title} has been submitted on behalf of ${beneficiary.firstName} ${beneficiary.lastName} and is now pending review.${result.paymentLedgerNote ?? ''}`,
+          message: `${config.title} ${t('has been submitted on behalf of {name} and is now pending review.', {
+            name: `${beneficiary.firstName} ${beneficiary.lastName}`,
+          })}${result.paymentLedgerNote ?? ''}`,
         })
         setValues(createInitialValues(config))
         setFiles({})
@@ -430,18 +436,18 @@ export function RequestFormDialog({ open, onOpenChange, requestType, serviceInfo
         if (paymentInsertError) {
           console.error('Failed to save payment record:', paymentInsertError)
           paymentLedgerNote =
-            ' Note: your payment details were saved with the request, but the payment ledger entry could not be recorded.'
+            t(' Note: your payment details were saved with the request, but the payment ledger entry could not be recorded.')
         }
       }
 
       setSubmittedState({
         requestId: data.id,
-        message: `${config.title} has been submitted successfully and is now pending review.${paymentLedgerNote}`,
+        message: `${config.title} ${t('has been submitted successfully and is now pending review.')}${paymentLedgerNote}`,
       })
       setValues(createInitialValues(config))
       setFiles({})
     } catch (submitError) {
-      setErrorMessage(submitError instanceof Error ? submitError.message : 'Failed to submit request.')
+      setErrorMessage(submitError instanceof Error ? submitError.message : t('Failed to submit request.'))
     } finally {
       setIsSubmitting(false)
     }
@@ -466,31 +472,31 @@ export function RequestFormDialog({ open, onOpenChange, requestType, serviceInfo
             <DialogHeader>
               <DialogTitle className="text-2xl text-foreground">{config.title}</DialogTitle>
               <DialogDescription>
-                Fill out the form below. Your request will be saved as pending and routed for review.
-                <span className="block text-xs text-emerald-600 mt-1">Some fields are auto-filled from your profile.</span>
+                {t('Fill out the form below. Your request will be saved as pending and routed for review.')}
+                <span className="block text-xs text-emerald-600 mt-1">{t('Some fields are auto-filled from your profile.')}</span>
               </DialogDescription>
             </DialogHeader>
 
             {authorizedResidents.length > 0 ? (
               <div className="rounded-xl border border-sky-200 dark:border-border bg-sky-50/60 dark:bg-sky-500/5 px-4 py-3 text-sm space-y-2">
                 <Label htmlFor="on-behalf-of" className="text-sky-900 dark:text-sky-300">
-                  File on behalf of
+                  {t('File on behalf of')}
                 </Label>
                 <Select value={onBehalfOf || 'self'} onValueChange={(value) => setOnBehalfOf(value === 'self' ? '' : value)}>
                   <SelectTrigger id="on-behalf-of" className="w-full">
-                    <SelectValue placeholder="Choose who this request is for" />
+                    <SelectValue placeholder={t('Choose who this request is for')} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="self">Myself</SelectItem>
+                    <SelectItem value="self">{t('Myself')}</SelectItem>
                     {authorizedResidents.map((candidate) => (
                       <SelectItem key={candidate.id} value={candidate.id}>
-                        {`${candidate.firstName} ${candidate.lastName}`.trim()} (authorized)
+                        {`${candidate.firstName} ${candidate.lastName}`.trim()} {t('(authorized)')}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-sky-700 dark:text-sky-400">
-                  You may file for residents who granted you proxy authorization. Manage this under Proxy Filing.
+                  {t('You may file for residents who granted you proxy authorization. Manage this under Proxy Filing.')}
                 </p>
               </div>
             ) : null}
@@ -498,8 +504,8 @@ export function RequestFormDialog({ open, onOpenChange, requestType, serviceInfo
             {/* Auto-filled service details summary */}
             <div className="rounded-xl border border-emerald-200 dark:border-border bg-emerald-50/60 px-4 py-3 text-sm">
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-                <span className="font-semibold text-emerald-800">Service: {config.title}</span>
-                <span className="text-emerald-700">Category: {config.category}</span>
+                <span className="font-semibold text-emerald-800">{t('Service:')} {config.title}</span>
+                <span className="text-emerald-700">{t('Category:')} {config.category}</span>
               </div>
               {serviceInfo?.description && (
                 <p className="mt-1 text-xs text-emerald-700">{serviceInfo.description}</p>
@@ -532,7 +538,7 @@ export function RequestFormDialog({ open, onOpenChange, requestType, serviceInfo
                   ) : field.type === 'select' ? (
                     <Select value={values[field.name] ?? ''} onValueChange={(value) => handleValueChange(field.name, value)}>
                       <SelectTrigger className="border-emerald-200 dark:border-border bg-white dark:bg-card focus:ring-emerald-500">
-                        <SelectValue placeholder={`Select ${field.label.toLowerCase()}`} />
+                        <SelectValue placeholder={t('Select {field}', { field: field.label.toLowerCase() })} />
                       </SelectTrigger>
                       <SelectContent>
                         {field.options?.map((option) => (
@@ -583,16 +589,16 @@ export function RequestFormDialog({ open, onOpenChange, requestType, serviceInfo
             {paymentFee && (
               <div className="space-y-3 rounded-xl border border-emerald-200 dark:border-border bg-emerald-50/60 px-4 py-3 text-sm">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="font-semibold text-emerald-800">Payment</span>
+                  <span className="font-semibold text-emerald-800">{t('Payment')}</span>
                   <span className="text-emerald-700">
-                    Charter fee: {paymentFeeDisplay ? formatServiceFee(paymentFeeDisplay) : ''}
+                    {t('Charter fee:')} {paymentFeeDisplay ? formatServiceFee(paymentFeeDisplay) : ''}
                   </span>
                 </div>
 
                 <div className="grid gap-3 md:grid-cols-2">
                   <div>
                     <Label htmlFor="payment-method" className="mb-2 block text-sm font-medium text-foreground">
-                      Payment Method
+                      {t('Payment Method')}
                       {paymentMethodRequired ? <span className="ml-1 text-rose-600">*</span> : null}
                     </Label>
                     <Select
@@ -603,12 +609,12 @@ export function RequestFormDialog({ open, onOpenChange, requestType, serviceInfo
                         id="payment-method"
                         className="border-emerald-200 dark:border-border bg-white dark:bg-card focus:ring-emerald-500"
                       >
-                        <SelectValue placeholder="Select payment method" />
+                        <SelectValue placeholder={t('Select payment method')} />
                       </SelectTrigger>
                       <SelectContent>
                         {requestPaymentMethods.map((method) => (
                           <SelectItem key={method} value={method}>
-                            {getPaymentMethodLabel(method)}
+                            {t(getPaymentMethodLabel(method))}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -618,7 +624,7 @@ export function RequestFormDialog({ open, onOpenChange, requestType, serviceInfo
                   {isPerPageFee && paymentFee && (
                     <div>
                       <Label htmlFor="payment-pages" className="mb-2 block text-sm font-medium text-foreground">
-                        Number of Pages
+                        {t('Number of Pages')}
                         {paymentPagesRequired ? <span className="ml-1 text-rose-600">*</span> : null}
                       </Label>
                       <Input
@@ -630,8 +636,8 @@ export function RequestFormDialog({ open, onOpenChange, requestType, serviceInfo
                         onChange={(event) => setPaymentPages(event.target.value)}
                         placeholder={
                           paymentFee.feeAmountMin != null
-                            ? `e.g. 5 (${formatPeso(paymentFee.feeAmountMin)} per page)`
-                            : 'e.g. 5'
+                            ? t('e.g. 5 ({amount} per page)', { amount: formatPeso(paymentFee.feeAmountMin) })
+                            : t('e.g. 5')
                         }
                         className="border-emerald-200 dark:border-border bg-white dark:bg-card focus-visible:ring-emerald-500"
                       />
@@ -640,12 +646,12 @@ export function RequestFormDialog({ open, onOpenChange, requestType, serviceInfo
 
                   <div>
                     <Label htmlFor="payment-amount" className="mb-2 block text-sm font-medium text-foreground">
-                      {isPerPageFee ? 'Computed Amount' : 'Amount to Pay'}
+                      {isPerPageFee ? t('Computed Amount') : t('Amount to Pay')}
                       {paymentAmountRequired ? <span className="ml-1 text-rose-600">*</span> : null}
                     </Label>
                     {isPerPageFee ? (
                       <p className="flex h-10 items-center rounded-lg border border-emerald-200 dark:border-border bg-white dark:bg-card px-3 text-foreground">
-                        {perPageTotal != null ? formatPeso(perPageTotal) : 'Enter the number of pages'}
+                        {perPageTotal != null ? formatPeso(perPageTotal) : t('Enter the number of pages')}
                       </p>
                     ) : requiresAmountEntry(paymentFee) ? (
                       <Input
@@ -668,7 +674,7 @@ export function RequestFormDialog({ open, onOpenChange, requestType, serviceInfo
                   {requiresReferenceNumber(paymentMethod as RequestPaymentMethod) && (
                     <div className="md:col-span-2">
                       <Label htmlFor="payment-reference" className="mb-2 block text-sm font-medium text-foreground">
-                        Reference / Transaction Number
+                        {t('Reference / Transaction Number')}
                         <span className="ml-1 text-rose-600">*</span>
                       </Label>
                       <Input
@@ -676,7 +682,7 @@ export function RequestFormDialog({ open, onOpenChange, requestType, serviceInfo
                         type="text"
                         value={paymentReference}
                         onChange={(event) => setPaymentReference(event.target.value)}
-                        placeholder="Enter the GCash/Maya reference number"
+                        placeholder={t('Enter the GCash/Maya reference number')}
                         className="border-emerald-200 dark:border-border bg-white dark:bg-card focus-visible:ring-emerald-500"
                       />
                     </div>
@@ -684,27 +690,27 @@ export function RequestFormDialog({ open, onOpenChange, requestType, serviceInfo
                 </div>
 
                 <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-emerald-200 dark:border-border bg-white dark:bg-card px-3 py-2">
-                  <span className="font-medium text-emerald-800">Amount due</span>
+                  <span className="font-medium text-emerald-800">{t('Amount due')}</span>
                   <span className="text-base font-semibold text-emerald-900">
                     {amountDue != null
                       ? formatPeso(amountDue)
                       : isPerPageFee
-                        ? 'Enter the number of pages'
-                        : 'To be assessed at the barangay office'}
+                        ? t('Enter the number of pages')
+                        : t('To be assessed at the barangay office')}
                   </span>
                 </div>
 
                 <p className="text-xs text-emerald-700">
                   {getFeeType(paymentFee) === 'free'
-                    ? 'This service is free of charge - no payment is required.'
-                    : 'No online payments: counter payments are settled at the barangay office, while GCash/Maya payments are verified by barangay staff before being marked as paid.'}
+                    ? t('This service is free of charge - no payment is required.')
+                    : t('No online payments: counter payments are settled at the barangay office, while GCash/Maya payments are verified by barangay staff before being marked as paid.')}
                 </p>
               </div>
             )}
 
             <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-end">
               <Button variant="outline" onClick={closeDialog} disabled={isSubmitting}>
-                Cancel
+                {t('Cancel')}
               </Button>
               <Button
                 className="bg-emerald-600 text-white hover:bg-emerald-700"
@@ -714,10 +720,10 @@ export function RequestFormDialog({ open, onOpenChange, requestType, serviceInfo
                 {isSubmitting ? (
                   <span className="inline-flex items-center gap-2">
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    Submitting...
+                    {t('Submitting...')}
                   </span>
                 ) : (
-                  'Submit Request'
+                  t('Submit Request')
                 )}
               </Button>
             </div>
@@ -728,9 +734,9 @@ export function RequestFormDialog({ open, onOpenChange, requestType, serviceInfo
               <CheckCircle2 className="h-8 w-8" />
             </div>
             <div className="space-y-2">
-              <h3 className="text-2xl font-bold text-foreground">Request Submitted</h3>
+              <h3 className="text-2xl font-bold text-foreground">{t('Request Submitted')}</h3>
               <p className="max-w-xl text-sm text-muted-foreground">{submittedState.message}</p>
-              <p className="text-xs text-muted-foreground">Request ID: {submittedState.requestId}</p>
+              <p className="text-xs text-muted-foreground">{t('Request ID:')} {submittedState.requestId}</p>
             </div>
             <div className="flex flex-col gap-3 sm:flex-row">
               <Button
@@ -740,10 +746,10 @@ export function RequestFormDialog({ open, onOpenChange, requestType, serviceInfo
                   router.push('/citizen/my-requests')
                 }}
               >
-                View My Requests
+                {t('View My Requests')}
               </Button>
               <Button variant="outline" onClick={closeDialog}>
-                Close
+                {t('Close')}
               </Button>
             </div>
           </div>
