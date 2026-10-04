@@ -17,7 +17,7 @@ export type StatusMachineKind = 'request' | 'complaint' | 'feedback'
 
 export type RequestLifecycleStatus = 'pending' | 'processing' | 'approved' | 'rejected'
 
-export type ComplaintLifecycleStatus = 'open' | 'under_investigation' | 'resolved' | 'dismissed'
+export type ComplaintLifecycleStatus = 'open' | 'under_investigation' | 'resolved' | 'dismissed' | 'cancelled'
 
 export type FeedbackLifecycleStatus =
   | 'submitted'
@@ -92,12 +92,13 @@ export const requestStatusMachine: StatusMachine<RequestLifecycleStatus> = {
 export const complaintStatusMachine: StatusMachine<ComplaintLifecycleStatus> = {
   kind: 'complaint',
   initialState: 'open',
-  states: ['open', 'under_investigation', 'resolved', 'dismissed'],
-  terminalStates: ['dismissed'],
+  states: ['open', 'under_investigation', 'resolved', 'dismissed', 'cancelled'],
+  terminalStates: ['dismissed', 'cancelled'],
   transitions: [
     { from: 'open', to: 'under_investigation', label: 'Start Investigation', description: 'Begin reviewing the complaint.' },
     { from: 'open', to: 'resolved', label: 'Mark Resolved', description: 'Resolve the complaint without a formal investigation.' },
     { from: 'open', to: 'dismissed', label: 'Dismiss', description: 'Dismiss the complaint as invalid or out of scope.' },
+    { from: 'open', to: 'cancelled', label: 'Cancel', description: 'Citizen cancels/withdraws the complaint.' },
     { from: 'under_investigation', to: 'resolved', label: 'Mark Resolved', description: 'Close the complaint as resolved.' },
     { from: 'under_investigation', to: 'dismissed', label: 'Dismiss', description: 'Dismiss the complaint after review.' },
     { from: 'under_investigation', to: 'open', label: 'Return to Pending', description: 'Send the complaint back to the queue.' },
@@ -116,6 +117,8 @@ export const complaintStatusMachine: StatusMachine<ComplaintLifecycleStatus> = {
     approved: 'resolved',
     dismissed: 'dismissed',
     rejected: 'dismissed',
+    cancelled: 'cancelled',
+    withdrawn: 'cancelled',
   },
 }
 

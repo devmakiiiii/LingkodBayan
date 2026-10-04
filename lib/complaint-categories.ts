@@ -12,13 +12,16 @@ export const complaintCategories = [
 export type ComplaintCategory = (typeof complaintCategories)[number]
 
 export const complaintCategoryKeywords: Record<ComplaintCategory, string[]> = {
-  'Noise Complaint': ['noise', 'loud', 'karaoke', 'music', 'party'],
-  'Public Disturbance': ['disturbance', 'dispute', 'gulo', 'fight', 'altercation', 'corruption', 'abuse of power', 'mismanagement'],
-  'Sanitation': ['sanitation', 'garbage', 'trash', 'waste', 'sewer', 'drain', 'odor', 'dirty', 'environment', 'environmental'],
-  'Infrastructure Issue': ['infrastructure', 'road', 'pothole', 'bridge', 'repair', 'drainage', 'unsafe conditions'],
-  'Barangay Incident': ['incident', 'assault', 'theft', 'burglary', 'violence', 'crime', 'abuse'],
-  'Illegal Parking': ['parking', 'parked', 'obstruction'],
-  'Street Light Problem': ['street light', 'light', 'lamp', 'dark'],
+  // Each list mixes English terms with the Filipino / Tagalog words residents
+  // actually type, so a complaint written in Tagalog is still routed to the
+  // right category instead of falling through to "Other Concerns".
+  'Noise Complaint': ['noise', 'loud', 'karaoke', 'music', 'party', 'ingay', 'videoke', 'musika', 'huni'],
+  'Public Disturbance': ['disturbance', 'dispute', 'gulo', 'fight', 'altercation', 'corruption', 'abuse of power', 'mismanagement', 'away', 'alitan', 'basag-ulo'],
+  'Sanitation': ['sanitation', 'garbage', 'trash', 'waste', 'sewer', 'drain', 'odor', 'dirty', 'environment', 'environmental', 'basura', 'kanal', 'mabaho', 'dumi', 'imburnal'],
+  'Infrastructure Issue': ['infrastructure', 'road', 'pothole', 'bridge', 'repair', 'drainage', 'unsafe conditions', 'daan', 'lubak', 'butas', 'sira ang daan'],
+  'Barangay Incident': ['incident', 'assault', 'theft', 'burglary', 'violence', 'crime', 'abuse', 'aksidente', 'bangga', 'sunog', 'nakawan', 'saksak', 'pananakit'],
+  'Illegal Parking': ['parking', 'parked', 'obstruction', 'nakaparada', 'nakaharang', 'harang'],
+  'Street Light Problem': ['street light', 'light', 'lamp', 'dark', 'ilaw', 'madilim', 'dilim'],
   'Other Concerns': [],
 }
 
@@ -81,6 +84,10 @@ const severityIndicators = [
   'panganib', 'mapanganib', 'delikado', 'pang-aabuso', 'hinaharas',
   'harassment', 'nakawan', 'nanakawan', 'ninakaw', 'pagnanakaw',
   'sunog', 'nasunugan', 'banta',
+  // Filipino / Tagalog accident, collision & disaster cues
+  'aksidente', 'aksident', 'bangga', 'banggaan', 'nagbangga', 'nabangga',
+  'salpukan', 'nagsalpukan', 'nasagasaan', 'sagasa', 'nasiraan',
+  'lindol', 'baha', 'pagbaha', 'bumabaha', 'nasalanta', 'nasagip',
 ]
 
 const timeSensitiveIndicators = [

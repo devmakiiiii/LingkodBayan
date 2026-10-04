@@ -274,6 +274,10 @@ export const complaintReplySchema = z.object({
   message: z.string().min(1, 'Message is required').max(2000, 'Message must be 2000 characters or less'),
 })
 
+export const cancelComplaintSchema = z.object({
+  complaintId: z.string().uuid('Invalid complaint ID'),
+})
+
 /**
  * Admin-authored complaint messages (replies and automatic status/assignment
  * activity notes) submitted through /api/admin/complaint-messages.

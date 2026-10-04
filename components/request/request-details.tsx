@@ -4,9 +4,10 @@ import { useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Copy } from 'lucide-react'
+import { Check, Copy } from 'lucide-react'
 import { formatDate } from '@/lib/format-date'
 import { formatServiceFee } from '@/lib/charter-services'
+import { buildRequestTrackingNumber } from '@/lib/tracking'
 import {
   formatPeso,
   getPaymentMethodLabel,
@@ -94,6 +95,26 @@ export function RequestDetails({
                 <CardTitle className="text-base text-emerald-900">Request Overview</CardTitle>
               </CardHeader>
               <CardContent className="grid gap-3">
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-emerald-700">Tracking Code</p>
+                  {request.id ? (
+                    <button
+                      type="button"
+                      onClick={() => copyToClipboard(buildRequestTrackingNumber(request.id!), 'tracking-code')}
+                      className="mt-1 flex items-center gap-2 font-mono text-sm font-semibold text-emerald-950 hover:text-emerald-700"
+                      title="Click to copy tracking code"
+                    >
+                      {buildRequestTrackingNumber(request.id)}
+                      {copiedField === 'tracking-code' ? (
+                        <Check className="h-3.5 w-3.5 text-emerald-600" />
+                      ) : (
+                        <Copy className="h-3.5 w-3.5 text-emerald-600/60" />
+                      )}
+                    </button>
+                  ) : (
+                    <p className="mt-1 font-semibold text-emerald-950">N/A</p>
+                  )}
+                </div>
                 <div>
                   <p className="text-xs uppercase tracking-wide text-emerald-700">Request Type</p>
                   <p className="mt-1 font-semibold text-emerald-950 break-words">{requestTypeTitle}</p>

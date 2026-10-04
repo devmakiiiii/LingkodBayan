@@ -6,13 +6,14 @@ import {
 } from '@/lib/complaint-status'
 import type { ComplaintLifecycleStatus } from '@/lib/status-machine'
 import { cn } from '@/lib/utils'
-import { AlertCircle, CheckCircle2, Clock, XCircle } from 'lucide-react'
+import { AlertCircle, CheckCircle2, Clock, XCircle, XOctagon } from 'lucide-react'
 
 const statusIcons: Record<ComplaintLifecycleStatus, typeof AlertCircle> = {
   open: AlertCircle,
   under_investigation: Clock,
   resolved: CheckCircle2,
   dismissed: XCircle,
+  cancelled: XOctagon,
 }
 
 const statusIconClassNames: Record<ComplaintLifecycleStatus, string> = {
@@ -20,6 +21,7 @@ const statusIconClassNames: Record<ComplaintLifecycleStatus, string> = {
   under_investigation: 'text-sky-600',
   resolved: 'text-emerald-600',
   dismissed: 'text-muted-foreground',
+  cancelled: 'text-rose-600',
 }
 
 interface ComplaintStatusProps {

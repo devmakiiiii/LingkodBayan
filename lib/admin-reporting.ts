@@ -46,7 +46,7 @@ export const complaintCategoryColors: Record<ComplaintCategory, string> = {
   'Other Concerns': '#64748b',
 }
 
-export const complaintStatuses = ['open', 'under_investigation', 'resolved', 'dismissed'] as const
+export const complaintStatuses = ['open', 'under_investigation', 'resolved', 'dismissed', 'cancelled'] as const
 export type ComplaintStatus = (typeof complaintStatuses)[number]
 
 export const statusPalette = {
@@ -137,6 +137,7 @@ export function normalizeComplaintStatus(status?: string | null): ComplaintStatu
   if (normalized === 'under_investigation' || normalized === 'under_review' || normalized === 'processing' || normalized === 'in_progress' || normalized === 'in-progress') return 'under_investigation'
   if (normalized === 'resolved' || normalized === 'approved') return 'resolved'
   if (normalized === 'dismissed' || normalized === 'rejected') return 'dismissed'
+  if (normalized === 'cancelled' || normalized === 'withdrawn') return 'cancelled'
   return 'open'
 }
 
@@ -150,6 +151,7 @@ export function getComplaintStatusLabel(status?: string | null) {
   if (normalized === 'under_investigation' || normalized === 'under_review' || normalized === 'processing' || normalized === 'in_progress' || normalized === 'in-progress') return 'Under Review'
   if (normalized === 'resolved' || normalized === 'approved') return 'Resolved'
   if (normalized === 'dismissed' || normalized === 'rejected') return 'Rejected'
+  if (normalized === 'cancelled' || normalized === 'withdrawn') return 'Cancelled'
   if (normalized === 'archived') return 'Archived'
   return normalized.replace(/_/g, ' ').replace(/\b\w/g, (character) => character.toUpperCase())
 }

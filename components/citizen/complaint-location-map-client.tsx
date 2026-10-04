@@ -16,9 +16,18 @@ import {
 interface ComplaintLocationMapClientProps {
   latitude: number
   longitude: number
+  /** Height of the map viewport in pixels. Defaults to 200 (compact preview). */
+  height?: number
+  /** Allow panning/zooming. Defaults to false (static preview). */
+  interactive?: boolean
 }
 
-export default function ComplaintLocationMapClient({ latitude, longitude }: ComplaintLocationMapClientProps) {
+export default function ComplaintLocationMapClient({
+  latitude,
+  longitude,
+  height = 200,
+  interactive = false,
+}: ComplaintLocationMapClientProps) {
   const position: [number, number] = [latitude, longitude]
 
   // Fix Leaflet default marker icon (only runs in browser, memoized to prevent re-creation)
@@ -40,10 +49,10 @@ export default function ComplaintLocationMapClient({ latitude, longitude }: Comp
       maxZoom={BARANGAY_BARRETTO_MAX_ZOOM}
       maxBounds={BARANGAY_BARRETTO_MAX_BOUNDS}
       maxBoundsViscosity={1}
-      style={{ height: '200px', width: '100%' }}
-      scrollWheelZoom={false}
-      dragging={false}
-      doubleClickZoom={false}
+      style={{ height: `${height}px`, width: '100%' }}
+      scrollWheelZoom={interactive}
+      dragging={interactive}
+      doubleClickZoom={interactive}
     >
       <TileLayer
         attribution={BARANGAY_MAP_TILE_ATTRIBUTION}

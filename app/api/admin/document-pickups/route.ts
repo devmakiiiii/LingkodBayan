@@ -19,9 +19,20 @@ import { z } from 'zod'
 const COLUMNS = `
   id, request_id, resident_id, status, pickup_code, document_title, scheduled_date,
   ready_at, claimed_at, notes, created_at, updated_at,
-  requests(id, title, category, status),
+  requests(
+    id, title, category, status,
+    request_payments(payment_status, payment_method, amount_paid, reference_number, fee_description)
+  ),
   residents(id, first_name, last_name, email, user_id, address, phone)
 `
+
+/** Payment info joined onto each pickup row so the counter staff knows
+ *  whether the resident still owes the fee before releasing the document. */
+const PAYMENT_COLUMNS = `payment_status, payment_method, amount_paid, reference_number, fee_description`
+
+/** Requests-side select used on POST/PATCH `.single()` responses — the pickup
+ *  embeds the request row, and the payment ledger hangs off the request. */
+const REQUESTS_WITH_PAYMENT = `requests(id, title, category, status, request_payments(${PAYMENT_COLUMNS}))`
 
 const createSchema = z.object({
   requestCode: z
@@ -84,14 +95,25 @@ export async function POST(request: NextRequest) {
     const adminClient = createAdminClient()
 
     // Resolve the tracking code to the newest matching request row.
-    const codePrefix = body.requestCode.slice(4)
-    const { data: requestRows } = await adminClient
+    // The requests.id column is a UUID, so a bare 8-char prefix fails the
+    // Postgres uuid cast ("invalid input syntax for type uuid"). Pad the
+    // prefix into full UUID literals — 0000… for the inclusive lower bound
+    // and ffff… for the exclusive upper bound — so the primary-key index
+    // still serves the "starts with prefix" match.
+    const codePrefix = body.requestCode.slice(4).toLowerCase()
+    const paddedPrefix = `${codePrefix}-0000-0000-0000-000000000000`
+    const paddedPrefixUpper = `${codePrefix}-ffff-ffff-ffff-ffffffffffff`
+    const { data: requestRows, error: lookupError } = await adminClient
       .from('requests')
-      .select('id, resident_id, title, category, status')
-      .gte('id', codePrefix)
-      .lt('id', codePrefix + '\uffff')
+      .select(`id, resident_id, title, category, status, request_payments(${PAYMENT_COLUMNS})`)
+      .gte('id', paddedPrefix)
+      .lte('id', paddedPrefixUpper)
       .order('created_at', { ascending: false })
       .limit(1)
+    if (lookupError) {
+      console.error('Tracking code lookup failed in POST /api/admin/document-pickups:', lookupError.message)
+      return NextResponse.json({ error: 'Failed to resolve the tracking code. Please try again.' }, { status: 500 })
+    }
     const requestRow = (requestRows ?? [])[0]
     if (!requestRow) {
       return NextResponse.json({ error: 'No request found for that tracking code.' }, { status: 404 })
@@ -107,7 +129,7 @@ export async function POST(request: NextRequest) {
         scheduled_date: body.scheduledDate ? body.scheduledDate : null,
         notes: body.notes?.trim() || null,
       })
-      .select(COLUMNS)
+      .select(REQUESTS_WITH_PAYMENT)
       .single()
 
     if (error) {
@@ -185,7 +207,7 @@ export async function PATCH(request: NextRequest) {
       .from('document_pickups')
       .update(updateData)
       .eq('id', body.pickupId)
-      .select(COLUMNS)
+      .select(REQUESTS_WITH_PAYMENT)
       .single()
 
     if (error) {

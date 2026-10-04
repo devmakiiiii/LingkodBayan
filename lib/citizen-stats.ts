@@ -33,6 +33,7 @@ export interface ComplaintStatusCounts {
   underReview: number
   resolved: number
   dismissed: number
+  cancelled: number
   /** Complaints that still need barangay action (open + under review). */
   inProgress: number
 }
@@ -83,6 +84,7 @@ export function countComplaintsByStatus(
     underReview: 0,
     resolved: 0,
     dismissed: 0,
+    cancelled: 0,
     inProgress: 0,
   }
 
@@ -101,6 +103,9 @@ export function countComplaintsByStatus(
         break
       case 'dismissed':
         counts.dismissed += 1
+        break
+      case 'cancelled':
+        counts.cancelled += 1
         break
     }
   }

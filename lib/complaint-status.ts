@@ -18,6 +18,7 @@ export const complaintStatusLabels: Record<ComplaintLifecycleStatus, string> = {
   under_investigation: 'Under Review',
   resolved: 'Resolved',
   dismissed: 'Dismissed',
+  cancelled: 'Cancelled',
 }
 
 /**
@@ -33,6 +34,8 @@ export const complaintStatusClassNames: Record<ComplaintLifecycleStatus, string>
     'rounded-full border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:border-emerald-400/30 dark:bg-emerald-400/10 dark:text-emerald-300',
   dismissed:
     'rounded-full border-slate-500/30 bg-slate-500/10 text-slate-700 dark:border-slate-400/25 dark:bg-slate-400/10 dark:text-slate-300',
+  cancelled:
+    'rounded-full border-rose-500/30 bg-rose-500/10 text-rose-700 dark:border-rose-400/30 dark:bg-rose-400/10 dark:text-rose-300',
 }
 
 /** Options for the complaint status filter controls, in lifecycle order. */
@@ -42,6 +45,7 @@ export const complaintStatusFilterOptions = [
   { value: 'under_investigation', label: complaintStatusLabels.under_investigation },
   { value: 'resolved', label: complaintStatusLabels.resolved },
   { value: 'dismissed', label: complaintStatusLabels.dismissed },
+  { value: 'cancelled', label: complaintStatusLabels.cancelled },
 ] as const
 
 /** Human-readable label for a raw or canonical complaint status. */

@@ -5,6 +5,10 @@ import dynamic from 'next/dynamic'
 interface ComplaintLocationMapProps {
   latitude: number
   longitude: number
+  /** Height of the map viewport in pixels. Defaults to 200 (compact preview). */
+  height?: number
+  /** Allow panning/zooming. Defaults to false (static preview). */
+  interactive?: boolean
 }
 
 const ComplaintLocationMapClient = dynamic(
@@ -19,10 +23,20 @@ const ComplaintLocationMapClient = dynamic(
   }
 )
 
-export function ComplaintLocationMap({ latitude, longitude }: ComplaintLocationMapProps) {
+export function ComplaintLocationMap({
+  latitude,
+  longitude,
+  height = 200,
+  interactive = false,
+}: ComplaintLocationMapProps) {
   return (
     <div className="isolate">
-      <ComplaintLocationMapClient latitude={latitude} longitude={longitude} />
+      <ComplaintLocationMapClient
+        latitude={latitude}
+        longitude={longitude}
+        height={height}
+        interactive={interactive}
+      />
     </div>
   )
 }

@@ -26,9 +26,17 @@ const negativeLabels: Record<TrackerKind, string> = {
   complaint: 'Dismissed',
 }
 
+const negativeLabelsAlt: Partial<Record<TrackerKind, string>> = {
+  complaint: 'Cancelled',
+}
+
 const negativeStatuses: Record<TrackerKind, string> = {
   request: 'rejected',
   complaint: 'dismissed',
+}
+
+const negativeStatusesAlt: Partial<Record<TrackerKind, string>> = {
+  complaint: 'cancelled',
 }
 
 interface StatusTrackerProps {
@@ -50,7 +58,10 @@ export function StatusTracker({ kind, status, className }: StatusTrackerProps) {
       ? normalizeRequestLifecycleStatus(status)
       : normalizeComplaintLifecycleStatus(status)
 
-  const isNegative = canonical === negativeStatuses[kind]
+  const isNegative = canonical === negativeStatuses[kind] || (negativeStatusesAlt[kind] !== undefined && canonical === negativeStatusesAlt[kind])
+  const negativeLabel = negativeStatusesAlt[kind] !== undefined && canonical === negativeStatusesAlt[kind]
+    ? negativeLabelsAlt[kind]
+    : negativeLabels[kind]
 
   if (isNegative) {
     return (
@@ -61,7 +72,7 @@ export function StatusTracker({ kind, status, className }: StatusTrackerProps) {
         )}
       >
         <X className="h-3 w-3" aria-hidden="true" />
-        {negativeLabels[kind]}
+        {negativeLabel}
       </span>
     )
   }

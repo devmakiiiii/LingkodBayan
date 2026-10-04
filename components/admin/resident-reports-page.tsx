@@ -61,6 +61,7 @@ import {
 import { complaintCategories, complaintCategoryKeywords, complaintCategoryBadgeClasses, complaintCategoryFallbackPriorities, type ComplaintCategory, analyzeComplaintPriority } from '@/lib/complaint-categories'
 import { logAdminActionClient } from '@/lib/audit-log-client'
 import { canTransitionComplaint, getAllowedComplaintTransitions } from '@/lib/status-machine'
+import { ComplaintLocationMap } from '@/components/citizen/complaint-location-map'
 import { computeOfficialWorkloads, planEvenDistribution, suggestAssignee } from '@/lib/workload'
 
 /**
@@ -94,7 +95,7 @@ async function postComplaintMessage(
   }
 }
 
-type CanonicalStatus = 'pending' | 'under_review' | 'resolved' | 'rejected'
+type CanonicalStatus = 'pending' | 'under_review' | 'resolved' | 'rejected' | 'cancelled'
 type CanonicalPriority = 'low' | 'medium' | 'high' | 'critical'
 
 const unassignedOfficialValue = '__unassigned__'
@@ -234,6 +235,12 @@ const statusDefinitions: Record<CanonicalStatus, { label: string; badgeClass: st
       'rounded-full border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-400/30 dark:bg-rose-400/10 dark:text-rose-300',
     rawValues: ['rejected', 'dismissed'],
   },
+  cancelled: {
+    label: 'Cancelled',
+    badgeClass:
+      'rounded-full border-slate-200 bg-slate-50 text-slate-500 dark:border-border dark:bg-muted dark:text-muted-foreground',
+    rawValues: ['cancelled', 'withdrawn'],
+  },
 }
 
 /**
@@ -280,6 +287,7 @@ const statusToDatabaseValue: Record<CanonicalStatus, string> = {
   under_review: 'under_investigation',
   resolved: 'resolved',
   rejected: 'dismissed',
+  cancelled: 'cancelled',
 }
 
 function fullNameOf(resident?: ResidentRow | null) {
@@ -346,17 +354,6 @@ function normalizeCategory(row: any, dynamicCategories: ServiceCategory[]): Cate
   }
 }
 
-function buildMapEmbedUrl(report: ResidentReportRow) {
-  if (report.latitude != null && report.longitude != null) {
-    return `https://www.google.com/maps?q=${report.latitude},${report.longitude}&z=17&output=embed`
-  }
-
-  if (report.locationAddress) {
-    return `https://www.google.com/maps?q=${encodeURIComponent(report.locationAddress)}&z=15&output=embed`
-  }
-
-  return ''
-}
 
 function extractEvidenceUrls(row: any) {
   const candidates = [row.evidence_urls, row.evidence_images, row.attachments, row.evidence_url, row.attachment_url, row.photo]
@@ -1124,13 +1121,15 @@ evidenceUrls: extractEvidenceUrls(row),
                       <CardDescription>{selectedReport.locationAddress}</CardDescription>
                     </CardHeader>
                     <CardContent>
-                      {buildMapEmbedUrl(selectedReport) ? (
-                        <iframe
-                          title="Report location preview"
-                          src={buildMapEmbedUrl(selectedReport)}
-                          className="h-64 w-full rounded-2xl border border-slate-200 dark:border-border"
-                          loading="lazy"
-                        />
+                      {selectedReport.latitude != null && selectedReport.longitude != null ? (
+                        <div className="w-full overflow-hidden rounded-2xl border border-slate-200 shadow-sm dark:border-border">
+                          <ComplaintLocationMap
+                            latitude={selectedReport.latitude}
+                            longitude={selectedReport.longitude}
+                            height={256}
+                            interactive
+                          />
+                        </div>
                       ) : (
                         <div className="flex h-64 items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-slate-50 text-sm text-muted-foreground dark:border-border dark:bg-muted/40">
                           No map coordinates available for this report.
@@ -1172,7 +1171,7 @@ evidenceUrls: extractEvidenceUrls(row),
                           </SelectContent>
                         </Select>
                         <div className="flex flex-wrap gap-1 pt-1">
-                          {selectedReport.status !== 'resolved' && (
+                          {selectedReport.status !== 'resolved' && selectedReport.status !== 'cancelled' && (
                             <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800 dark:text-emerald-300 dark:hover:bg-emerald-500/10 dark:hover:text-emerald-200" onClick={() => { setStatusDraft('resolved'); updateReport(selectedReport, { status: 'resolved', assignedOfficialId: assignedOfficialDraft || null, adminNotes: adminNotesDraft }, 'Marked as resolved.') }} disabled={savingAction}>
                               Mark Resolved
                             </Button>

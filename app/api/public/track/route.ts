@@ -124,13 +124,18 @@ async function lookup(normalized: string, kind: TrackedKind): Promise<TrackResul
     kind === 'request'
       ? 'id, title, category, status, created_at, updated_at, request_type'
       : 'id, tracking_number, title, category, status, created_at, updated_at'
-  // startsWith emulation: gte(prefix) + lt(prefix + '\uffff') uses the primary
-  // key index and avoids fragile SQL.
+  // startsWith emulation. The id column is a UUID, so a bare 8-char prefix
+  // fails the Postgres uuid cast ("invalid input syntax for type uuid").
+  // Pad the prefix into full UUID literals — 0000… for the inclusive lower
+  // bound and ffff… for the exclusive upper bound — so the primary-key
+  // index still serves the "starts with prefix" match.
+  const paddedPrefix = `${idPrefix.toLowerCase()}-0000-0000-0000-000000000000`
+  const paddedPrefixUpper = `${idPrefix.toLowerCase()}-ffff-ffff-ffff-ffffffffffff`
   const { data, error } = await adminClient
     .from(table)
     .select(columns)
-    .gte('id', idPrefix)
-    .lt('id', idPrefix + '\uffff')
+    .gte('id', paddedPrefix)
+    .lte('id', paddedPrefixUpper)
     .order('created_at', { ascending: false })
     .limit(5)
 

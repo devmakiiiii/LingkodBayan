@@ -6,8 +6,18 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Empty } from '@/components/ui/empty'
 import { Textarea } from '@/components/ui/textarea'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import Link from 'next/link'
-import { ArrowLeft, MapPin, Calendar, ImageIcon, MessageSquare, Send, Loader2 } from 'lucide-react'
+import { ArrowLeft, MapPin, Calendar, ImageIcon, MessageSquare, Send, Loader2, XOctagon } from 'lucide-react'
 import { getOrCreateResidentProfile } from '@/lib/residents'
 import { ComplaintLocationMap } from '@/components/citizen/complaint-location-map'
 import {
@@ -24,7 +34,7 @@ interface Complaint {
   description: string
   category: string
   status: string
-  priority: string
+  priority_level: string
   created_at: string
   updated_at: string
   evidence_url?: string | null
@@ -50,6 +60,8 @@ export default function ComplaintDetailPage({ params }: { params: Promise<{ id: 
   const [userId, setUserId] = useState<string | null>(null)
   const [replyText, setReplyText] = useState('')
   const [sendingReply, setSendingReply] = useState(false)
+  const [showCancelDialog, setShowCancelDialog] = useState(false)
+  const [cancelling, setCancelling] = useState(false)
 
   const { refreshUnreadCount } = useNotifications()
 
@@ -141,6 +153,33 @@ export default function ComplaintDetailPage({ params }: { params: Promise<{ id: 
     }
   }
 
+  const handleCancelComplaint = async () => {
+    if (!complaint) return
+
+    setCancelling(true)
+    try {
+      const response = await fetch('/api/citizen/cancel-complaint', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ complaintId: complaint.id }),
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to cancel complaint')
+      }
+
+      setComplaint((prev) => (prev ? { ...prev, status: 'cancelled' } : prev))
+      setShowCancelDialog(false)
+      toast.success('Complaint cancelled successfully')
+    } catch (error) {
+      console.error('Error cancelling complaint:', error)
+      toast.error(error instanceof Error ? error.message : 'Failed to cancel complaint')
+    } finally {
+      setCancelling(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="p-4 md:p-6">
@@ -175,10 +214,21 @@ export default function ComplaintDetailPage({ params }: { params: Promise<{ id: 
             <ArrowLeft className="h-4 w-4" />
           </Button>
         </Link>
-        <div>
+        <div className="flex-1">
           <h1 className="text-2xl font-bold">{complaint.title}</h1>
           <p className="text-muted-foreground text-sm">Complaint details and conversation</p>
         </div>
+        {complaint.status === 'open' && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="text-rose-600 border-rose-200 hover:bg-rose-50 dark:text-rose-400 dark:border-rose-400/30 dark:hover:bg-rose-400/10"
+            onClick={() => setShowCancelDialog(true)}
+          >
+            <XOctagon className="h-3.5 w-3.5 mr-1.5" />
+            Cancel Complaint
+          </Button>
+        )}
       </div>
 
       <div className="grid gap-6 lg:grid-cols-4">
@@ -200,7 +250,7 @@ export default function ComplaintDetailPage({ params }: { params: Promise<{ id: 
                 </div>
                 <div>
                   <label className="text-xs font-semibold text-gray-700 dark:text-gray-300">Priority</label>
-                  <p className="text-sm text-gray-600 dark:text-muted-foreground mt-1 capitalize">{complaint.priority}</p>
+                  <p className="text-sm text-gray-600 dark:text-muted-foreground mt-1 capitalize">{complaint.priority_level}</p>
                 </div>
               </div>
 
@@ -336,6 +386,33 @@ export default function ComplaintDetailPage({ params }: { params: Promise<{ id: 
           )}
         </div>
       </div>
+
+      {/* Cancel Complaint confirmation dialog */}
+      <AlertDialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cancel this complaint?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently cancel your complaint &ldquo;{complaint.title}&rdquo;.
+              The barangay will no longer action it, and you cannot reactivate it
+              once cancelled. You can file a new complaint if you change your mind.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setShowCancelDialog(false)}>
+              Keep Complaint
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleCancelComplaint}
+              className="bg-rose-600 text-white hover:bg-rose-700"
+              disabled={cancelling}
+            >
+              {cancelling ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              {cancelling ? 'Cancelling...' : 'Cancel Complaint'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

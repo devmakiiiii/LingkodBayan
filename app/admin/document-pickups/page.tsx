@@ -39,8 +39,27 @@ type PickupRow = {
   ready_at: string | null
   claimed_at: string | null
   notes: string | null
-  requests?: { id: string; title: string | null; category: string | null } | null
+  /** The payment ledger is 1:1 with requests and PostgREST always nests it
+   *  under the `requests` embed; absent for legacy requests with no payment. */
+  requests?:
+    | {
+        id: string
+        title: string | null
+        category: string | null
+        /** request_id is UNIQUE, so PostgREST returns this embed as a single
+         *  object (or null) — never an array. */
+        request_payments?: PaymentInfo | null
+      }
+    | null
   residents?: { first_name: string | null; last_name: string | null; email: string | null } | null
+}
+
+type PaymentInfo = {
+  payment_status: 'unpaid' | 'pending_verification' | 'paid' | 'free'
+  payment_method: 'pay_at_counter' | 'gcash' | 'maya'
+  amount_paid: number
+  reference_number: string | null
+  fee_description: string | null
 }
 
 const STATUS_BADGES: Record<string, string> = {
@@ -53,6 +72,27 @@ function residentName(pickup: PickupRow) {
   const person = pickup.residents
   if (!person) return 'Unknown'
   return `${person.first_name ?? ''} ${person.last_name ?? ''}`.trim() || person.email || 'Unnamed resident'
+}
+
+const PAYMENT_BADGES: Record<string, string> = {
+  paid: 'bg-emerald-500/10 text-emerald-700 border-emerald-500/20',
+  free: 'bg-emerald-500/10 text-emerald-700 border-emerald-500/20',
+  pending_verification: 'bg-sky-500/10 text-sky-700 border-sky-500/20',
+  unpaid: 'bg-amber-500/10 text-amber-700 border-amber-500/20',
+}
+
+const PAYMENT_LABELS: Record<string, string> = {
+  paid: 'Paid',
+  free: 'Free of Charge',
+  pending_verification: 'Awaiting Verification',
+  unpaid: 'To Pay at Counter',
+}
+
+/** The joined payment row arrives nested under the `requests` embed. Because
+ *  `request_payments.request_id` is UNIQUE, PostgREST returns the embed as a
+ *  single object (not an array); it is null when no payment row exists. */
+function paymentOf(pickup: PickupRow): PaymentInfo | null {
+  return pickup.requests?.request_payments ?? null
 }
 
 export default function DocumentPickupsPage() {
@@ -238,6 +278,7 @@ export default function DocumentPickupsPage() {
                     <TableHead>Claim code</TableHead>
                     <TableHead>Document</TableHead>
                     <TableHead>Resident</TableHead>
+                    <TableHead>Payment</TableHead>
                     <TableHead>Expected</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="text-right">Action</TableHead>
@@ -251,6 +292,30 @@ export default function DocumentPickupsPage() {
                         {pickup.document_title ?? pickup.requests?.title ?? '—'}
                       </TableCell>
                       <TableCell>{residentName(pickup)}</TableCell>
+                      {(() => {
+                        const payment = paymentOf(pickup)
+                        return (
+                          <TableCell>
+                            {payment ? (
+                              <div className="space-y-1">
+                                <Badge variant="outline" className={PAYMENT_BADGES[payment.payment_status]}>
+                                  {PAYMENT_LABELS[payment.payment_status]}
+                                </Badge>
+                                {payment.payment_status === 'unpaid' && payment.amount_paid > 0 ? (
+                                  <p className="text-xs font-medium text-amber-700">
+                                    Collect &#8369;{payment.amount_paid.toLocaleString('en-PH', { maximumFractionDigits: 2 })} on release
+                                  </p>
+                                ) : null}
+                                {payment.payment_status === 'pending_verification' && payment.reference_number ? (
+                                  <p className="text-xs text-muted-foreground font-mono">Ref: {payment.reference_number}</p>
+                                ) : null}
+                              </div>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">No record</span>
+                            )}
+                          </TableCell>
+                        )
+                      })()}
                       <TableCell>{pickup.scheduled_date ?? '—'}</TableCell>
                       <TableCell>
                         <Badge variant="outline" className={STATUS_BADGES[pickup.status]}>
@@ -270,16 +335,31 @@ export default function DocumentPickupsPage() {
                             Mark Ready
                           </Button>
                         ) : pickup.status === 'ready' ? (
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            disabled={updatingId === pickup.id}
-                            onClick={() => updateStatus(pickup.id, 'claimed')}
-                          >
-                            {updatingId === pickup.id ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <BadgeCheck className="mr-1 h-3 w-3" />}
-                            Mark Claimed
-                          </Button>
+                          <div className="flex flex-col items-end gap-1.5">
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              disabled={updatingId === pickup.id}
+                              onClick={() => updateStatus(pickup.id, 'claimed')}
+                            >
+                              {updatingId === pickup.id ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <BadgeCheck className="mr-1 h-3 w-3" />}
+                              Mark Claimed
+                            </Button>
+                            {(() => {
+                              const payment = paymentOf(pickup)
+                              if (payment && (payment.payment_status === 'unpaid' || payment.payment_status === 'pending_verification')) {
+                                return (
+                                  <span className="max-w-40 text-right text-[11px] leading-tight font-medium text-amber-700">
+                                    {payment.payment_status === 'unpaid'
+                                      ? `Unpaid — collect ₱${payment.amount_paid.toLocaleString('en-PH', { maximumFractionDigits: 2 })} first`
+                                      : 'Payment not yet verified'}
+                                  </span>
+                                )
+                              }
+                              return null
+                            })()}
+                          </div>
                         ) : (
                           <span className="text-xs text-muted-foreground">
                             Claimed {pickup.claimed_at ? formatRelativeDate(pickup.claimed_at) : ''}

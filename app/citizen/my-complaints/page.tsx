@@ -27,7 +27,7 @@ interface Complaint {
   description: string
   category: string
   status: string
-  priority: string
+  priority_level: string
   created_at: string
   updated_at: string
   evidence_url?: string | null
@@ -196,7 +196,7 @@ export default function MyComplaintsPage() {
                     </Badge>
                     <ComplaintStatusBadge status={complaint.status} className="px-2 py-0" />
                     <Badge variant="secondary" className="text-xs px-2 py-0">
-                      {complaint.priority.charAt(0).toUpperCase() + complaint.priority.slice(1)}
+                      {complaint.priority_level.charAt(0).toUpperCase() + complaint.priority_level.slice(1)}
                     </Badge>
                     <span className="text-xs text-muted-foreground ml-auto">
                       {formatDate(complaint.created_at, {

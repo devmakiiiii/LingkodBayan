@@ -30,3 +30,6 @@ eslint-out.txt
 # Kilo internal
 .kilo/node_modules/
 .kilo/worktrees/
+
+# Local scratch artifacts
+resp.json
