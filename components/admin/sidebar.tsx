@@ -36,7 +36,6 @@ const navItems = [
     items: [
       { label: 'All Residents', href: '/admin/residents' },
       { label: 'Pre-Registered Data', href: '/admin/pre-registered-residents' },
-      { label: 'Resident Reports', href: '/admin/resident-reports' },
       { label: 'Proxy Authorizations', href: '/admin/proxy-authorizations' },
     ]
   },

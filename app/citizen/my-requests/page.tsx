@@ -92,24 +92,26 @@ export default function MyRequestsPage() {
   }
 
 return (
-    <div className="space-y-8 p-8">
+    <div className="space-y-8 p-8 max-w-5xl mx-auto w-full">
       <NoCloseDialog open={Boolean(selectedRequest)} onOpenChange={(open) => !open && setSelectedRequest(null)}>
-        <DialogContent className="max-h-[90vh] max-w-5xl overflow-y-auto border-emerald-100 bg-white dark:bg-card">
+        <DialogContent className="flex max-h-[92vh] w-[95vw] max-w-6xl flex-col gap-0 overflow-hidden border-emerald-100 bg-white p-0 dark:bg-card md:w-[92vw]">
           {selectedRequest && (
             <>
-              <DialogHeader>
-                <DialogTitle className="text-2xl">{getRequestTypeTitle(selectedRequest.request_type, selectedRequest.title)}</DialogTitle>
-                <DialogDescription>
+              <DialogHeader className="shrink-0 border-b border-border/60 px-5 pb-4 pt-5 md:px-8 md:pt-6">
+                <DialogTitle className="break-words text-xl leading-snug md:text-2xl">{getRequestTypeTitle(selectedRequest.request_type, selectedRequest.title)}</DialogTitle>
+                <DialogDescription className="break-words">
                   {t('Review the full request details submitted for processing.')}
                 </DialogDescription>
               </DialogHeader>
 
+              <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-5 md:px-8 md:py-6">
               <RequestDetails
                 request={selectedRequest}
                 showRequester={false}
                 showPriority
                 showSystemMeta
               />
+              </div>
             </>
           )}
         </DialogContent>

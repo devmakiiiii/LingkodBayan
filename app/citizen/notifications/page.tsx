@@ -107,7 +107,7 @@ export default function NotificationsPage() {
   }, [refreshUnreadCount])
 
   return (
-    <div className="space-y-8 p-8 max-w-4xl">
+    <div className="space-y-8 p-8 max-w-5xl mx-auto w-full">
       <div className="flex items-center gap-3">
         <div className="rounded-lg bg-primary/10 p-3">
           <Bell className="h-6 w-6 text-primary" />

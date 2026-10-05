@@ -446,15 +446,15 @@ export function RequestActions({ request, isOpen, onClose, onStatusChange }: Req
 
 return (
     <NoCloseDialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-h-[90vh] max-w-4xl w-[95vw] overflow-y-auto border-emerald-100 bg-white dark:bg-card p-4 md:p-6">
-        <DialogHeader>
-          <DialogTitle className="text-2xl">Request Details</DialogTitle>
-          <DialogDescription>
+      <DialogContent className="flex max-h-[92vh] w-[95vw] max-w-6xl flex-col gap-0 overflow-hidden border-emerald-100 bg-white p-0 dark:bg-card md:w-[92vw]">
+        <DialogHeader className="shrink-0 border-b border-border/60 px-5 pb-4 pt-5 md:px-8 md:pt-6">
+          <DialogTitle className="break-words text-xl leading-snug md:text-2xl">Request Details</DialogTitle>
+          <DialogDescription className="break-words">
             Review all submitted fields, update the request status, or print the official document.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-6">
+        <div className="min-h-0 flex-1 space-y-6 overflow-y-auto overscroll-contain px-5 py-5 md:px-8 md:py-6">
           <RequestDetails
             request={request}
             requesterName={requesterName}

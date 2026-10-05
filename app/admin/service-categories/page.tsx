@@ -239,7 +239,7 @@ export default function AdminServiceCategoriesPage() {
 
   if (loading) {
     return (
-      <div className="space-y-6 p-6">
+      <div className="space-y-6 p-6 max-w-5xl mx-auto w-full">
         <Skeleton className="h-8 w-64" />
         <Skeleton className="h-64 w-full" />
         <Skeleton className="h-64 w-full" />
@@ -265,7 +265,7 @@ if (loadError) {
   const appointmentCategories = categories.filter((c) => c.category_type === 'appointment')
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6 p-6 max-w-5xl mx-auto w-full">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900 dark:text-foreground">Service Categories</h1>

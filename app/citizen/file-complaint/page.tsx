@@ -216,7 +216,7 @@ export default function FileComplaintPage() {
   }
 
   return (
-<div className="p-4 md:p-6 max-w-5xl space-y-4">
+<div className="p-4 md:p-6 max-w-5xl mx-auto w-full space-y-4">
       <div>
         <h1 className="text-2xl font-bold">{t('File a Complaint')}</h1>
         <p className="text-muted-foreground text-sm mt-1">{t('Report issues or concerns with government services')}</p>

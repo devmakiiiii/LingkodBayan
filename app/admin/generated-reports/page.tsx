@@ -553,7 +553,7 @@ export default function AdminGeneratedReportsPage() {
   const requestTypeFilterEnabled = reportType === 'requests'
 
   return (
-    <div className="space-y-8 bg-linear-to-br from-emerald-50 via-white to-lime-50 p-8">
+    <div className="space-y-8 bg-background p-8 max-w-5xl mx-auto w-full">
       {configError && (
         <Card className="border-amber-200 bg-amber-50 shadow-sm">
           <CardHeader>
@@ -577,8 +577,8 @@ export default function AdminGeneratedReportsPage() {
           <FileText className="h-3.5 w-3.5" />
           Generated Reports
         </div>
-        <h1 className="text-3xl font-bold text-slate-900">Generated Reports</h1>
-        <p className="max-w-2xl text-sm text-slate-600">Select a report type, filter the data, preview the output, then print or export as CSV.</p>
+        <h1 className="text-3xl font-bold text-foreground">Generated Reports</h1>
+        <p className="max-w-2xl text-sm text-muted-foreground">Select a report type, filter the data, preview the output, then print or export as CSV.</p>
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[360px_1fr]">
@@ -702,7 +702,7 @@ export default function AdminGeneratedReportsPage() {
                   ))}
                 </SelectContent>
               </Select>
-              {!requestTypeFilterEnabled && <p className="text-xs text-slate-500">Available for requests report only.</p>}
+              {!requestTypeFilterEnabled && <p className="text-xs text-muted-foreground">Available for requests report only.</p>}
             </div>
               </>
             )}
@@ -718,8 +718,8 @@ export default function AdminGeneratedReportsPage() {
               </Button>
             </div>
 
-            <div className="rounded-2xl border border-dashed border-emerald-200 dark:border-border bg-emerald-50/60 p-4 text-sm text-slate-600">
-              <p className="font-medium text-slate-800">Export options</p>
+            <div className="rounded-2xl border border-dashed border-emerald-200 dark:border-border bg-emerald-50/60 dark:bg-muted/40 p-4 text-sm text-slate-600 dark:text-muted-foreground">
+              <p className="font-medium text-slate-800 dark:text-foreground">Export options</p>
               <p className="mt-1">Print or save the filtered report as PDF, or export the same rows as CSV.</p>
             </div>
           </CardContent>

@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { PreRegisteredResident } from './verification'
-import { RequestInput, ComplaintInput, DesignationInput, OfficialInput, BarangayInfoInput, MissionVisionInput, SignatureUploadInput, ServiceCategoryInput, BARANGAY_CITY, BARANGAY_DISPLAY_NAME, BARANGAY_PROVINCE, canonicalBarangayName, isInServiceArea } from './schemas'
+import { RequestInput, ComplaintInput, DesignationInput, OfficialInput, BarangayInfoInput, MissionVisionInput, ServiceCategoryInput, BARANGAY_CITY, BARANGAY_DISPLAY_NAME, BARANGAY_PROVINCE, canonicalBarangayName, isInServiceArea } from './schemas'
 import { logger } from './logger'
 import { isAnnouncementColumnError } from './announcements'
 import { assertRequestTransition, assertComplaintTransition } from './status-machine'
@@ -623,23 +623,6 @@ export async function updateMissionVision(input: MissionVisionInput) {
     .single()
 
   if (error) throw new Error(`Failed to update mission vision: ${error.message}`)
-  return data
-}
-
-export async function updateSignatureUpload(input: SignatureUploadInput) {
-  const supabase = await createClient()
-
-  const { data, error } = await supabase
-    .from('system_settings')
-    .upsert({
-      setting_key: 'signature_uploads',
-      value: input,
-      updated_at: new Date(),
-    })
-    .select()
-    .single()
-
-  if (error) throw new Error(`Failed to update signature uploads: ${error.message}`)
   return data
 }
 

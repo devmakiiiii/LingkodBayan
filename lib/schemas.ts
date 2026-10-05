@@ -125,12 +125,65 @@ export const barangayInfoSchema = z.object({
 export const missionVisionSchema = z.object({
   mission: z.string().min(10, 'Mission must be at least 10 characters'),
   vision: z.string().min(10, 'Vision must be at least 10 characters'),
-  core_values: z.array(z.string().min(1, 'Core value cannot be empty')).min(1, 'At least one core value is required'),
+  service_pledge: z
+    .array(
+      z.object({
+        title: z.string().min(1, 'Pledge title is required'),
+        description: z.string().min(1, 'Pledge description is required'),
+      })
+    )
+    .max(20, 'Service pledge cannot exceed 20 items')
+    .default([]),
 })
 
-export const signatureUploadSchema = z.object({
-  captain_signature_url: z.string().url('Invalid URL').optional().or(z.literal('')),
-  secretary_signature_url: z.string().url('Invalid URL').optional().or(z.literal('')),
+// Dates are stored as ISO `YYYY-MM-DD` strings (what <input type="date">
+// yields) rather than Date objects, so the JSON value round-trips through
+// system_settings without timezone drift. end_date is optional: a closure
+// without one is a single-day closure.
+// Citizen notification preferences (migration 47). All flags default to
+// true — an absent row means "receive everything", so the zod schema only
+// accepts booleans and never introduces a false-by-default surprise.
+export const notificationPreferencesSchema = z.object({
+  request_updates: z.boolean(),
+  complaint_updates: z.boolean(),
+  pickup_reminders: z.boolean(),
+  announcements: z.boolean(),
+})
+
+export type NotificationPreferences = z.infer<typeof notificationPreferencesSchema>
+
+export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
+  request_updates: true,
+  complaint_updates: true,
+  pickup_reminders: true,
+  announcements: true,
+}
+
+export const officeClosureSchema = z.object({
+  date: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'Closure date is required'),
+  end_date: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'End date must be a valid date')
+    .optional()
+    .or(z.literal('')),
+  reason: z.string().min(1, 'Reason is required').max(200, 'Reason must be 200 characters or less'),
+})
+
+export const officeClosuresSchema = z.object({
+  closures: z.array(officeClosureSchema).max(50, 'Cannot exceed 50 closure entries'),
+})
+
+export const siteBannerSchema = z.object({
+  enabled: z.boolean(),
+  message: z
+    .string()
+    .trim()
+    .min(1, 'Banner message is required')
+    .max(300, 'Banner message must be 300 characters or less'),
+  // Visual severity: info (neutral/blue), warning (amber), critical (red).
+  variant: z.enum(['info', 'warning', 'critical']).default('info'),
 })
 
 // Service categories schemas
@@ -174,7 +227,9 @@ export type DesignationInput = z.infer<typeof designationSchema>
 export type OfficialInput = z.infer<typeof officialSchema>
 export type BarangayInfoInput = z.infer<typeof barangayInfoSchema>
 export type MissionVisionInput = z.infer<typeof missionVisionSchema>
-export type SignatureUploadInput = z.infer<typeof signatureUploadSchema>
+export type OfficeClosureInput = z.infer<typeof officeClosureSchema>
+export type OfficeClosuresInput = z.infer<typeof officeClosuresSchema>
+export type SiteBannerInput = z.infer<typeof siteBannerSchema>
 export type ServiceCategoryInput = z.infer<typeof serviceCategorySchema>
 export type ServiceCategoryRequirementInput = z.infer<typeof serviceCategoryRequirementSchema>
 export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>

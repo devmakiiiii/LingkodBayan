@@ -162,7 +162,7 @@ export default function FeedbackPage() {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-muted">
       <main className="w-full">
-        <div className="min-h-screen p-6 md:p-8 space-y-8">
+        <div className="min-h-screen p-6 md:p-8 space-y-8 max-w-5xl mx-auto w-full">
           <div>
             <h1 className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-foreground mb-2">
               {t('Feedback')}

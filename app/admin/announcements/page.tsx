@@ -456,7 +456,7 @@ export default function AdminAnnouncementsPage() {
           : `Published on ${formatAdminDate(previewAnnouncement.published_at)}`
 
   return (
-    <div className="space-y-8 p-8 max-w-6xl">
+    <div className="space-y-8 p-8 max-w-5xl mx-auto w-full">
       {/* Header */}
       <div>
         <div className="flex items-center gap-3 mb-4">

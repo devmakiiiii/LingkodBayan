@@ -189,7 +189,7 @@ export default function AdminDashboard() {
   }, [])
 
   return (
-    <div className="space-y-8 p-8">
+    <div className="space-y-8 p-8 max-w-5xl mx-auto w-full">
       {/* Header */}
       <div>
         <h1 className="text-3xl font-bold">Admin Dashboard</h1>

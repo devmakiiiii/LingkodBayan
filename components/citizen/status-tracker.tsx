@@ -84,7 +84,7 @@ export function StatusTracker({ kind, status, className }: StatusTrackerProps) {
 
   return (
     <div
-      className={cn('flex items-center gap-1.5', className)}
+      className={cn('flex flex-wrap items-center gap-x-1.5 gap-y-1.5', className)}
       role="img"
       aria-label={`${kind === 'request' ? 'Request' : 'Complaint'} progress: ${currentLabel}, step ${currentIndex + 1} of ${labels.length}`}
     >
@@ -97,12 +97,12 @@ export function StatusTracker({ kind, status, className }: StatusTrackerProps) {
             {index > 0 ? (
               <span
                 aria-hidden="true"
-                className={cn('h-px w-3 sm:w-4', isDone || isCurrent ? 'bg-primary' : 'bg-border')}
+                className={cn('h-px w-3 shrink-0', isDone || isCurrent ? 'bg-primary' : 'bg-border')}
               />
             ) : null}
             <span
               className={cn(
-                'flex items-center gap-1 text-[11px]',
+                'flex items-center gap-1 text-[11px] whitespace-nowrap',
                 isCurrent ? 'font-semibold text-foreground' : 'text-muted-foreground',
               )}
             >
@@ -117,7 +117,7 @@ export function StatusTracker({ kind, status, className }: StatusTrackerProps) {
               >
                 {isDone ? <Check className="h-2.5 w-2.5" /> : index + 1}
               </span>
-              <span className="hidden sm:inline">{label}</span>
+              <span>{label}</span>
             </span>
           </Fragment>
         )

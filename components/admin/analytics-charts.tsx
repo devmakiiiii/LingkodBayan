@@ -18,6 +18,7 @@ import {
 } from '@/lib/admin-reporting'
 import { complaintCategoryBadgeClasses } from '@/lib/complaint-categories'
 import { requestTypes } from '@/lib/request-types'
+import { useTheme } from 'next-themes'
 import * as RechartsPrimitive from 'recharts'
 import * as React from 'react'
 
@@ -136,6 +137,7 @@ function countStatusDistribution(requests: RequestReportRow[], complaints: Compl
 }
 
 export function AnalyticsCharts({ requests, complaints, officials, trendView, onTrendViewChange }: AnalyticsChartsProps) {
+  const { resolvedTheme } = useTheme()
   const requestsByType = React.useMemo(
     () =>
       requestTypes.map((requestType, index) => ({
@@ -173,6 +175,10 @@ export function AnalyticsCharts({ requests, complaints, officials, trendView, on
     [statusCounts],
   )
 
+  const chartTickColor = resolvedTheme === 'dark' ? '#94a3b8' : '#475569'
+  const chartGridColor = resolvedTheme === 'dark' ? '#334155' : '#d1fae5'
+  const chartLineColor = resolvedTheme === 'dark' ? '#4ade80' : '#16a34a'
+
   return (
     <div className="grid gap-6 xl:grid-cols-2">
       <Card className="border-emerald-100 dark:border-border bg-white dark:bg-card shadow-[0_12px_32px_rgba(16,185,129,0.08)]">
@@ -184,9 +190,9 @@ export function AnalyticsCharts({ requests, complaints, officials, trendView, on
           <div className="w-full" style={{ height: 320 }}>
             <RechartsPrimitive.ResponsiveContainer width="100%" height="100%">
               <RechartsPrimitive.BarChart data={requestsByType} margin={{ top: 10, right: 16, left: 0, bottom: 30 }}>
-                <RechartsPrimitive.CartesianGrid strokeDasharray="3 3" stroke="#d1fae5" />
-                <RechartsPrimitive.XAxis dataKey="label" angle={-15} textAnchor="end" interval={0} height={60} tick={{ fill: '#475569', fontSize: 12 }} />
-                <RechartsPrimitive.YAxis tick={{ fill: '#475569', fontSize: 12 }} />
+                <RechartsPrimitive.CartesianGrid strokeDasharray="3 3" stroke={chartGridColor} />
+                <RechartsPrimitive.XAxis dataKey="label" angle={-15} textAnchor="end" interval={0} height={60} tick={{ fill: chartTickColor, fontSize: 12 }} />
+                <RechartsPrimitive.YAxis tick={{ fill: chartTickColor, fontSize: 12 }} />
                 <RechartsPrimitive.Tooltip formatter={(value) => [value, 'Requests']} cursor={{ fill: 'rgba(16,185,129,0.08)' }} />
                 <RechartsPrimitive.Bar dataKey="value" radius={[8, 8, 0, 0]}>
                   {requestsByType.map((entry) => (
@@ -223,11 +229,11 @@ export function AnalyticsCharts({ requests, complaints, officials, trendView, on
           <div className="w-full" style={{ height: 320 }}>
             <RechartsPrimitive.ResponsiveContainer width="100%" height="100%">
               <RechartsPrimitive.LineChart data={requestsOverTime} margin={{ top: 10, right: 16, left: 0, bottom: 10 }}>
-                <RechartsPrimitive.CartesianGrid strokeDasharray="3 3" stroke="#d1fae5" />
-                <RechartsPrimitive.XAxis dataKey="label" tick={{ fill: '#475569', fontSize: 12 }} />
-                <RechartsPrimitive.YAxis tick={{ fill: '#475569', fontSize: 12 }} allowDecimals={false} />
+                <RechartsPrimitive.CartesianGrid strokeDasharray="3 3" stroke={chartGridColor} />
+                <RechartsPrimitive.XAxis dataKey="label" tick={{ fill: chartTickColor, fontSize: 12 }} />
+                <RechartsPrimitive.YAxis tick={{ fill: chartTickColor, fontSize: 12 }} allowDecimals={false} />
                 <RechartsPrimitive.Tooltip formatter={(value) => [value, 'Requests']} />
-                <RechartsPrimitive.Line type="monotone" dataKey="value" stroke="#16a34a" strokeWidth={3} dot={{ r: 4, fill: '#16a34a' }} activeDot={{ r: 6 }} />
+                <RechartsPrimitive.Line type="monotone" dataKey="value" stroke={chartLineColor} strokeWidth={3} dot={{ r: 4, fill: chartLineColor }} activeDot={{ r: 6 }} />
               </RechartsPrimitive.LineChart>
             </RechartsPrimitive.ResponsiveContainer>
           </div>
@@ -283,9 +289,9 @@ export function AnalyticsCharts({ requests, complaints, officials, trendView, on
           </div>
           <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
             {statusData.map((entry) => (
-              <div key={entry.status} className="rounded-2xl border border-emerald-100 dark:border-border bg-emerald-50/70 p-3 shadow-sm">
-                <div className="text-xs uppercase tracking-wide text-slate-500">{entry.status}</div>
-                <div className="mt-1 text-lg font-semibold text-slate-900">{entry.value}</div>
+              <div key={entry.status} className="rounded-2xl border border-emerald-100 dark:border-border bg-emerald-50/70 dark:bg-muted/60 p-3 shadow-sm">
+                <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-muted-foreground">{entry.status}</div>
+                <div className="mt-1 text-lg font-semibold text-slate-900 dark:text-foreground">{entry.value}</div>
               </div>
             ))}
           </div>

@@ -11,12 +11,11 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
-import { Plus, Pencil, Archive, Eye, Search, Undo2 } from 'lucide-react'
+import { Plus, Pencil, Archive, Eye, Search, Undo2, ChevronDown, ChevronsUpDown } from 'lucide-react'
 import { toast } from 'sonner'
 import { OfficialActions, type OfficialRecord } from '@/components/admin/officials-actions'
 import { DesignationActions, type DesignationRecord } from '@/components/admin/designations-actions'
 import {
-  getDesignationCategoryShortLabel,
   getOfficialTermDuration,
   isCaptainDesignation,
   getDesignationBadgeColor,
@@ -118,6 +117,25 @@ export default function AdminOfficialsPage() {
   const [designationModalOpen, setDesignationModalOpen] = useState(false)
   const [archiveTarget, setArchiveTarget] = useState<OfficialRow | null>(null)
   const [isArchiving, setIsArchiving] = useState(false)
+  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({})
+
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem('lb-admin-officials-collapsed-groups')
+      if (stored) setCollapsedGroups(JSON.parse(stored) as Record<string, boolean>)
+    } catch {
+      // Ignore corrupt/unavailable localStorage — start expanded.
+    }
+  }, [])
+
+  function updateCollapsedGroups(next: Record<string, boolean>) {
+    setCollapsedGroups(next)
+    try {
+      window.localStorage.setItem('lb-admin-officials-collapsed-groups', JSON.stringify(next))
+    } catch {
+      // Storage may be unavailable (private mode) — collapse state is session-only then.
+    }
+  }
 
   useEffect(() => {
     loadData()
@@ -273,7 +291,7 @@ export default function AdminOfficialsPage() {
   ]
 
   return (
-    <div className="space-y-8 p-8">
+    <div className="space-y-8 p-8 max-w-5xl mx-auto w-full">
       <OfficialActions
         isOpen={modalOpen}
         mode={modalMode}
@@ -353,6 +371,17 @@ export default function AdminOfficialsPage() {
               ))}
             </SelectContent>
           </Select>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              const anyCollapsed = groups.some((group) => (groupedOfficials[group.key]?.length ?? 0) > 0 && collapsedGroups[group.key])
+              updateCollapsedGroups(anyCollapsed ? {} : Object.fromEntries(groups.map((group) => [group.key, true])))
+            }}
+          >
+            <ChevronsUpDown className="mr-1 h-4 w-4" />
+            {groups.some((group) => (groupedOfficials[group.key]?.length ?? 0) > 0 && collapsedGroups[group.key]) ? 'Expand All' : 'Collapse All'}
+          </Button>
         </div>
       </div>
 
@@ -369,25 +398,37 @@ export default function AdminOfficialsPage() {
             const items = groupedOfficials[group.key]
             if (items.length === 0) return null
 
+            const isCollapsed = collapsedGroups[group.key] === true
+            const toggleGroup = () => updateCollapsedGroups({ ...collapsedGroups, [group.key]: !isCollapsed })
+
             return (
-              <div key={group.key} className="space-y-4">
-                <div className="flex items-center gap-3">
+              <div key={group.key} className="space-y-4 scroll-mt-4">
+                <button
+                  type="button"
+                  onClick={toggleGroup}
+                  aria-expanded={!isCollapsed}
+                  className="w-full flex items-center gap-3 text-left rounded-lg py-1 group"
+                >
+                  <ChevronDown
+                    className={`h-5 w-5 text-muted-foreground transition-transform duration-200 shrink-0 ${isCollapsed ? '-rotate-90' : ''}`}
+                    aria-hidden="true"
+                  />
                   <h2 className="text-xl font-semibold">{group.title}</h2>
                   <Badge variant="outline">{items.length} official(s)</Badge>
-                </div>
+                </button>
 
+                {!isCollapsed && (
                 <div className="overflow-hidden rounded-2xl border border-emerald-100 bg-white dark:bg-card shadow-sm">
-                  <Table>
-                    <TableHeader>
+                  <Table className="min-w-0 [&_th]:whitespace-normal [&_td]:whitespace-normal">
+                    <TableHeader className="sticky top-0 z-10 bg-white dark:bg-card shadow-[0_1px_0_0_hsl(var(--border))]">
                       <TableRow>
-                        <TableHead>Profile Photo</TableHead>
+                        <TableHead className="w-16">Photo</TableHead>
                         <TableHead>Full Name</TableHead>
                         <TableHead>Designation</TableHead>
-                        <TableHead>Category</TableHead>
                         <TableHead>Contact Number</TableHead>
                         <TableHead>Email</TableHead>
                         <TableHead>Term Duration</TableHead>
-                        <TableHead className="text-right">Actions</TableHead>
+                        <TableHead className="w-64 text-right">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -421,12 +462,11 @@ export default function AdminOfficialsPage() {
                                 {designation?.name || 'N/A'}
                               </Badge>
                             </TableCell>
-                            <TableCell>{designation ? getDesignationCategoryShortLabel(designation.category) : 'N/A'}</TableCell>
                             <TableCell>{official.contactNumber || 'N/A'}</TableCell>
-                            <TableCell>{official.email || 'N/A'}</TableCell>
+                            <TableCell className="break-all">{official.email || 'N/A'}</TableCell>
                             <TableCell>{getOfficialTermDuration(official.termStart, official.termEnd)}</TableCell>
                             <TableCell className="text-right">
-                              <div className="flex justify-end gap-2">
+                              <div className="flex flex-wrap justify-end gap-2 whitespace-nowrap">
                                 <Button variant="outline" size="sm" onClick={() => { setSelectedOfficial(official); setModalMode('view'); setModalOpen(true) }}>
                                   <Eye className="mr-1 h-4 w-4" />
                                   View
@@ -454,6 +494,7 @@ export default function AdminOfficialsPage() {
                     </TableBody>
                   </Table>
                 </div>
+                )}
               </div>
             )
           })}

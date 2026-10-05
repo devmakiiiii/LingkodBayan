@@ -182,7 +182,7 @@ export default function ComplaintDetailPage({ params }: { params: Promise<{ id: 
 
   if (loading) {
     return (
-      <div className="p-4 md:p-6">
+      <div className="p-4 md:p-6 max-w-5xl mx-auto w-full">
         <div className="text-center py-8">
           <p className="text-muted-foreground text-sm">Loading complaint...</p>
         </div>
@@ -207,7 +207,7 @@ export default function ComplaintDetailPage({ params }: { params: Promise<{ id: 
   }
 
   return (
-    <div className="p-4 md:p-6 space-y-4">
+    <div className="p-4 md:p-6 space-y-4 max-w-5xl mx-auto w-full">
       <div className="flex items-center gap-3">
         <Link href="/citizen/my-complaints">
           <Button variant="ghost" size="sm" className="h-8 w-8 p-0">

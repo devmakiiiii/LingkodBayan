@@ -144,10 +144,7 @@ export default function AdminAnalyticsPage() {
   ]
 
   return (
-    <div
-      className="space-y-8 p-8"
-      style={{ backgroundImage: 'linear-gradient(to bottom right, #ecfdf5, #ffffff, #f7fee7)' }}
-    >
+    <div className="space-y-8 bg-background p-8 max-w-5xl mx-auto w-full">
       {configError && (
         <Card className="border-amber-200 bg-amber-50">
           <CardHeader>
@@ -162,8 +159,8 @@ export default function AdminAnalyticsPage() {
           <BarChart3 className="h-3.5 w-3.5" />
           Admin Analytics
         </div>
-        <h1 className="text-3xl font-bold text-slate-900">Analytics Dashboard</h1>
-        <p className="max-w-2xl text-sm text-slate-600">Track request volume, complaint categories, and status distribution across {BARANGAY_DISPLAY_NAME}.</p>
+        <h1 className="text-3xl font-bold text-foreground">Analytics Dashboard</h1>
+        <p className="max-w-2xl text-sm text-muted-foreground">Track request volume, complaint categories, and status distribution across {BARANGAY_DISPLAY_NAME}.</p>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -174,11 +171,11 @@ export default function AdminAnalyticsPage() {
             <Card key={card.label} className="border-emerald-100 bg-white/90 dark:bg-card/90 shadow-[0_12px_32px_rgba(16,185,129,0.08)] backdrop-blur">
               <CardContent className="flex items-start justify-between gap-4 p-5">
                 <div className="space-y-2">
-                  <p className="text-sm font-medium text-slate-600">{card.label}</p>
-                  <div className="text-3xl font-bold text-slate-900">{typeof card.value === 'number' ? card.value.toLocaleString() : card.value}</div>
-                  <p className="text-xs text-slate-500">{card.hint}</p>
+                  <p className="text-sm font-medium text-slate-600 dark:text-muted-foreground">{card.label}</p>
+                  <div className="text-3xl font-bold text-slate-900 dark:text-foreground">{typeof card.value === 'number' ? card.value.toLocaleString() : card.value}</div>
+                  <p className="text-xs text-slate-500 dark:text-muted-foreground">{card.hint}</p>
                 </div>
-                <div className="rounded-2xl bg-emerald-50 p-3 text-emerald-600 shadow-inner">
+                <div className="rounded-2xl bg-emerald-50 dark:bg-muted p-3 text-emerald-600 dark:text-emerald-400 shadow-inner">
                   <Icon className="h-5 w-5" />
                 </div>
               </CardContent>

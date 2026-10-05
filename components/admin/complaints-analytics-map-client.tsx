@@ -29,6 +29,8 @@ interface ComplaintData {
 interface ComplaintsAnalyticsMapClientProps {
   complaints: ComplaintData[]
   onMarkerClick?: (complaint: ComplaintData) => void
+  /** When true, captures the map tiles into a window.__printableMapImage hook for printing. */
+  enablePrintCapture?: boolean
 }
 
 /** ~0.002° grid (~200 m) used to group nearby complaints into hotspot circles. */

@@ -27,7 +27,7 @@ const SEGMENT_LABELS: Record<string, string> = {
   designations: 'Designations',
   residents: 'All Residents',
   'pre-registered-residents': 'Pre-Registered Data',
-  'resident-reports': 'Resident Reports',
+  'resident-reports': 'Complaints List (legacy)',
   'proxy-authorizations': 'Proxy Authorizations',
   'document-pickups': 'Document Pickups',
   'purok-manifest': 'Purok Pickup Manifest',

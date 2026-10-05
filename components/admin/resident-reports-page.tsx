@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { createClient, hasSupabaseConfig } from '@/lib/supabase/client'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -10,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { toast } from 'sonner'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Empty, EmptyMedia } from '@/components/ui/empty'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -21,7 +20,6 @@ import { Textarea } from '@/components/ui/textarea'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   Archive,
-  Bell,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
@@ -33,7 +31,9 @@ import {
   Filter,
   GripVertical,
   Image as ImageIcon,
+  List,
   Loader2,
+  Map as MapIcon,
   MapPinned,
   MessageSquareReply,
   MoreHorizontal,
@@ -55,6 +55,7 @@ import {
   downloadCsvFile,
   getReportDateLabel,
   getReportDateTimeLabel,
+  buildComplaintsHotspotMapScript,
   openPrintableReport,
   type PrintableColumn,
 } from '@/lib/admin-reporting'
@@ -62,6 +63,7 @@ import { complaintCategories, complaintCategoryKeywords, complaintCategoryBadgeC
 import { logAdminActionClient } from '@/lib/audit-log-client'
 import { canTransitionComplaint, getAllowedComplaintTransitions } from '@/lib/status-machine'
 import { ComplaintLocationMap } from '@/components/citizen/complaint-location-map'
+import { ComplaintsAnalyticsMap } from '@/components/admin/complaints-analytics-map'
 import { computeOfficialWorkloads, planEvenDistribution, suggestAssignee } from '@/lib/workload'
 
 /**
@@ -179,12 +181,6 @@ type ResidentReportRow = {
   archivedAt: string | null
   evidenceUrls: string[]
   messages: ComplaintMessageRow[]
-}
-
-type NotificationAlert = {
-  id: string
-  message: string
-  createdAt: string
 }
 
 type ServiceCategory = {
@@ -443,10 +439,6 @@ export function ResidentReportsPage() {
   const [pageSize] = useState(8)
   const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null)
   const [isLive, setIsLive] = useState(false)
-  const [notificationAlerts, setNotificationAlerts] = useState<NotificationAlert[]>([])
-  const [unreadAlerts, setUnreadAlerts] = useState(0)
-  const [showNotifications, setShowNotifications] = useState(false)
-  const [profileUser, setProfileUser] = useState<{ name: string; email: string; id: string } | null>(null)
   const [selectedReport, setSelectedReport] = useState<ResidentReportRow | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
   const [modalTab, setModalTab] = useState<'overview' | 'actions' | 'activity'>('overview')
@@ -457,6 +449,7 @@ export function ResidentReportsPage() {
   const [archiveTarget, setArchiveTarget] = useState<ResidentReportRow | null>(null)
   const [savingAction, setSavingAction] = useState(false)
   const [dynamicCategories, setDynamicCategories] = useState<ServiceCategory[]>([])
+  const [viewMode, setViewMode] = useState<'list' | 'map'>('list')
 
   useEffect(() => {
     loadReports()
@@ -491,8 +484,7 @@ export function ResidentReportsPage() {
       }
 
       const supabase = createClient()
-      const [{ data: userData, error: userError }, { data: categoriesData, error: categoriesError }, { data: complaintRows, error: complaintError }, { data: residentsData, error: residentsError }, { data: officialsData, error: officialsError }, { data: messagesData, error: messagesError }] = await Promise.all([
-        supabase.auth.getUser(),
+      const [{ data: categoriesData, error: categoriesError }, { data: complaintRows, error: complaintError }, { data: residentsData, error: residentsError }, { data: officialsData, error: officialsError }, { data: messagesData, error: messagesError }] = await Promise.all([
         supabase.from('service_categories').select('id, slug, title, description, is_active').eq('category_type', 'incident').eq('is_active', true).order('sort_order', { ascending: true }),
         supabase.from('complaints').select('*').order('created_at', { ascending: false }),
         supabase.from('residents').select('*'),
@@ -500,12 +492,6 @@ export function ResidentReportsPage() {
         supabase.from('complaint_messages').select('*').order('created_at', { ascending: true }),
       ])
 
-      if (userData?.user) {
-        const name = [userData.user.user_metadata?.first_name, userData.user.user_metadata?.last_name].filter(Boolean).join(' ').trim() || userData.user.email || 'Admin'
-        setProfileUser({ name, email: userData.user.email || 'admin@lingkodbayan.local', id: userData.user.id })
-      }
-
-      if (userError) throw userError
       if (categoriesError) throw categoriesError
       if (complaintError) throw complaintError
       if (residentsError) throw residentsError
@@ -589,8 +575,8 @@ evidenceUrls: extractEvidenceUrls(row),
       setLastSyncedAt(new Date())
       setIsLive(true)
     } catch (error) {
-      console.error('Failed to load resident reports:', error)
-      setLoadError(error instanceof Error ? error.message : 'Failed to load resident reports')
+      console.error('Failed to load complaints:', error)
+      setLoadError(error instanceof Error ? error.message : 'Failed to load complaints')
       setReports([])
     } finally {
       setLoading(false)
@@ -610,8 +596,7 @@ evidenceUrls: extractEvidenceUrls(row),
         if (payload.eventType === 'INSERT') {
           const reportId = String(payload.new?.id || '')
           const trackingNumber = normalizeTrackingNumber(reportId)
-          setNotificationAlerts((current) => [{ id: reportId || crypto.randomUUID(), message: `New resident report received: ${trackingNumber}`, createdAt: new Date().toISOString() }, ...current].slice(0, 5))
-          setUnreadAlerts((current) => current + 1)
+          toast.info(`New complaint received: ${trackingNumber}`)
         }
 
         loadReports(false)
@@ -933,13 +918,13 @@ evidenceUrls: extractEvidenceUrls(row),
       report.assignedOfficialLabel,
     ])
 
-    downloadCsvFile(`resident-reports-${new Date().toISOString().slice(0, 10)}.csv`, buildCsv(rows, tableColumns))
+    downloadCsvFile(`complaints-list-${new Date().toISOString().slice(0, 10)}.csv`, buildCsv(rows, tableColumns))
   }
 
   function exportPdf() {
     openPrintableReport({
       barangayName: BARANGAY_DISPLAY_NAME,
-      reportTitle: 'Resident Reports',
+      reportTitle: 'Complaints List',
       dateRangeLabel: dateFrom || dateTo ? `${dateFrom || '...'} to ${dateTo || '...'}` : 'All dates',
       columns: tableColumns,
       rows: filteredReports.map((report) => [
@@ -951,7 +936,14 @@ evidenceUrls: extractEvidenceUrls(row),
         `${priorityDefinitions[report.priority].label} / ${statusDefinitions[report.status].label}`,
         report.assignedOfficialLabel,
       ]),
-      subtitle: 'Resident-submitted reports and complaints',
+      subtitle: 'Resident-submitted complaints and reports',
+      // Embed the complaints hotspot map under the table so the printed
+      // report shows where the filtered reports cluster. Skipped when no
+      // filtered report has a pinned location.
+      mapScript:
+        mapComplaints.length > 0
+          ? buildComplaintsHotspotMapScript(mapComplaints)
+          : undefined,
     })
   }
 
@@ -961,49 +953,43 @@ evidenceUrls: extractEvidenceUrls(row),
 
   const selectedReportTimeline = selectedReport?.messages || []
 
+  // Complaints with usable coordinates, shaped for the hotspot map. The map
+  // respects the same filters as the table, so officials can toggle to the
+  // map to see where the currently filtered reports cluster.
+  const mapComplaints = useMemo(
+    () =>
+      filteredReports
+        .filter((report) => report.latitude != null && report.longitude != null)
+        .map((report) => ({
+          id: report.id,
+          latitude: report.latitude as number,
+          longitude: report.longitude as number,
+          location_address: report.locationAddress || 'N/A',
+          category: report.category,
+          subject: report.title || report.trackingNumber,
+          created_at: report.submittedAt,
+          status: report.status,
+          resident_name: report.residentName,
+        })),
+    [filteredReports],
+  )
+
   return (
     <div className="min-h-screen space-y-6 bg-linear-to-br from-emerald-50 via-white to-lime-50 p-4 sm:space-y-8 sm:p-6 lg:p-8 dark:from-emerald-950/25 dark:via-background dark:to-sky-950/20">
       {loadError && (
         <Card className="border-amber-200 bg-amber-50 shadow-sm dark:border-amber-500/30 dark:bg-amber-500/10 dark:shadow-none">
           <CardHeader>
-            <CardTitle className="text-amber-900 dark:text-amber-200">Resident reports unavailable</CardTitle>
+            <CardTitle className="text-amber-900 dark:text-amber-200">Complaints list unavailable</CardTitle>
             <CardDescription className="text-amber-800 dark:text-amber-300/90">{loadError}</CardDescription>
           </CardHeader>
         </Card>
       )}
 
-      <Dialog open={showNotifications} onOpenChange={setShowNotifications}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Notifications</DialogTitle>
-            <DialogDescription>Recent resident report alerts and refresh events.</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-3">
-            {notificationAlerts.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-8 text-center">
-                <Bell className="h-8 w-8 text-muted-foreground mb-2" />
-                <p className="text-sm text-muted-foreground">No new alerts yet.</p>
-              </div>
-            ) : (
-              notificationAlerts.map((alert) => (
-                <div
-                  key={alert.id}
-                  className="rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-sm dark:border-emerald-400/25 dark:bg-emerald-400/10"
-                >
-                  <p className="font-medium text-emerald-900 dark:text-emerald-200">{alert.message}</p>
-                  <p className="text-xs text-emerald-700 dark:text-emerald-300/80">{formatDateTime(alert.createdAt)}</p>
-                </div>
-              ))
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
-
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>
         <DialogContent className="max-h-[92vh] w-[min(96vw,60rem)] overflow-y-auto dark:border-border dark:bg-popover sm:max-w-none">
           <DialogHeader>
             <DialogTitle className="flex flex-wrap items-center gap-2 text-2xl">
-              {selectedReport?.trackingNumber || 'Resident Report'}
+              {selectedReport?.trackingNumber || 'Complaint Report'}
               {selectedReport && <Badge className={statusDefinitions[selectedReport.status].badgeClass}>{statusDefinitions[selectedReport.status].label}</Badge>}
               {selectedReport && (
                 <Badge className={priorityDefinitions[selectedReport.priority].badgeClass} variant="secondary">
@@ -1332,11 +1318,11 @@ evidenceUrls: extractEvidenceUrls(row),
         <div className="space-y-3">
           <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold tracking-[0.18em] text-emerald-700 uppercase dark:border-emerald-400/30 dark:bg-emerald-400/10 dark:text-emerald-300">
             <FileText className="h-3.5 w-3.5" />
-            Resident Reports
+            Complaints List
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl dark:text-foreground">Resident Reports</h1>
-            <p className="mt-2 max-w-2xl text-sm text-slate-600 dark:text-muted-foreground">Monitor and manage resident-submitted reports and complaints.</p>
+            <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl dark:text-foreground">Complaints List</h1>
+            <p className="mt-2 max-w-2xl text-sm text-slate-600 dark:text-muted-foreground">Monitor and manage resident-submitted complaints and reports.</p>
           </div>
         </div>
 
@@ -1353,54 +1339,6 @@ evidenceUrls: extractEvidenceUrls(row),
             <Scale className="mr-2 h-4 w-4" />
             Auto-assign Unassigned
           </Button>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="icon" className="relative border-emerald-200 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800 dark:border-border dark:text-emerald-300 dark:hover:bg-emerald-500/10 dark:hover:text-emerald-200">
-                <Bell className="h-4 w-4" />
-                {unreadAlerts > 0 && <span className="absolute -top-1 -right-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-rose-600 px-1 text-[10px] font-bold text-white dark:bg-rose-500 dark:text-rose-950">{unreadAlerts}</span>}
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-80">
-              <DropdownMenuLabel>Notifications</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              {notificationAlerts.length === 0 ? (
-                <div className="px-2 py-3 text-sm text-muted-foreground">No recent alerts.</div>
-              ) : (
-                notificationAlerts.map((alert) => (
-                  <DropdownMenuItem key={alert.id} className="flex flex-col items-start gap-1 py-2" onSelect={() => setUnreadAlerts(0)}>
-                    <span className="font-medium">{alert.message}</span>
-                    <span className="text-xs text-muted-foreground">{formatDateTime(alert.createdAt)}</span>
-                  </DropdownMenuItem>
-                ))
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" className="border-emerald-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-border dark:bg-card dark:text-slate-200 dark:hover:bg-muted dark:hover:text-foreground">
-                <Avatar className="h-8 w-8">
-                  <AvatarFallback className="bg-emerald-600 text-white dark:bg-emerald-500 dark:text-emerald-950">{(profileUser?.name || 'AD').slice(0, 2).toUpperCase()}</AvatarFallback>
-                </Avatar>
-                <div className="hidden text-left sm:block">
-                  <div className="text-sm font-semibold">{profileUser?.name || 'Admin Profile'}</div>
-                  <div className="text-xs text-muted-foreground">{profileUser?.email || 'Administrator'}</div>
-                </div>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-72">
-              <DropdownMenuLabel>Admin Profile</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <div className="px-2 py-2 text-sm">
-                <p className="font-semibold">{profileUser?.name || 'Admin'}</p>
-                <p className="text-muted-foreground">{profileUser?.email || 'No email available'}</p>
-              </div>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onSelect={() => loadReports(false)}>
-                <RefreshCcw className="mr-2 h-4 w-4" />
-                Refresh reports
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
         </div>
       </div>
 
@@ -1558,12 +1496,42 @@ evidenceUrls: extractEvidenceUrls(row),
       <Card className="border-emerald-100 bg-white shadow-sm dark:border-border dark:bg-card">
         <CardHeader className="flex flex-col gap-4 border-b border-emerald-100/80 dark:border-border lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <CardTitle>Reports Table</CardTitle>
+            <CardTitle>Complaints Table</CardTitle>
             <CardDescription>
               {filteredReports.length} filtered report{filteredReports.length === 1 ? '' : 's'} visible out of {reports.length} total.
             </CardDescription>
           </div>
           <div className="flex flex-wrap gap-2">
+            <div className="flex w-full items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50/60 p-1 dark:border-border dark:bg-muted/40 sm:w-auto">
+              <Button
+                variant={viewMode === 'list' ? 'default' : 'ghost'}
+                size="sm"
+                className={cn(
+                  'flex-1 gap-1.5 sm:flex-none',
+                  viewMode === 'list'
+                    ? 'bg-emerald-600 text-white hover:bg-emerald-700 dark:bg-emerald-500 dark:text-emerald-950 dark:hover:bg-emerald-400'
+                    : 'text-emerald-700 hover:bg-emerald-100 hover:text-emerald-800 dark:text-emerald-300 dark:hover:bg-emerald-500/10 dark:hover:text-emerald-200',
+                )}
+                onClick={() => setViewMode('list')}
+              >
+                <List className="h-4 w-4" />
+                List
+              </Button>
+              <Button
+                variant={viewMode === 'map' ? 'default' : 'ghost'}
+                size="sm"
+                className={cn(
+                  'flex-1 gap-1.5 sm:flex-none',
+                  viewMode === 'map'
+                    ? 'bg-emerald-600 text-white hover:bg-emerald-700 dark:bg-emerald-500 dark:text-emerald-950 dark:hover:bg-emerald-400'
+                    : 'text-emerald-700 hover:bg-emerald-100 hover:text-emerald-800 dark:text-emerald-300 dark:hover:bg-emerald-500/10 dark:hover:text-emerald-200',
+                )}
+                onClick={() => setViewMode('map')}
+              >
+                <MapIcon className="h-4 w-4" />
+                Map
+              </Button>
+            </div>
             <Button
               className="w-full bg-emerald-600 text-white hover:bg-emerald-700 dark:bg-emerald-500 dark:text-emerald-950 dark:hover:bg-emerald-400 sm:w-auto"
               onClick={printReports}
@@ -1590,14 +1558,46 @@ evidenceUrls: extractEvidenceUrls(row),
           </div>
         </CardHeader>
         <CardContent>
-          {loading ? (
+          {viewMode === 'map' ? (
+            loading ? (
+              <div className="space-y-4">
+                <Skeleton className="h-8 w-64 dark:bg-muted/80" />
+                <Skeleton className="h-64 w-full dark:bg-muted/80" />
+              </div>
+            ) : mapComplaints.length === 0 ? (
+              <Empty
+                title="No mapped reports"
+                description="Reports with a pinned incident location will appear on the complaint hotspot map."
+                className="border border-dashed border-emerald-100/80 dark:border-border/70 dark:bg-muted/20"
+              >
+                <EmptyMedia variant="icon" className="dark:bg-muted dark:text-emerald-300">
+                  <MapIcon className="h-6 w-6" />
+                </EmptyMedia>
+              </Empty>
+            ) : (
+              <div className="space-y-3">
+                <p className="text-xs text-muted-foreground">
+                  Showing {mapComplaints.length} of {filteredReports.length} filtered report{filteredReports.length === 1 ? '' : 's'} with a pinned location. Larger red circles mark complaint hotspots where multiple reports cluster in the same area. Click a pin to open the report.
+                </p>
+                <ComplaintsAnalyticsMap
+                  complaints={mapComplaints}
+                  onMarkerClick={(complaint) => {
+                    const full = reports.find((report) => report.id === complaint.id)
+                    if (full) {
+                      openReport(full, 'overview')
+                    }
+                  }}
+                />
+              </div>
+            )
+          ) : loading ? (
             <div className="space-y-4">
               <Skeleton className="h-8 w-64 dark:bg-muted/80" />
               <Skeleton className="h-64 w-full dark:bg-muted/80" />
             </div>
           ) : filteredReports.length === 0 ? (
             <Empty
-              title="No matching reports"
+              title="No matching complaints"
               description="Try changing the search text, date range, or filter dropdowns."
               className="border border-dashed border-emerald-100/80 dark:border-border/70 dark:bg-muted/20"
             >
@@ -1729,6 +1729,7 @@ evidenceUrls: extractEvidenceUrls(row),
         </CardContent>
       </Card>
 
+      {viewMode === 'list' && (
       <div className="flex flex-col gap-3 rounded-2xl border border-emerald-100 bg-white px-4 py-3 shadow-sm dark:border-border dark:bg-card dark:shadow-none sm:flex-row sm:items-center sm:justify-between">
         <div className="text-sm text-muted-foreground">
           Showing {paginatedReports.length} of {filteredReports.length} filtered reports
@@ -1762,6 +1763,7 @@ evidenceUrls: extractEvidenceUrls(row),
           Last refreshed {lastSyncedAt ? formatDateTime(lastSyncedAt.toISOString()) : 'just now'}
         </div>
       </div>
+      )}
 
       <AlertDialog open={Boolean(archiveTarget)} onOpenChange={(open) => !open && setArchiveTarget(null)}>
         <AlertDialogContent className="dark:border-border dark:bg-popover">

@@ -8,7 +8,9 @@ import { ThemeToggle } from '@/components/theme-toggle'
 import {
   AlertTriangle,
   Calendar,
+  CalendarX,
   CheckCircle,
+  Eye,
   FileText,
   Heart,
   Mail,
@@ -19,7 +21,9 @@ import {
   Scale,
   Shield,
   Sparkles,
+  Target,
   Users,
+  X,
   Zap,
 } from 'lucide-react'
 import { InstallAppButton } from '@/components/install-app-button'
@@ -123,6 +127,45 @@ interface PublicContact {
   email?: string | null
 }
 
+interface PledgeItem {
+  title: string
+  description: string
+}
+
+interface PublicMissionVision {
+  mission?: string | null
+  vision?: string | null
+  service_pledge?: PledgeItem[]
+}
+
+interface PublicClosure {
+  date: string
+  end_date: string | null
+  reason: string
+}
+
+type BannerVariant = 'info' | 'warning' | 'critical'
+
+function formatClosureRange(date: string, endDate: string | null): string {
+  const options: Intl.DateTimeFormatOptions = { year: 'numeric', month: 'long', day: 'numeric' }
+  try {
+    const start = new Date(`${date}T00:00:00`).toLocaleDateString('en-PH', options)
+    if (endDate) {
+      const end = new Date(`${endDate}T00:00:00`).toLocaleDateString('en-PH', options)
+      return `${start} – ${end}`
+    }
+    return start
+  } catch {
+    return endDate ? `${date} – ${endDate}` : date
+  }
+}
+
+const bannerStyles: Record<BannerVariant, string> = {
+  info: 'bg-blue-50 dark:bg-blue-950/50 text-blue-900 dark:text-blue-200 border-blue-200 dark:border-blue-800',
+  warning: 'bg-amber-50 dark:bg-amber-950/50 text-amber-900 dark:text-amber-200 border-amber-200 dark:border-amber-800',
+  critical: 'bg-red-50 dark:bg-red-950/50 text-red-900 dark:text-red-200 border-red-200 dark:border-red-800',
+}
+
 function stripHtml(html: string): string {
   return html.replace(/<[^>]*>/g, ' ').replace(/&nbsp;/gi, ' ').replace(/\s+/g, ' ').trim()
 }
@@ -131,6 +174,10 @@ export default function Home() {
   const [featuredServices, setFeaturedServices] = useState<FeaturedService[]>(FALLBACK_FEATURED_SERVICES)
   const [newsItems, setNewsItems] = useState<HomeAnnouncement[]>([])
   const [contact, setContact] = useState<PublicContact | null>(null)
+  const [missionVision, setMissionVision] = useState<PublicMissionVision | null>(null)
+  const [closures, setClosures] = useState<PublicClosure[]>([])
+  const [banner, setBanner] = useState<{ message: string; variant: BannerVariant } | null>(null)
+  const [bannerDismissed, setBannerDismissed] = useState(false)
 
   // Upgrade the fallback list to live data when Supabase is reachable.
   // Any failure (missing config, network, RLS) simply keeps the fallback.
@@ -196,9 +243,9 @@ export default function Home() {
     }
   }, [])
 
-  // Footer contact details come from system_settings (admin-only under RLS)
-  // through a whitelisted public endpoint; the contact column stays hidden
-  // when it is unavailable.
+  // Footer contact details and mission/vision come from system_settings
+  // (admin-only under RLS) through a whitelisted public endpoint; the contact
+  // column and About section stay hidden when they are unavailable.
   useEffect(() => {
     let cancelled = false
 
@@ -208,8 +255,11 @@ export default function Home() {
         if (!res.ok) return
         const json = await res.json()
         if (!cancelled && json.contact) setContact(json.contact)
+        if (!cancelled && json.mission_vision) setMissionVision(json.mission_vision)
+        if (!cancelled && Array.isArray(json.office_closures)) setClosures(json.office_closures)
+        if (!cancelled && json.site_banner) setBanner(json.site_banner)
       } catch {
-        // Keep the footer without the contact column.
+        // Keep the footer without the contact column and hide the About section.
       }
     }
 
@@ -220,6 +270,12 @@ export default function Home() {
   }, [])
 
   const showContact = Boolean(contact && (contact.address || contact.phone || contact.email))
+  const showAbout = Boolean(
+    missionVision &&
+      ((missionVision.mission && missionVision.mission.trim()) ||
+        (missionVision.vision && missionVision.vision.trim()) ||
+        (missionVision.service_pledge && missionVision.service_pledge.length > 0))
+  )
 
   return (
     <main id="main-content" className="flex flex-col min-h-screen">
@@ -249,6 +305,21 @@ export default function Home() {
           </Link>
         </div>
       </nav>
+
+      {/* Urgent banner — admin-configured, dismissible, hidden when unset */}
+      {banner && !bannerDismissed && (
+        <div className={`flex items-start gap-3 border-b px-4 sm:px-6 py-3 text-sm ${bannerStyles[banner.variant]}`} role="alert">
+          <Megaphone className="w-4 h-4 mt-0.5 shrink-0" aria-hidden="true" />
+          <p className="grow">{banner.message}</p>
+          <button
+            onClick={() => setBannerDismissed(true)}
+            className="shrink-0 opacity-60 hover:opacity-100"
+            aria-label="Dismiss banner"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
 
       {/* Hero Section */}
       <section className="bg-linear-to-br from-[#001a4d] via-[#001a4d] to-[#0d2d66] text-white py-16 sm:py-24 px-4 sm:px-6">
@@ -453,6 +524,65 @@ export default function Home() {
         </section>
       )}
 
+      {/* About: Mission & Vision (admin-configured, hidden when empty) */}
+      {showAbout && missionVision && (
+        <section className="py-16 sm:py-24 px-4 sm:px-6 bg-white dark:bg-background">
+          <div className="max-w-6xl mx-auto">
+            <div className="text-center mb-12">
+              <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 dark:text-foreground mb-4">About Our Barangay</h2>
+              <p className="text-gray-600 dark:text-muted-foreground text-sm sm:text-base">
+                The principles that guide public service in {BARANGAY_DISPLAY_NAME}.
+              </p>
+            </div>
+
+            <div className="grid md:grid-cols-2 gap-6 sm:gap-8">
+              {missionVision.mission && missionVision.mission.trim() && (
+                <div className="bg-gray-50 dark:bg-card dark:border-border rounded-lg p-6 sm:p-8">
+                  <div className="mb-4 flex items-center gap-3">
+                    <div className="w-11 h-11 rounded-lg bg-[#28A745]/10 flex items-center justify-center text-[#28A745]">
+                      <Target className="w-6 h-6" />
+                    </div>
+                    <h3 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-foreground dark:text-card-foreground">Our Mission</h3>
+                  </div>
+                  <p className="text-gray-600 dark:text-muted-foreground text-sm sm:text-base leading-relaxed">{missionVision.mission}</p>
+                </div>
+              )}
+
+              {missionVision.vision && missionVision.vision.trim() && (
+                <div className="bg-gray-50 dark:bg-card dark:border-border rounded-lg p-6 sm:p-8">
+                  <div className="mb-4 flex items-center gap-3">
+                    <div className="w-11 h-11 rounded-lg bg-[#28A745]/10 flex items-center justify-center text-[#28A745]">
+                      <Eye className="w-6 h-6" />
+                    </div>
+                    <h3 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-foreground dark:text-card-foreground">Our Vision</h3>
+                  </div>
+                  <p className="text-gray-600 dark:text-muted-foreground text-sm sm:text-base leading-relaxed">{missionVision.vision}</p>
+                </div>
+              )}
+            </div>
+
+            {missionVision.service_pledge && missionVision.service_pledge.length > 0 && (
+              <div className="mt-10">
+                <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-muted-foreground mb-6 text-center">Our Service Pledge</h3>
+                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+                  {missionVision.service_pledge.map((item, index) => (
+                    <div key={index} className="bg-gray-50 dark:bg-card dark:border-border rounded-lg p-5 sm:p-6">
+                      <div className="flex items-center gap-3 mb-3">
+                        <span className="w-8 h-8 shrink-0 rounded-full bg-[#28A745]/10 text-[#28A745] flex items-center justify-center text-sm font-bold">
+                          {index + 1}
+                        </span>
+                        <h4 className="font-semibold text-gray-900 dark:text-foreground dark:text-card-foreground text-sm sm:text-base">{item.title}</h4>
+                      </div>
+                      <p className="text-gray-600 dark:text-muted-foreground text-sm leading-relaxed">{item.description}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </section>
+      )}
+
       {/* CTA Section */}
       <section className="bg-linear-to-br from-[#001a4d] to-[#0d2d66] text-white py-16 sm:py-24 px-4 sm:px-6">
         <div className="max-w-4xl mx-auto text-center">
@@ -506,6 +636,29 @@ export default function Home() {
                     </li>
                   )}
                 </ul>
+
+                {/* Upcoming office closures — only current/future dates arrive
+                    from the public API, so the list is always relevant. */}
+                {closures.length > 0 && (
+                  <div className="mt-5">
+                    <h4 className="text-white font-semibold mb-2 text-xs sm:text-sm flex items-center gap-1.5">
+                      <CalendarX className="w-3.5 h-3.5" aria-hidden="true" />
+                      Office Closures
+                    </h4>
+                    <ul className="space-y-1.5 text-xs">
+                      {closures.map((closure) => (
+                        <li key={`${closure.date}-${closure.end_date ?? ''}`} className="flex items-start gap-2">
+                          <CalendarX className="w-3 h-3 mt-0.5 shrink-0 text-gray-500" aria-hidden="true" />
+                          <span>
+                            <span className="text-gray-300">{formatClosureRange(closure.date, closure.end_date)}</span>
+                            {' — '}
+                            {closure.reason}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </div>
             )}
           </div>

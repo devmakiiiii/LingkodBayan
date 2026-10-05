@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { LogOut, Menu, X, Home, FileText, AlertCircle, Megaphone, Plus, Bell, Loader2, ShieldCheck, Sun, Moon, MessageSquare, Building2, Users, PackageCheck } from 'lucide-react'
+import { LogOut, Menu, X, Home, FileText, AlertCircle, Megaphone, Plus, Bell, Loader2, ShieldCheck, Sun, Moon, MessageSquare, Building2, Users, PackageCheck, Settings } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -33,6 +33,7 @@ const navItems = [
   { href: '/citizen/feedback', label: 'Feedback', icon: MessageSquare },
   { href: '/citizen/offices', label: 'Offices & Contacts', icon: Building2 },
   { href: '/citizen/announcements', label: 'Announcements', icon: Megaphone },
+  { href: '/citizen/settings', label: 'Settings', icon: Settings },
 ]
 
 export function Sidebar() {

@@ -140,7 +140,7 @@ export default function AdminDesignationsPage() {
   }
 
   return (
-    <div className="space-y-8 p-8">
+    <div className="space-y-8 p-8 max-w-5xl mx-auto w-full">
       <DesignationActions
         isOpen={isModalOpen}
         mode={modalMode}

@@ -317,7 +317,7 @@ export default function AdminRequestsPage() {
   }
 
   return (
-    <div className="space-y-8 p-8">
+    <div className="space-y-8 p-8 max-w-5xl mx-auto w-full">
       <RequestActions
         request={selectedRequest}
         isOpen={isDetailOpen}
@@ -353,13 +353,13 @@ export default function AdminRequestsPage() {
             <Link key={section.key} href={section.href}>
               <div
                 className={`rounded-2xl border p-4 transition-all ${isActive
-                  ? 'border-emerald-300 bg-emerald-50 shadow-sm'
-                  : 'border-emerald-100 bg-white dark:bg-card hover:border-emerald-200 hover:shadow-sm'
+                  ? 'border-emerald-500 bg-emerald-600 shadow-md dark:border-emerald-500 dark:bg-emerald-600'
+                  : 'border-emerald-100 bg-white dark:border-emerald-900 dark:bg-card hover:border-emerald-200 hover:shadow-sm'
                 }`}
               >
-                <p className="text-sm font-medium text-muted-foreground">{section.label}</p>
-                <div className="mt-2 text-3xl font-bold text-foreground">{section.count}</div>
-                <p className="mt-1 text-xs text-muted-foreground">
+                <p className={`text-sm font-medium ${isActive ? 'text-emerald-50' : 'text-muted-foreground'}`}>{section.label}</p>
+                <div className={`mt-2 text-3xl font-bold ${isActive ? 'text-white' : 'text-foreground'}`}>{section.count}</div>
+                <p className={`mt-1 text-xs ${isActive ? 'text-emerald-100' : 'text-muted-foreground'}`}>
                   {section.key === 'pending' && 'Waiting for admin review'}
                   {section.key === 'in_progress' && 'Currently being processed'}
                   {section.key === 'resolved' && 'Finished requests'}

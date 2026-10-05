@@ -96,7 +96,7 @@ export default function MyComplaintsPage() {
   }
 
   return (
-    <div className="p-4 md:p-6 space-y-4">
+    <div className="p-4 md:p-6 space-y-4 max-w-5xl mx-auto w-full">
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold">{t('My Complaints')}</h1>
@@ -177,7 +177,7 @@ export default function MyComplaintsPage() {
       ) : (
         <div className="space-y-3">
           {filteredComplaints.map((complaint) => (
-            <Link key={complaint.id} href={`/citizen/my-complaints/${complaint.id}`}>
+            <Link key={complaint.id} href={`/citizen/my-complaints/${complaint.id}`} className="block">
               <Card className="hover:shadow-md transition-shadow cursor-pointer group py-4">
                 <CardHeader className="pb-2 px-4">
                   <div className="flex items-start justify-between gap-2">

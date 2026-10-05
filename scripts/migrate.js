@@ -157,6 +157,15 @@ const sql = readMigrationScript()
   + '--- Migration 44: Enable Realtime for Citizen Notifications ---\n'
   + readMigrationFile('44_enable_notifications_realtime.sql')
   + '\n'
+  + '--- Migration 45: Resident Locale Preference ---\n'
+  + readMigrationFile('45_add_resident_locale.sql')
+  + '\n'
+  + '--- Migration 46: Seed Mission, Vision & Service Pledge ---\n'
+  + readMigrationFile('46_seed_mission_vision_pledge.sql')
+  + '\n'
+  + '--- Migration 47: Citizen Notification Preferences ---\n'
+  + readMigrationFile('47_user_notification_preferences.sql')
+  + '\n'
   + '--- Finalize Complaints Schema ---\n'
   + readMigrationFile('finalize_complaints_schema.sql');
 console.log(sql);

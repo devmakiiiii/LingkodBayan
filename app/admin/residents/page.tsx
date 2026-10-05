@@ -1,14 +1,16 @@
 'use client'
 
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Empty } from '@/components/ui/empty'
-import { Users, Mail, MapPin, CheckCircle2, Clock, ShieldAlert } from 'lucide-react'
+import { Users, Mail, MapPin, CheckCircle2, Clock, ShieldAlert, ChevronDown, ChevronsUpDown } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { formatDate } from '@/lib/format-date'
 import { BARANGAY_DISPLAY_NAME } from '@/lib/barangay'
+
+const COLLAPSED_GROUPS_STORAGE_KEY = 'lb-admin-residents-collapsed-groups'
 
 interface Resident {
   id: string
@@ -23,6 +25,12 @@ interface Resident {
 }
 
 const PAGE_SIZE = 20
+
+/** Best-effort purok label pulled out of a stored address ("Purok 3", ...). */
+function purokLabel(address: string | null | undefined) {
+  const match = (address ?? '').match(/purok\s*[^,;]+/i)
+  return match ? match[0].replace(/\s+/g, ' ').trim() : 'Unassigned purok'
+}
 
 const ResidentCard = React.memo(function ResidentCard({ resident }: { resident: Resident }) {
   return (
@@ -97,6 +105,40 @@ export default function AdminResidentsPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const [error, setError] = useState<Error | null>(null)
+  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({})
+
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem(COLLAPSED_GROUPS_STORAGE_KEY)
+      if (stored) setCollapsedGroups(JSON.parse(stored) as Record<string, boolean>)
+    } catch {
+      // Ignore corrupt/unavailable localStorage — start expanded.
+    }
+  }, [])
+
+  const updateCollapsedGroups = useCallback((next: Record<string, boolean>) => {
+    setCollapsedGroups(next)
+    try {
+      window.localStorage.setItem(COLLAPSED_GROUPS_STORAGE_KEY, JSON.stringify(next))
+    } catch {
+      // Storage may be unavailable (private mode) — collapse state is session-only then.
+    }
+  }, [])
+
+  const groupedResidents = useMemo(() => {
+    const groups: Record<string, Resident[]> = {}
+    for (const resident of residents) {
+      const key = purokLabel(resident.address)
+      ;(groups[key] ??= []).push(resident)
+    }
+    // Sort groups naturally: Purok 1, Purok 2, ... then Unassigned last.
+    return Object.entries(groups).sort(([a], [b]) => {
+      if (a === 'Unassigned purok') return 1
+      if (b === 'Unassigned purok') return -1
+      return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })
+    })
+  }, [residents])
+
 
   /**
    * Loads one page of residents. `append` separates "Load More" (keep the rows
@@ -155,7 +197,7 @@ export default function AdminResidentsPage() {
   }
 
   return (
-    <div className="space-y-8 p-8">
+    <div className="space-y-8 p-8 max-w-5xl mx-auto w-full">
       {/* Header */}
       <div>
         <div className="flex items-center gap-3 mb-4">
@@ -201,10 +243,49 @@ export default function AdminResidentsPage() {
         <Empty title="No residents" description="No residents have registered yet" />
       ) : (
         <>
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {residents.map((resident) => (
-              <ResidentCard key={resident.id} resident={resident} />
-            ))}
+          <Button
+            variant="outline"
+            size="sm"
+            className="self-start"
+            onClick={() => {
+              const anyCollapsed = groupedResidents.some(([key]) => collapsedGroups[key])
+              updateCollapsedGroups(anyCollapsed ? {} : Object.fromEntries(groupedResidents.map(([key]) => [key, true])))
+            }}
+          >
+            <ChevronsUpDown className="mr-1 h-4 w-4" />
+            {groupedResidents.some(([key]) => collapsedGroups[key]) ? 'Expand All' : 'Collapse All'}
+          </Button>
+
+          <div className="space-y-6">
+            {groupedResidents.map(([key, items]) => {
+              const isCollapsed = collapsedGroups[key] === true
+
+              return (
+                <div key={key} className="space-y-4">
+                  <button
+                    type="button"
+                    onClick={() => updateCollapsedGroups({ ...collapsedGroups, [key]: !isCollapsed })}
+                    aria-expanded={!isCollapsed}
+                    className="w-full flex items-center gap-3 text-left rounded-lg py-1"
+                  >
+                    <ChevronDown
+                      className={`h-5 w-5 text-muted-foreground transition-transform duration-200 shrink-0 ${isCollapsed ? '-rotate-90' : ''}`}
+                      aria-hidden="true"
+                    />
+                    <h2 className="text-xl font-semibold">{key}</h2>
+                    <Badge variant="outline">{items.length} resident(s)</Badge>
+                  </button>
+
+                  {!isCollapsed && (
+                    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                      {items.map((resident) => (
+                        <ResidentCard key={resident.id} resident={resident} />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
           </div>
 
           {hasMore && (
