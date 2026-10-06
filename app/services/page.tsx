@@ -85,7 +85,7 @@ export default async function ServicesPage() {
             </p>
             <div className="mt-4 flex flex-wrap justify-center gap-3">
               <Link href="/auth/sign-up">
-                <Button className="bg-[#28A745] text-white hover:bg-[#228039]">Sign Up</Button>
+                <Button className="bg-[#218838] text-white hover:bg-[#1E7E34]">Sign Up</Button>
               </Link>
               <Link href="/auth/login">
                 <Button variant="outline">Log In</Button>

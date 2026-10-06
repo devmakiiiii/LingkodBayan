@@ -53,7 +53,15 @@ test.describe('login form', () => {
     await page.locator('#password').fill('wrong-password')
     await page.getByRole('button', { name: /sign in/i }).click()
 
-    await expect(page.getByRole('alert')).toBeVisible({ timeout: 20_000 })
+    // The Next.js route announcer also renders role="alert" and the app
+    // renders its own alerts too, so this locator can hit strict-mode
+    // violations when more than one visible alert exists. Restrict to the
+    // alert inside the form card (as tracked via the error context:
+    // test-results/auth-*/error-context.md), i.e. the one holding the
+    // actual error copy, not the empty announcer node.
+    await expect(
+      page.locator('div[role="alert"]:not([id="__next-route-announcer__"])').filter({ hasText: /./ }),
+    ).toBeVisible({ timeout: 20_000 })
   })
 
   test('links to sign-up and forgot-password', async ({ page }) => {

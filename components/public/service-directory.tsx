@@ -147,7 +147,7 @@ export function ServiceDirectory({ services }: { services: DirectoryService[] })
               size="sm"
               variant={activeCategory === 'all' ? 'default' : 'outline'}
               onClick={() => setActiveCategory('all')}
-              className={activeCategory === 'all' ? 'bg-[#28A745] text-white hover:bg-[#228039]' : ''}
+              className={activeCategory === 'all' ? 'bg-[#218838] text-white hover:bg-[#1E7E34]' : ''}
             >
               All
             </Button>
@@ -159,7 +159,7 @@ export function ServiceDirectory({ services }: { services: DirectoryService[] })
                 variant={activeCategory === category.value ? 'default' : 'outline'}
                 onClick={() => setActiveCategory(category.value)}
                 className={
-                  activeCategory === category.value ? 'bg-[#28A745] text-white hover:bg-[#228039]' : ''
+                  activeCategory === category.value ? 'bg-[#218838] text-white hover:bg-[#1E7E34]' : ''
                 }
               >
                 {category.label}
@@ -197,7 +197,7 @@ export function ServiceDirectory({ services }: { services: DirectoryService[] })
                     <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#28A745]/10 text-[#28A745]">
                       {CATEGORY_ICONS[service.category_type] ?? <FileText className="w-5 h-5" />}
                     </span>
-                    <span className="rounded-md border border-[#28A745]/20 bg-[#28A745]/10 px-2 py-0.5 text-[11px] font-semibold text-[#228039]">
+                    <span className="rounded-md border border-[#28A745]/20 bg-[#28A745]/10 px-2 py-0.5 text-[11px] font-semibold text-[#1B6630]">
                       {getServiceTypeLabel(service.category_type)}
                     </span>
                   </div>

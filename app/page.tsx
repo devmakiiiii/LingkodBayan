@@ -301,7 +301,7 @@ export default function Home() {
             <Button variant="outline" className="border-gray-300 dark:border-input dark:border-border">Login</Button>
           </Link>
           <Link href="/auth/sign-up">
-            <Button className="bg-[#28A745] hover:bg-[#228039] text-white">Sign Up</Button>
+            <Button className="bg-[#218838] text-white hover:bg-[#1E7E34]">Sign Up</Button>
           </Link>
         </div>
       </nav>
@@ -336,7 +336,7 @@ export default function Home() {
             </p>
             <div className="flex flex-col sm:flex-row gap-4 pt-6">
               <Link href="/auth/sign-up" className="w-full sm:w-auto">
-                <Button size="lg" className="w-full bg-[#28A745] hover:bg-[#228039] text-white">
+                <Button size="lg" className="w-full bg-[#218838] hover:bg-[#1E7E34] text-white">
                   Get Started
                 </Button>
               </Link>
@@ -422,7 +422,7 @@ export default function Home() {
         <div className="max-w-6xl mx-auto">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-12 gap-4">
             <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 dark:text-foreground">Featured Services</h2>
-            <Link href="/services" className="text-[#28A745] font-semibold hover:underline text-sm sm:text-base">
+            <Link href="/services" className="text-[#1B6630] font-semibold hover:underline text-sm sm:text-base">
               View All Services →
             </Link>
           </div>
@@ -443,7 +443,7 @@ export default function Home() {
                     <div className="w-11 h-11 shrink-0 rounded-lg bg-linear-to-br from-[#28A745]/10 to-[#28A745]/5 flex items-center justify-center text-[#28A745]">
                       {categoryIcons[service.category_type] ?? <CheckCircle className="w-6 h-6" />}
                     </div>
-                    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-[#28A745]/10 text-[#228039] whitespace-nowrap">
+                    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-[#28A745]/10 text-[#1B6630] whitespace-nowrap">
                       {getServiceTypeLabel(service.category_type)}
                     </span>
                   </div>

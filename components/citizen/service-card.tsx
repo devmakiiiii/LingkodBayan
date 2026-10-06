@@ -82,7 +82,7 @@ export function ServiceCard({
             {icon}
           </div>
           {tag && (
-            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-[#28A745]/10 text-[#228039]">
+            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-[#28A745]/10 text-[#1B6630]">
               {tag}
             </span>
           )}
