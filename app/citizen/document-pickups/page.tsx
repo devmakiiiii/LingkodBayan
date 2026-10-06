@@ -289,7 +289,7 @@ export default function DocumentPickupsPage() {
   }, [])
 
   return (
-    <div className="p-6 md:p-8 max-w-4xl mx-auto space-y-6">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-4xl mx-auto space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-foreground">{t('Document Pickups')}</h1>
         <p className="text-sm text-muted-foreground mt-1">

@@ -54,7 +54,7 @@ export default async function AnnouncementDetailPage({ params }: { params: Promi
     new Date(announcementData.updated_at).getTime() - new Date(publishedAt).getTime() > 60_000
 
   return (
-    <div className="space-y-8 p-8 max-w-4xl mx-auto">
+    <div className="space-y-8 p-4 sm:p-6 lg:p-8 max-w-4xl mx-auto">
       <div className="flex items-center justify-between">
         <Link href="/citizen/announcements">
           <Button variant="ghost">
@@ -69,8 +69,8 @@ export default async function AnnouncementDetailPage({ params }: { params: Promi
           <AnnouncementImage src={announcementData.image_url} alt={announcementData.title} />
         )}
         <CardHeader className="pb-3">
-          <div className="flex items-start justify-between gap-4">
-            <CardTitle className="text-3xl text-balance flex-1">{announcementData.title}</CardTitle>
+          <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+            <CardTitle className="text-2xl sm:text-3xl text-balance flex-1 min-w-0">{announcementData.title}</CardTitle>
             <Badge className={getAnnouncementCategoryColor(announcementData.category)} variant="outline">
               {announcementData.category}
             </Badge>

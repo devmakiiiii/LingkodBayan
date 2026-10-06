@@ -280,21 +280,21 @@ export default function Home() {
   return (
     <main id="main-content" className="flex flex-col min-h-screen">
       {/* Navigation */}
-      <nav className="bg-white dark:bg-card border-b border-gray-200 dark:border-border px-4 sm:px-6 py-4 flex justify-between items-center sticky top-0 z-50">
-        <div className="flex items-center gap-3">
+      <nav className="bg-white dark:bg-card border-b border-gray-200 dark:border-border px-4 sm:px-6 py-3 sm:py-4 flex justify-between items-center gap-2 sticky top-0 z-50">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
           <Image
             src="/lingkod-logo.png"
             alt="LingkodBayan logo"
             width={36}
             height={36}
-            className="h-9 w-9 object-contain"
+            className="h-8 w-8 sm:h-9 sm:w-9 object-contain shrink-0"
             priority
           />
-          <div className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-foreground">LingkodBayan</div>
+          <div className="text-lg sm:text-xl md:text-2xl font-bold text-gray-900 dark:text-foreground truncate">LingkodBayan</div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           <ThemeToggle className="text-gray-600 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-300 dark:hover:text-white dark:hover:bg-white/10" />
-          <Link href="/track">
+          <Link href="/track" className="hidden sm:inline-block">
             <Button variant="outline" className="border-gray-300 dark:border-input dark:border-border">Track a Submission</Button>
           </Link>
           <Link href="/auth/login">

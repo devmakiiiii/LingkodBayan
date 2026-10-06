@@ -317,7 +317,7 @@ export default function AdminRequestsPage() {
   }
 
   return (
-    <div className="space-y-8 p-8 max-w-5xl mx-auto w-full">
+    <div className="space-y-8 p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto w-full">
       <RequestActions
         request={selectedRequest}
         isOpen={isDetailOpen}
@@ -331,7 +331,7 @@ export default function AdminRequestsPage() {
       {/* Header */}
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Service Requests</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold">Service Requests</h1>
           <p className="mt-2 text-muted-foreground">Manage all citizen service requests</p>
         </div>
         <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-700">

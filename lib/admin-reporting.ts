@@ -331,6 +331,12 @@ export function openPrintableReport(options: {
   subtitle?: string
   /** Inline Leaflet setup script for the hotspot map, rendered in this popup. */
   mapScript?: string
+  /**
+   * One row per filtered report, rendered as a compact table under the map so
+   * every report is accounted for on paper — including ones without a pinned
+   * location, which cannot be drawn as markers.
+   */
+  mappedReports?: Array<{ label: string; status: string; address: string; plotted: boolean }>
 }) {
   const popup = window.open('', '_blank', 'width=1200,height=900')
 
@@ -372,6 +378,17 @@ export function openPrintableReport(options: {
           .map-section { margin-top: 24px; page-break-inside: avoid; }
           .map-section h2 { margin: 0 0 10px 0; font-size: 18px; color: #166534; }
           #print-map { width: 100%; height: 640px; border: 1px solid #cbd5e1; border-radius: 6px; background: #e2e8f0; }
+          #print-map .leaflet-tooltip {
+            font: 11px/1.3 Arial, sans-serif;
+            color: #0f172a;
+            background: rgba(255, 255, 255, 0.92);
+            border: 1px solid #cbd5e1;
+            box-shadow: none;
+            padding: 2px 6px;
+          }
+          #print-map .leaflet-tooltip-right::before { border-right-color: #cbd5e1; }
+          .mapped-table { margin-top: 12px; font-size: 12px; }
+          .mapped-table td, .mapped-table th { padding: 6px 8px; }
           /* Browsers strip background colors and translucent fills (like the
              0.35-opacity hotspot circles) from print output unless this is
              set — without it the circles print invisible on white paper. */
@@ -409,6 +426,25 @@ export function openPrintableReport(options: {
         <div class="map-section">
           <h2>Complaints Hotspot Map</h2>
           <div id="print-map"></div>
+          ${(() => {
+            const mapped = options.mappedReports ?? []
+            if (mapped.length === 0) return ''
+            const plottedCount = mapped.filter((m) => m.plotted).length
+            const rows = mapped
+              .map(
+                (m) =>
+                  `<tr><td>${escapeHtml(m.label)}</td><td>${escapeHtml(m.status)}</td><td>${escapeHtml(m.address)}</td><td>${m.plotted ? 'Marked on map' : 'No pinned location'}</td></tr>`,
+              )
+              .join('')
+            return `
+          <p style="margin: 10px 0 6px 0; font-size: 12px; color: #475569;">
+            ${plottedCount} of ${mapped.length} filtered report${mapped.length === 1 ? '' : 's'} ${plottedCount === 1 ? 'has' : 'have'} a pinned location and ${plottedCount === 1 ? 'is' : 'are'} marked on the map above. Reports filed at the same spot are drawn as separate, slightly offset markers.
+          </p>
+          <table class="mapped-table">
+            <thead><tr><th>Tracking #</th><th>Status</th><th>Location</th><th>Map</th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table>`
+          })()}
         </div>` : ''}
 
         <div class="footer">
@@ -492,9 +528,18 @@ export function buildComplaintsHotspotMapScript(complaints: Array<{
   // same barangay boundary source.
   const HOTSPOT_GRID_FACTOR = 500
   const statusColors: Record<string, string> = {
+    // Canonical statuses used by the admin page (statusDefinitions), plus the
+    // legacy raw DB values that normalizeStatus maps onto them.
     pending: '#ef4444',
+    open: '#ef4444',
+    under_review: '#eab308',
+    under_investigation: '#eab308',
     processing: '#eab308',
+    'in-progress': '#eab308',
     resolved: '#22c55e',
+    rejected: '#64748b',
+    dismissed: '#64748b',
+    cancelled: '#94a3b8',
   }
   const escapeJsString = (value: string) =>
     value
@@ -506,24 +551,46 @@ export function buildComplaintsHotspotMapScript(complaints: Array<{
   // Same `<` escaping applies to the boundary JSON below.
   const boundaryJson = JSON.stringify(BARANGAY_BARRETTO_BOUNDARY).replace(/</g, '\\u003c')
 
-  const markers = complaints
+  // Complaints pinned at (nearly) the same spot stack into what looks like a
+  // single marker. Offset each duplicate by ~35 m diagonal steps so every
+  // report stays individually visible and identifiable on paper.
+  const seenPins = new Map<string, number>()
+  const plottedPins = complaints.map((complaint) => {
+    const key = `${complaint.latitude.toFixed(4)}:${complaint.longitude.toFixed(4)}`
+    const index = seenPins.get(key) ?? 0
+    seenPins.set(key, index + 1)
+    const offset = index * 0.00032
+    return {
+      complaint,
+      latitude: complaint.latitude + offset,
+      longitude: complaint.longitude + offset,
+    }
+  })
+
+  const markerLabel = (subject: string) =>
+    escapeJsString(subject.length > 32 ? `${subject.slice(0, 32)}\u2026` : subject)
+
+  const markers = plottedPins
     .map(
-      (complaint) => `
-  L.circleMarker([${complaint.latitude}, ${complaint.longitude}], {
+      ({ complaint, latitude, longitude }) => `
+  L.circleMarker([${latitude}, ${longitude}], {
     radius: 6,
     color: '${statusColors[complaint.status] ?? '#334155'}',
     weight: 1.5,
     fillColor: '${statusColors[complaint.status] ?? '#334155'}',
     fillOpacity: 0.9,
   })
-    .bindTooltip('${escapeJsString(complaint.subject)}')
+    // Permanent label so each printed pin is identifiable without clicking.
+    .bindTooltip('${markerLabel(complaint.subject)}', { permanent: true, direction: 'right', offset: [10, 0] })
     .addTo(map);`,
     )
     .join('')
 
   // Same ~200 m grid the on-screen hotspot view uses, so the printed
-  // clusters match what officials see in the Map tab.
-  const hotspots = (() => {
+  // clusters match what officials see in the Map tab. Computed as data first
+  // (centers + counts) so the fit-bounds step below can include hotspot
+  // centers, then rendered as circles.
+  const hotspotCells = (() => {
     const cells = new Map<string, { latSum: number; lngSum: number; count: number }>()
     for (const complaint of complaints) {
       const lat = Math.round(complaint.latitude * HOTSPOT_GRID_FACTOR) / HOTSPOT_GRID_FACTOR
@@ -535,23 +602,41 @@ export function buildComplaintsHotspotMapScript(complaints: Array<{
       cell.count += 1
       cells.set(key, cell)
     }
-    return Array.from(cells.values())
-      .filter((cell) => cell.count >= 2)
-      .map(
-        (cell) => `
-  L.circleMarker([${cell.latSum / cell.count}, ${cell.lngSum / cell.count}], {
+    return Array.from(cells.entries())
+      .filter(([, cell]) => cell.count >= 2)
+      .map(([key, cell]) => ({
+        key,
+        latitude: cell.latSum / cell.count,
+        longitude: cell.lngSum / cell.count,
+        count: cell.count,
+      }))
+  })()
+
+  const hotspots = hotspotCells
+    .map(
+      (cell) => `
+  L.circleMarker([${cell.latitude}, ${cell.longitude}], {
     radius: ${Math.min(12 + cell.count * 3, 40)},
     color: '#dc2626',
-    weight: 1,
+    weight: 2,
     fillColor: '#f87171',
-    fillOpacity: 0.35,
+    fillOpacity: 0.5,
   }).addTo(map);`,
-      )
-      .join('')
-  })()
+    )
+    .join('')
+
+  // Hotspot centers as coordinate pairs so the fit-bounds step in the popup
+  // script can include them (see markerCoords/hotspotCoords concat below).
+  const hotspotCoords = hotspotCells
+    .map((cell) => `  [${cell.latitude}, ${cell.longitude}],`)
+    .join('\n')
 
   return `
 var map = L.map('print-map', {
+  // Render vectors (hotspot circles, pins, boundary) into a <canvas> instead
+  // of SVG: Chrome/Edge sometimes drop or wash out SVG paths when printing,
+  // while a canvas prints deterministically like an image.
+  preferCanvas: true,
   zoomControl: false,
   attributionControl: false,
   scrollWheelZoom: false,
@@ -568,18 +653,20 @@ L.geoJSON(boundary, {
   style: { color: '#1d4ed8', weight: 2, opacity: 0.8, fillColor: '#3b82f6', fillOpacity: 0.05 },
 }).addTo(map);
 // Zoom to the reports themselves (not the whole barangay) so street names and
-// landmarks are legible on paper, then bump one zoom level further — fitBounds
-// tends to stop a level below what reads comfortably in print.
+// landmarks are legible on paper. Hotspot centers join the fit so a cluster
+// circle sitting outside the pin cloud is never cropped, and the pixel padding
+// (>= the 40 px max hotspot radius) keeps the whole circle on the page — the
+// old fractional pad + one-level zoom bump used to clip hotspot edges.
 var markerCoords = [
-${complaints.map((complaint) => `  [${complaint.latitude}, ${complaint.longitude}],`).join('\n')}
+${plottedPins.map((pin) => `  [${pin.latitude}, ${pin.longitude}],`).join('\n')}
 ];
-var markerBounds = L.latLngBounds(markerCoords);
-if (markerBounds.isValid()) {
-  markerBounds.pad(0.35);
-  map.fitBounds(markerBounds);
-  // +1 zoom bump, clamped to 18 so we never request tiles past the OSM
-  // max zoom (19) and end up with gray squares.
-  map.setZoom(Math.min(map.getZoom() + 1, 18));
+var hotspotCoords = [
+${hotspotCoords}
+];
+var fitCoords = markerCoords.concat(hotspotCoords);
+var fitBounds = L.latLngBounds(fitCoords);
+if (fitBounds.isValid()) {
+  map.fitBounds(fitBounds, { padding: [48, 48], maxZoom: 18 });
 } else {
   map.fitBounds(L.geoJSON(boundary).getBounds(), { padding: [12, 12] });
 }

@@ -291,7 +291,7 @@ export default function AdminOfficialsPage() {
   ]
 
   return (
-    <div className="space-y-8 p-8 max-w-5xl mx-auto w-full">
+    <div className="space-y-8 p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto w-full">
       <OfficialActions
         isOpen={modalOpen}
         mode={modalMode}
@@ -313,12 +313,12 @@ export default function AdminOfficialsPage() {
         onSaved={loadData}
       />
 
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Officials List</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold">Officials List</h1>
           <p className="text-muted-foreground mt-2">Manage officials, linked designations, and their active term</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row">
           <Button variant="outline" className="border-emerald-200 text-emerald-700 hover:bg-emerald-50" onClick={() => setDesignationModalOpen(true)}>
             Add Designation
           </Button>

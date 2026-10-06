@@ -69,14 +69,14 @@ export default async function AnnouncementsPage() {
 
 if (dbAnnouncements.length === 0) {
     return (
-      <div className="space-y-8 p-8">
+      <div className="space-y-8 p-4 sm:p-6 lg:p-8">
         <div>
           <div className="flex items-center gap-3 mb-4">
             <div className="p-3 rounded-lg bg-primary/10">
               <Megaphone className="h-6 w-6 text-primary" />
             </div>
             <div>
-              <h1 className="text-3xl font-bold">{t('Announcements')}</h1>
+              <h1 className="text-2xl sm:text-3xl font-bold">{t('Announcements')}</h1>
               <p className="text-muted-foreground mt-1">
                 {t('Latest news and updates from {barangay}', { barangay: BARANGAY_DISPLAY_NAME })}
               </p>
@@ -99,14 +99,14 @@ if (dbAnnouncements.length === 0) {
   }
 
   return (
-    <div className="space-y-8 p-8">
+    <div className="space-y-8 p-4 sm:p-6 lg:p-8">
       <div>
         <div className="flex items-center gap-3 mb-4">
           <div className="p-3 rounded-lg bg-primary/10">
             <Megaphone className="h-6 w-6 text-primary" />
           </div>
           <div>
-            <h1 className="text-3xl font-bold">{t('Announcements')}</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold">{t('Announcements')}</h1>
             <p className="text-muted-foreground mt-1">
               {t('Latest news and updates from {barangay}', { barangay: BARANGAY_DISPLAY_NAME })}
             </p>

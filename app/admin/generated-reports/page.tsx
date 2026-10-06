@@ -553,7 +553,7 @@ export default function AdminGeneratedReportsPage() {
   const requestTypeFilterEnabled = reportType === 'requests'
 
   return (
-    <div className="space-y-8 bg-background p-8 max-w-5xl mx-auto w-full">
+    <div className="space-y-8 bg-background p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto w-full">
       {configError && (
         <Card className="border-amber-200 bg-amber-50 shadow-sm">
           <CardHeader>
@@ -577,7 +577,7 @@ export default function AdminGeneratedReportsPage() {
           <FileText className="h-3.5 w-3.5" />
           Generated Reports
         </div>
-        <h1 className="text-3xl font-bold text-foreground">Generated Reports</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Generated Reports</h1>
         <p className="max-w-2xl text-sm text-muted-foreground">Select a report type, filter the data, preview the output, then print or export as CSV.</p>
       </div>
 

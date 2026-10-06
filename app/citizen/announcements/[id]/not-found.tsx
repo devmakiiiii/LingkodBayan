@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 
 export default function AnnouncementNotFound() {
   return (
-    <div className="p-8">
+    <div className="p-4 sm:p-8">
       <Empty
         title="Announcement not found"
         description="The announcement you're looking for doesn't exist or has been removed."

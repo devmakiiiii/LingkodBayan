@@ -138,6 +138,80 @@
     @apply border-border outline-ring/50;
   }
 
+  /* ---- Mobile responsiveness guards --------------------------------
+     These baseline rules prevent common small-screen overflow issues
+     (horizontal page scroll, cut-off text, cramped paddings) without
+     altering the desktop layout in any way. */
+
+  /* Contain horizontal overflow at the page level; long words, URLs,
+     tracking numbers and unbreakable content must never push the page
+     wider than the viewport. */
+  html,
+  body {
+    overflow-x: clip;
+    max-width: 100%;
+    /* Comfort tap targets and avoid browser font inflation on rotation */
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
+  /* Wrap long unbreakable content (emails, IDs, URLs, code samples)
+     everywhere by default. Desktop layouts are unaffected because
+     normal prose never contains unbreakable strings. */
+  body {
+    overflow-wrap: break-word;
+  }
+
+  code,
+  pre {
+    overflow-wrap: break-word;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  /* Never let media elements overflow their container on small screens */
+  img,
+  video,
+  svg,
+  canvas,
+  iframe {
+    max-width: 100%;
+  }
+
+  /* Respect device safe areas (notched phones) for fixed overlays while
+     keeping desktop rendering untouched. */
+  [data-slot='dialog-content'],
+  [data-slot='sheet-content'] {
+    max-width: calc(100vw - 1rem);
+    max-height: calc(100dvh - 2rem);
+  }
+
+  /* Keep table scroll containers inside their card instead of pushing
+     the whole page wider on mobile. */
+  [data-slot='table-container'] {
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+  }
+  /* Thin, unobtrusive scrollbars for table containers on WebKit */
+  [data-slot='table-container']::-webkit-scrollbar {
+    height: 8px;
+  }
+
+  /* ------ Small-screen refinements (mobile only) ------------------- */
+  @media (max-width: 639px) {
+    /* Tighter horizontal padding for tables so more columns are visible */
+    [data-slot='table-head'],
+    [data-slot='table-cell'] {
+      padding-inline: 0.5rem;
+    }
+
+    /* Slightly denser card padding so content gets priority on phones */
+    [data-slot='card'] > [data-slot='card-header'],
+    [data-slot='card'] > [data-slot='card-content'] {
+      padding-inline: 1rem;
+    }
+  }
+
   /* Let the browser render native UI (scrollbars, form controls) per theme */
   :root {
     color-scheme: light;

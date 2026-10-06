@@ -108,8 +108,8 @@ export default async function PublicAnnouncementPage({
             <AnnouncementImage src={announcementData.image_url} alt={announcementData.title} />
           )}
           <CardHeader className="pb-3">
-            <div className="flex items-start justify-between gap-4">
-              <CardTitle className="text-3xl text-balance flex-1">{announcementData.title}</CardTitle>
+            <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+              <CardTitle className="text-2xl sm:text-3xl text-balance flex-1 min-w-0">{announcementData.title}</CardTitle>
               <Badge className={getAnnouncementCategoryColor(announcementData.category)} variant="outline">
                 {announcementData.category}
               </Badge>

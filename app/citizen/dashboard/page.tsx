@@ -358,11 +358,11 @@ export default function CitizenDashboard() {
   const verificationRejected = verificationStatus === 'rejected'
 
   return (
-    <div className="space-y-6 p-6 md:p-8">
+    <div className="space-y-6 p-4 sm:p-6 lg:p-8">
       {/* Header */}
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Welcome back, {userName}! 👋</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold">Welcome back, {userName}! 👋</h1>
           <p className="mt-2 text-muted-foreground">
             Here&apos;s an overview of your civic activities
           </p>

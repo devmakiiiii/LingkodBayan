@@ -937,6 +937,15 @@ evidenceUrls: extractEvidenceUrls(row),
         report.assignedOfficialLabel,
       ]),
       subtitle: 'Resident-submitted complaints and reports',
+      // One row per filtered report under the printed map so officials can
+      // account for every report on paper — even ones without a pin, which
+      // cannot be drawn as markers.
+      mappedReports: filteredReports.map((report) => ({
+        label: report.trackingNumber,
+        status: statusDefinitions[report.status].label,
+        address: report.locationAddress,
+        plotted: report.latitude != null && report.longitude != null,
+      })),
       // Embed the complaints hotspot map under the table so the printed
       // report shows where the filtered reports cluster. Skipped when no
       // filtered report has a pinned location.

@@ -197,7 +197,7 @@ export default function AdminResidentsPage() {
   }
 
   return (
-    <div className="space-y-8 p-8 max-w-5xl mx-auto w-full">
+    <div className="space-y-8 p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto w-full">
       {/* Header */}
       <div>
         <div className="flex items-center gap-3 mb-4">
@@ -205,7 +205,7 @@ export default function AdminResidentsPage() {
             <Users className="h-6 w-6 text-primary" />
           </div>
           <div>
-            <h1 className="text-3xl font-bold">Residents Management</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold">Residents Management</h1>
             <p className="text-muted-foreground mt-1">View all registered citizens of {BARANGAY_DISPLAY_NAME}</p>
           </div>
         </div>

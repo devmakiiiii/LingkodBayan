@@ -208,14 +208,14 @@ export default function ComplaintDetailPage({ params }: { params: Promise<{ id: 
 
   return (
     <div className="p-4 md:p-6 space-y-4 max-w-5xl mx-auto w-full">
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <Link href="/citizen/my-complaints">
           <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
             <ArrowLeft className="h-4 w-4" />
           </Button>
         </Link>
-        <div className="flex-1">
-          <h1 className="text-2xl font-bold">{complaint.title}</h1>
+        <div className="flex-1 min-w-[10rem]">
+          <h1 className="text-xl sm:text-2xl font-bold break-words">{complaint.title}</h1>
           <p className="text-muted-foreground text-sm">Complaint details and conversation</p>
         </div>
         {complaint.status === 'open' && (

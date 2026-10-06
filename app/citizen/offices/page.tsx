@@ -69,9 +69,9 @@ export default function OfficesPage() {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-muted">
       <main className="w-full">
-        <div className="min-h-screen p-6 md:p-8 space-y-8">
+        <div className="min-h-screen p-4 sm:p-6 lg:p-8 space-y-8">
           <div>
-            <h1 className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-foreground mb-2">
+            <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-900 dark:text-foreground mb-2">
               {t('Offices Directory')}
             </h1>
             <p className="text-gray-600 dark:text-muted-foreground">

@@ -239,7 +239,7 @@ export default function AdminServiceCategoriesPage() {
 
   if (loading) {
     return (
-      <div className="space-y-6 p-6 max-w-5xl mx-auto w-full">
+      <div className="space-y-6 p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto w-full">
         <Skeleton className="h-8 w-64" />
         <Skeleton className="h-64 w-full" />
         <Skeleton className="h-64 w-full" />
@@ -265,10 +265,10 @@ if (loadError) {
   const appointmentCategories = categories.filter((c) => c.category_type === 'appointment')
 
   return (
-    <div className="space-y-6 p-6 max-w-5xl mx-auto w-full">
-      <div className="flex items-center justify-between">
+    <div className="space-y-6 p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto w-full">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-foreground">Service Categories</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-foreground">Service Categories</h1>
           <p className="text-gray-500 dark:text-muted-foreground mt-2">Manage document requests and appointment types</p>
         </div>
         <Button onClick={openCreateDialog} className="bg-green-600 hover:bg-green-700 gap-2">

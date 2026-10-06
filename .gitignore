@@ -33,3 +33,6 @@ eslint-out.txt
 
 # Local scratch artifacts
 resp.json
+
+# Generated print-map probe output (scripts/print-map-probe.ts writes this)
+public/print-probe/

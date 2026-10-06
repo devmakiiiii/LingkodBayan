@@ -384,10 +384,10 @@ export default function VerifyIdPage() {
   }
 
   return (
-    <div className="space-y-6 p-6 md:p-8 max-w-5xl mx-auto w-full">
-      <div className="flex items-center justify-between">
+    <div className="space-y-6 p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto w-full">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
         <div>
-          <h1 className="text-3xl font-bold">{t('Identity Verification')}</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold">{t('Identity Verification')}</h1>
           <p className="text-muted-foreground mt-1">
             {t('Upload a valid government ID to verify your identity')}
           </p>

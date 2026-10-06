@@ -164,10 +164,10 @@ export default function PreRegisteredResidentsPage() {
   ]
 
   return (
-    <div className="space-y-6 p-6 md:p-8 max-w-5xl mx-auto w-full">
-      <div className="flex items-center justify-between">
+    <div className="space-y-6 p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto w-full">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Pre-Registered Residents</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold">Pre-Registered Residents</h1>
           <p className="text-muted-foreground mt-1">
             Manage pre-saved resident data for identity verification
           </p>
@@ -217,9 +217,9 @@ export default function PreRegisteredResidentsPage() {
 
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <CardTitle>All Pre-Registered Residents</CardTitle>
-            <div className="relative w-64">
+            <div className="relative w-full sm:w-64 sm:shrink-0">
               <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Search residents..."

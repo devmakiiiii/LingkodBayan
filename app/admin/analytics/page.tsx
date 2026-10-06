@@ -144,7 +144,7 @@ export default function AdminAnalyticsPage() {
   ]
 
   return (
-    <div className="space-y-8 bg-background p-8 max-w-5xl mx-auto w-full">
+    <div className="space-y-8 bg-background p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto w-full">
       {configError && (
         <Card className="border-amber-200 bg-amber-50">
           <CardHeader>
@@ -159,7 +159,7 @@ export default function AdminAnalyticsPage() {
           <BarChart3 className="h-3.5 w-3.5" />
           Admin Analytics
         </div>
-        <h1 className="text-3xl font-bold text-foreground">Analytics Dashboard</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Analytics Dashboard</h1>
         <p className="max-w-2xl text-sm text-muted-foreground">Track request volume, complaint categories, and status distribution across {BARANGAY_DISPLAY_NAME}.</p>
       </div>
 

@@ -140,7 +140,7 @@ export default function AdminDesignationsPage() {
   }
 
   return (
-    <div className="space-y-8 p-8 max-w-5xl mx-auto w-full">
+    <div className="space-y-8 p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto w-full">
       <DesignationActions
         isOpen={isModalOpen}
         mode={modalMode}
@@ -173,9 +173,9 @@ export default function AdminDesignationsPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Designations</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold">Designations</h1>
           <p className="mt-2 text-muted-foreground">Manage official titles, roles, and categories in the barangay.</p>
         </div>
         <Button

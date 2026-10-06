@@ -92,7 +92,7 @@ export default function MyRequestsPage() {
   }
 
 return (
-    <div className="space-y-8 p-8 max-w-5xl mx-auto w-full">
+    <div className="space-y-8 p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto w-full">
       <NoCloseDialog open={Boolean(selectedRequest)} onOpenChange={(open) => !open && setSelectedRequest(null)}>
         <DialogContent className="flex max-h-[92vh] w-[95vw] max-w-6xl flex-col gap-0 overflow-hidden border-emerald-100 bg-white p-0 dark:bg-card md:w-[92vw]">
           {selectedRequest && (
@@ -118,9 +118,9 @@ return (
       </NoCloseDialog>
 
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
         <div>
-          <h1 className="text-3xl font-bold">{t('My Service Requests')}</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold">{t('My Service Requests')}</h1>
           <p className="text-muted-foreground mt-2">{t('Track all your submitted service requests')}</p>
         </div>
         <Link href="/citizen/request-service">

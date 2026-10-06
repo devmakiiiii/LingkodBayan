@@ -189,10 +189,10 @@ export default function AdminDashboard() {
   }, [])
 
   return (
-    <div className="space-y-8 p-8 max-w-5xl mx-auto w-full">
+    <div className="space-y-8 p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto w-full">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold">Admin Dashboard</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold">Admin Dashboard</h1>
         <p className="text-muted-foreground mt-2">Manage service requests, complaints, and residents</p>
       </div>
 

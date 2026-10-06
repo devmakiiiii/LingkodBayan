@@ -177,10 +177,10 @@ export default function RequestServicePage() {
 
       {/* Main Content */}
       <main className="w-full">
-        <div className="min-h-screen p-6 md:p-8 max-w-5xl mx-auto w-full">
+        <div className="min-h-screen p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto w-full">
           {/* Header */}
           <div className="mb-8">
-            <h1 className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-foreground mb-2">
+            <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-900 dark:text-foreground mb-2">
               {t('Request Services')}
             </h1>
             <p className="text-gray-600 dark:text-muted-foreground">

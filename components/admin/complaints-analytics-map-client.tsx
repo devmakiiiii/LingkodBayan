@@ -87,9 +87,14 @@ export default function ComplaintsAnalyticsMapClient({ complaints, onMarkerClick
 
   function getStatusIcon(status: string) {
     switch (status) {
+      // Canonical statuses (statusDefinitions) + legacy raw DB values.
       case 'pending':
+      case 'open':
         return icons.red
+      case 'under_review':
+      case 'under_investigation':
       case 'processing':
+      case 'in-progress':
         return icons.yellow
       case 'resolved':
         return icons.green
@@ -99,6 +104,25 @@ export default function ComplaintsAnalyticsMapClient({ complaints, onMarkerClick
   }
 
   const locatedComplaints = useMemo(() => complaints.filter(hasCoordinates), [complaints])
+
+  // Complaints pinned at (nearly) the same spot stack their markers into what
+  // looks like a single pin. Offset each duplicate by ~35 m diagonal steps so
+  // every report stays individually visible, matching the printed map.
+  const plottedComplaints = useMemo(() => {
+    const seen = new Map<string, number>()
+    return locatedComplaints.map((complaint) => {
+      const key = `${complaint.latitude.toFixed(4)}:${complaint.longitude.toFixed(4)}`
+      const index = seen.get(key) ?? 0
+      seen.set(key, index + 1)
+      if (index === 0) return complaint
+      const offset = index * 0.00032
+      return {
+        ...complaint,
+        latitude: complaint.latitude + offset,
+        longitude: complaint.longitude + offset,
+      }
+    })
+  }, [locatedComplaints])
 
   // Group nearby complaints into hotspot cells so repeated reports in the same
   // purok show up as a single, heavier circle instead of overlapping pins.
@@ -156,8 +180,8 @@ export default function ComplaintsAnalyticsMapClient({ complaints, onMarkerClick
           />
         ))}
 
-        {/* Render complaint markers */}
-        {locatedComplaints.map((complaint) => (
+        {/* Render complaint markers (offset so same-location pins separate) */}
+        {plottedComplaints.map((complaint) => (
               <Marker
                 key={complaint.id}
                 position={[complaint.latitude, complaint.longitude]}
@@ -173,11 +197,13 @@ export default function ComplaintsAnalyticsMapClient({ complaints, onMarkerClick
                     <p className="text-gray-500 dark:text-muted-foreground">{complaint.location_address}</p>
                     <span
                       className={`inline-block px-2 py-1 rounded text-xs font-semibold ${
-                        complaint.status === 'pending'
+                        complaint.status === 'pending' || complaint.status === 'open'
                           ? 'bg-red-100 text-red-800'
-                          : complaint.status === 'processing'
-                            ? 'bg-yellow-100 text-yellow-800'
-                            : 'bg-green-100 text-green-800'
+                          : complaint.status === 'resolved'
+                            ? 'bg-green-100 text-green-800'
+                            : complaint.status === 'rejected' || complaint.status === 'dismissed' || complaint.status === 'cancelled'
+                              ? 'bg-slate-100 text-slate-700'
+                              : 'bg-yellow-100 text-yellow-800'
                       }`}
                     >
                       {complaint.status.toUpperCase()}

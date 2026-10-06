@@ -305,7 +305,7 @@ export default function AdminSettingsPage() {
 
   if (loading) {
     return (
-      <div className="space-y-6 p-6 max-w-5xl mx-auto w-full">
+      <div className="space-y-6 p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto w-full">
         <Skeleton className="h-8 w-64" />
         <Skeleton className="h-64 w-full" />
         <Skeleton className="h-64 w-full" />
@@ -314,7 +314,7 @@ export default function AdminSettingsPage() {
   }
 
   return (
-    <div className="space-y-6 p-6 max-w-5xl mx-auto w-full">
+    <div className="space-y-6 p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto w-full">
       {loadError && (
         <Card className="border-amber-200 bg-amber-50">
           <div className="p-4 text-sm text-amber-900">
@@ -325,9 +325,9 @@ export default function AdminSettingsPage() {
         </Card>
       )}
 
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-foreground">System Settings</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-foreground">System Settings</h1>
           <p className="text-gray-500 dark:text-muted-foreground mt-2">Configure barangay information, mission, and vision</p>
         </div>
       </div>
