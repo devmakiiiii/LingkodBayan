@@ -27,6 +27,12 @@ eng.traineddata
 *.log
 eslint-out.txt
 
+# Playwright artifacts
+test-results/
+playwright-report/
+blob-report/
+devsrv*.log
+
 # Kilo internal
 .kilo/node_modules/
 .kilo/worktrees/

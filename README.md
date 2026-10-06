@@ -202,6 +202,25 @@ For the full database walkthrough, including admin account setup and deployment 
 
 For a more detailed deployment guide, see [SETUP.md](SETUP.md).
 
+## Testing
+
+```bash
+pnpm test        # unit tests (lib/**/*.test.ts, node:test)
+pnpm test:e2e    # Playwright E2E (e2e/*.spec.ts, Chromium)
+```
+
+E2E tests cover the public, no-backend surfaces (landing page, auth guards,
+public tracking) and run in CI with placeholder Supabase credentials.
+Authenticated citizen-flow specs (`e2e/citizen-flow.spec.ts`) self-skip unless
+a seeded backend is provided via environment variables:
+
+```bash
+E2E_SEED_URL=https://<project>.supabase.co \
+E2E_TEST_USER=<verified citizen email> \
+E2E_TEST_PASSWORD=<password> \
+pnpm test:e2e
+```
+
 ## Testing Accounts
 
 The setup docs include example citizen and admin workflows for validating the app after the database is configured. Follow [GETTING_STARTED.md](GETTING_STARTED.md) for the recommended onboarding flow.

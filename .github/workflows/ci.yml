@@ -38,6 +38,15 @@ jobs:
       - name: Unit tests
         run: pnpm test
 
+      - name: Install Playwright browsers
+        run: pnpm exec playwright install --with-deps chromium
+
+      # E2E against public, no-backend surfaces (landing, auth guards, public
+      # tracking). Authenticated citizen-flow specs self-skip without
+      # E2E_SEED_URL / E2E_TEST_USER / E2E_TEST_PASSWORD.
+      - name: E2E tests
+        run: pnpm test:e2e --project=chromium
+
       - name: Production build
         run: pnpm build
         env:
