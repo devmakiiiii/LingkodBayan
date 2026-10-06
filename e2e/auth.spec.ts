@@ -33,12 +33,19 @@ test.describe('login form', () => {
   test('renders email + password fields and a sign-in button', async ({ page }) => {
     await page.goto('/auth/login')
 
-    // Label-based lookup is ambiguous on this page (the password field's
-    // show/hide toggle confuses the accessible-name computation), so target
-    // the stable input ids directly.
-    await expect(page.locator('#email')).toBeVisible()
-    await expect(page.locator('#password')).toBeVisible()
+    // The password input's label used to be ambiguous because the show/hide
+    // toggle's aria-label leaked into accessible-name computation; the
+    // component now ships an explicit sr-only description node, so the
+    // label-based lookups below resolve to exactly one field each.
+    await expect(page.getByLabel(/email/i)).toBeVisible()
+    await expect(page.getByLabel(/^password$/i)).toBeVisible()
     await expect(page.getByRole('button', { name: /sign in/i })).toBeVisible()
+
+    // The visibility toggle is a named, pressable control.
+    const toggle = page.getByRole('button', { name: /show password/i })
+    await expect(toggle).toBeVisible()
+    await toggle.click()
+    await expect(page.getByRole('button', { name: /hide password/i })).toBeVisible()
   })
 
   test('sign-in with a seeded account shows the Supabase failure as a readable error', async ({

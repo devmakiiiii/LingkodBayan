@@ -19,6 +19,7 @@ function PasswordInput({ className, ...props }: React.ComponentProps<'input'>) {
         tabIndex={-1}
         aria-label={showPassword ? 'Hide password' : 'Show password'}
         aria-pressed={showPassword}
+        aria-controls={props.id ? `${props.id}-description` : undefined}
         onClick={() => setShowPassword((prev) => !prev)}
         className="absolute inset-y-0 right-0 flex items-center justify-center w-10 text-gray-500 dark:text-muted-foreground hover:text-gray-700"
       >
@@ -28,6 +29,13 @@ function PasswordInput({ className, ...props }: React.ComponentProps<'input'>) {
           <Eye className="h-5 w-5" />
         )}
       </button>
+      {/* Visually hidden hint so the accessible name of the input stays
+          unambiguous for assistive tech (the sibling toggle button's own
+          aria-label would otherwise leak into name computation on some
+          label-for + nested-control layouts). */}
+      <span id={props.id ? `${props.id}-description` : undefined} className="sr-only">
+        Password visibility toggle
+      </span>
     </div>
   )
 }
