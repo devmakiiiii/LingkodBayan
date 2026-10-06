@@ -118,7 +118,7 @@ if (process.argv.includes('--check-pdf')) {
   const imageCount = (raw.match(/\/Subtype\s*\/Image/g) || []).length
   const doCount = (raw.match(/\bDo\b/g) || []).length
   console.log(`Inflated ${streamCount} zlib streams; image XObjects: ${imageCount}; Do ops: ${doCount}`)
-  let allOk = streamCount > 0 && imageCount > 0
+  const allOk = streamCount > 0 && imageCount > 0
   console.log(`${imageCount > 0 ? 'PASS' : 'FAIL'}  map raster embedded as image (canvas survives print)`)
   console.log(allOk ? 'PDF check: map raster present — canvas rendering survived the print pipeline.' : 'PDF check: no map raster found — map may be blank in print.')
   process.exit(allOk ? 0 : 1)
