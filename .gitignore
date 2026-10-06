@@ -39,6 +39,7 @@ devsrv*.log
 
 # Local scratch artifacts
 resp.json
+_login_page.html
 
 # Generated print-map probe output (scripts/print-map-probe.ts writes this)
 public/print-probe/
