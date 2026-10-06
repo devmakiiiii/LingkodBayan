@@ -211,8 +211,9 @@ pnpm test:e2e    # Playwright E2E (e2e/*.spec.ts, Chromium)
 
 E2E tests cover the public, no-backend surfaces (landing page, auth guards,
 public tracking) and run in CI with placeholder Supabase credentials.
-Authenticated citizen-flow specs (`e2e/citizen-flow.spec.ts`) self-skip unless
-a seeded backend is provided via environment variables:
+Authenticated specs (`e2e/citizen-flow.spec.ts` and the citizen-dashboard
+accessibility scan in `e2e/accessibility.spec.ts`) self-skip unless a seeded
+backend is provided via environment variables:
 
 ```bash
 E2E_SEED_URL=https://<project>.supabase.co \
@@ -220,6 +221,14 @@ E2E_TEST_USER=<verified citizen email> \
 E2E_TEST_PASSWORD=<password> \
 pnpm test:e2e
 ```
+
+The same variables can be added as GitHub repo secrets (`E2E_SEED_URL`,
+`E2E_TEST_USER`, `E2E_TEST_PASSWORD`) to run these authenticated specs in CI;
+without the secrets they self-skip and CI stays green.
+
+The accessibility spec also runs an axe-core WCAG 2.1 AA scan (serious and
+critical violations fail the build) on every public page and, when the seed
+variables are present, the authenticated citizen dashboard.
 
 ## Testing Accounts
 
