@@ -158,7 +158,8 @@ export default function TrackPage() {
       setCode(urlCode)
       void runSearch(urlCode.trim())
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Mount-only by design: runSearch is stable and must not re-run on
+    // unrelated re-renders, so the exhaustive-deps rule does not apply here.
   }, [])
 
   const tone = result

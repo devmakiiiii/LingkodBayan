@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
-import { LogOut, Menu, X, Home, Users, BarChart3, List, AlertCircle, Settings, ChevronDown, Loader2, Megaphone, ShieldCheck, Sun, Moon, MessageSquare, PackageCheck } from 'lucide-react'
+import { LogOut, Menu, X, Home, Users, BarChart3, List, AlertCircle, Settings, ChevronDown, Loader2, Megaphone, ShieldCheck, MessageSquare, PackageCheck } from 'lucide-react'
 import {
   Dialog,
   DialogContent,

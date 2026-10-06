@@ -59,7 +59,7 @@ export function setCsrfCookie(response: NextResponse, token: string): NextRespon
   return response
 }
 
-export function csrfMiddleware(request: NextRequest, response: NextResponse): NextResponse | null {
+export function csrfMiddleware(request: NextRequest, _response?: NextResponse): NextResponse | null {
   const method = request.method
 
   if (method === 'GET' || method === 'HEAD' || method === 'OPTIONS') {

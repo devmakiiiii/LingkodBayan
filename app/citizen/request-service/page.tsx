@@ -21,7 +21,6 @@ import {
   type CharterService,
   type Office,
 } from '@/lib/charter-services'
-import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useLocale } from '@/hooks/use-locale'
 
@@ -45,7 +44,6 @@ export default function RequestServicePage() {
   const [isDetailOpen, setIsDetailOpen] = useState(false)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
-  const router = useRouter()
   const { t } = useLocale()
 
   async function loadServices() {

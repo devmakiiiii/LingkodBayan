@@ -1,10 +1,9 @@
 import { createClient } from '@/lib/supabase/server'
-import { createAdminClient } from '@/lib/supabase/admin'
 import { NextRequest, NextResponse } from 'next/server'
 import { logger } from '@/lib/logger'
 import { getUserRole, isAdminRole, isAdminUser } from '@/lib/roles'
 
-export async function getAuthenticatedUser(request: NextRequest) {
+export async function getAuthenticatedUser(_request?: NextRequest) {
   try {
     const supabase = await createClient()
     const {
@@ -23,7 +22,7 @@ export async function getAuthenticatedUser(request: NextRequest) {
   }
 }
 
-export async function getAdminUser(request: NextRequest) {
+export async function getAdminUser(_request?: NextRequest) {
   try {
     const supabase = await createClient()
     const {
@@ -48,7 +47,7 @@ export async function getAdminUser(request: NextRequest) {
   }
 }
 
-export async function getResidentId(request: NextRequest): Promise<{ residentId: string | null; error: string | null }> {
+export async function getResidentId(_request?: NextRequest): Promise<{ residentId: string | null; error: string | null }> {
   try {
     const supabase = await createClient()
     const {

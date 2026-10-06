@@ -19,7 +19,7 @@ import { useSearchParams } from 'next/navigation'
 import { AlertCircle, MapPin, Upload, X, ImageIcon, Zap } from 'lucide-react'
 import { MapPicker } from '@/components/citizen/map-picker'
 import { getOrCreateResidentProfile } from '@/lib/residents'
-import { complaintCategories, type ComplaintCategory, analyzeComplaintPriority, complaintCategoryFallbackPriorities, complaintCategoryKeywords } from '@/lib/complaint-categories'
+import { complaintCategories, type ComplaintCategory, analyzeComplaintPriority, complaintCategoryFallbackPriorities } from '@/lib/complaint-categories'
 import { Badge } from '@/components/ui/badge'
 import { formatCoordinates } from '@/lib/address'
 import { useLocale } from '@/hooks/use-locale'
@@ -50,7 +50,6 @@ export default function FileComplaintPage() {
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [incidentCategories, setIncidentCategories] = useState<IncidentCategory[]>([])
-  const [loadingCategories, setLoadingCategories] = useState(true)
   const searchParams = useSearchParams()
   const preselectedCategory = searchParams.get('category')
   const router = useRouter()
@@ -65,7 +64,6 @@ export default function FileComplaintPage() {
   }))
 
   const activeCategories = incidentCategories.length > 0 ? incidentCategories : defaultCategories
-  const selectedCategoryObj = activeCategories.find((c) => c.title === category)
 
   const detectedPriority = analyzeComplaintPriority(
     title,
@@ -83,7 +81,6 @@ export default function FileComplaintPage() {
 
   async function loadIncidentCategories() {
     try {
-      setLoadingCategories(true)
       const supabase = createClient()
       
       const { data, error } = await supabase
@@ -100,10 +97,8 @@ export default function FileComplaintPage() {
       }
 
       setIncidentCategories(data || [])
-    } catch (err) {
+    } catch {
       setIncidentCategories([])
-    } finally {
-      setLoadingCategories(false)
     }
   }
 

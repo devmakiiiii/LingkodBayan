@@ -11,11 +11,10 @@ import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { Switch } from '@/components/ui/switch'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
-import { AlertCircle, CheckCircle, Edit2, Plus, Trash2, ChevronDown, ChevronUp } from 'lucide-react'
+import { CheckCircle, Edit2, Plus, Trash2, ChevronDown, ChevronUp } from 'lucide-react'
 import { toast } from 'sonner'
 import { serviceCategorySchema } from '@/lib/schemas'
 import * as z from 'zod'
-import { formatDate } from '@/lib/format-date'
 
 interface ServiceCategory {
   id: string
@@ -36,11 +35,6 @@ interface FormData {
   category_type: 'document' | 'appointment'
   is_active: boolean
   sort_order: number
-}
-
-const categoryLabels: Record<string, { label: string; color: string }> = {
-  document: { label: 'Document Request', color: 'bg-blue-100 text-blue-800 border-blue-300' },
-  appointment: { label: 'Appointment Type', color: 'bg-purple-100 text-purple-800 border-purple-300' },
 }
 
 export default function AdminServiceCategoriesPage() {
@@ -177,7 +171,7 @@ export default function AdminServiceCategoriesPage() {
 
       setCategories(categories.map((c) => (c.id === id ? { ...c, is_active: !isActive } : c)))
       toast.success(isActive ? 'Category deactivated' : 'Category activated')
-    } catch (err) {
+    } catch {
       toast.error('Failed to update category')
     }
   }
@@ -193,7 +187,7 @@ export default function AdminServiceCategoriesPage() {
 
       setCategories(categories.filter((c) => c.id !== id))
       toast.success('Category deleted')
-    } catch (err) {
+    } catch {
       toast.error('Failed to delete category')
     } finally {
       setDeleteTargetId(null)
@@ -214,7 +208,7 @@ export default function AdminServiceCategoriesPage() {
       }
 
       await loadCategories()
-    } catch (err) {
+    } catch {
       toast.error('Failed to reorder')
     }
   }
@@ -232,7 +226,7 @@ export default function AdminServiceCategoriesPage() {
       }
 
       await loadCategories()
-    } catch (err) {
+    } catch {
       toast.error('Failed to reorder')
     }
   }

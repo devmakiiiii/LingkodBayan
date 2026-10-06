@@ -34,7 +34,6 @@ import {
   List,
   Loader2,
   Map as MapIcon,
-  MapPinned,
   MessageSquareReply,
   MoreHorizontal,
   Printer,
@@ -43,23 +42,20 @@ import {
   Scale,
   Search,
   Send,
-  ShieldCheck,
   TriangleAlert,
   UserPlus,
 } from 'lucide-react'
-import { formatDate } from '@/lib/format-date'
 import { BARANGAY_DISPLAY_NAME } from '@/lib/schemas'
 import { cn } from '@/lib/utils'
 import {
   buildCsv,
   downloadCsvFile,
   getReportDateLabel,
-  getReportDateTimeLabel,
   buildComplaintsHotspotMapScript,
   openPrintableReport,
   type PrintableColumn,
 } from '@/lib/admin-reporting'
-import { complaintCategories, complaintCategoryKeywords, complaintCategoryBadgeClasses, complaintCategoryFallbackPriorities, type ComplaintCategory, analyzeComplaintPriority } from '@/lib/complaint-categories'
+import { complaintCategoryKeywords, complaintCategoryBadgeClasses, complaintCategoryFallbackPriorities, type ComplaintCategory, analyzeComplaintPriority } from '@/lib/complaint-categories'
 import { logAdminActionClient } from '@/lib/audit-log-client'
 import { canTransitionComplaint, getAllowedComplaintTransitions } from '@/lib/status-machine'
 import { ComplaintLocationMap } from '@/components/citizen/complaint-location-map'
@@ -374,10 +370,6 @@ function extractEvidenceUrls(row: any) {
   return Array.from(new Set(values))
 }
 
-function formatShortDate(value: string) {
-  return formatDate(value, { month: 'short', day: 'numeric', year: 'numeric' })
-}
-
 function formatDateTime(value: string) {
   return new Date(value).toLocaleString('en-PH', {
     month: 'short',
@@ -429,7 +421,6 @@ export function ResidentReportsPage() {
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [loadError, setLoadError] = useState('')
-  const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<'all' | CanonicalStatus>('all')
   const [categoryFilter, setCategoryFilter] = useState<'all' | string>('all')
   const [priorityFilter, setPriorityFilter] = useState<'all' | CanonicalPriority>('all')
@@ -465,7 +456,7 @@ export function ResidentReportsPage() {
 
   useEffect(() => {
     setCurrentPage(1)
-  }, [search, statusFilter, categoryFilter, priorityFilter, dateFrom, dateTo])
+  }, [statusFilter, categoryFilter, priorityFilter, dateFrom, dateTo])
 
   async function loadReports(showSpinner = true) {
     try {
@@ -611,16 +602,7 @@ evidenceUrls: extractEvidenceUrls(row),
   }, [])
 
   const filteredReports = useMemo(() => {
-    const query = search.trim().toLowerCase()
-
     return reports.filter((report) => {
-      const matchesSearch =
-        !query ||
-        report.residentName.toLowerCase().includes(query) ||
-        report.category.toLowerCase().includes(query) ||
-        report.trackingNumber.toLowerCase().includes(query) ||
-        report.id.toLowerCase().includes(query)
-
       const matchesStatus = statusFilter === 'all' || report.status === statusFilter
       const matchesCategory = categoryFilter === 'all' || report.categoryKey === categoryFilter
       const matchesPriority = priorityFilter === 'all' || report.priority === priorityFilter
@@ -639,9 +621,9 @@ evidenceUrls: extractEvidenceUrls(row),
         return true
       })()
 
-      return matchesSearch && matchesStatus && matchesCategory && matchesPriority && matchesDateRange
+      return matchesStatus && matchesCategory && matchesPriority && matchesDateRange
     })
-  }, [categoryFilter, dateFrom, dateTo, priorityFilter, reports, search, statusFilter])
+  }, [categoryFilter, dateFrom, dateTo, priorityFilter, reports, statusFilter])
 
   const paginatedReports = useMemo(() => {
     const start = (currentPage - 1) * pageSize
@@ -890,10 +872,6 @@ evidenceUrls: extractEvidenceUrls(row),
     } finally {
       setSavingAction(false)
     }
-  }
-
-  async function archiveReport(report: ResidentReportRow) {
-    setArchiveTarget(report)
   }
 
   async function confirmArchive() {

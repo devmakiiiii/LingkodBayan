@@ -20,7 +20,6 @@ import {
   isCaptainDesignation,
   getDesignationBadgeColor,
 } from '@/lib/governance'
-import { formatDate } from '@/lib/format-date'
 
 type OfficialRow = OfficialRecord & {
   designation?: DesignationRecord | null

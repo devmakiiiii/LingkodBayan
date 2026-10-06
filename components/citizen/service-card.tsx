@@ -2,7 +2,6 @@
 
 import { Button } from '@/components/ui/button'
 import { FileText, CheckCircle, Briefcase, Award, Heart, Clock, PhilippinePeso } from 'lucide-react'
-import Link from 'next/link'
 import { formatServiceFee, getServiceTypeLabel, NOT_SPECIFIED } from '@/lib/charter-services'
 
 interface ServiceCardProps {

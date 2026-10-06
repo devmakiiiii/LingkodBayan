@@ -11,17 +11,6 @@ import { getAnnouncementCategoryColor } from '@/lib/announcement-categories'
 import { sanitizeRichText } from '@/lib/html-sanitize'
 import { AnnouncementImage } from '@/components/announcement-image'
 
-interface Announcement {
-  id: string
-  title: string
-  content: string
-  category: string
-  created_at: string
-  updated_at?: string | null
-  published_at?: string | null
-  image_url?: string | null
-}
-
 const formatDate = (dateString: string) => {
   return new Date(dateString).toLocaleDateString('en-US', {
     year: 'numeric',

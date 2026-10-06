@@ -136,7 +136,7 @@ function countStatusDistribution(requests: RequestReportRow[], complaints: Compl
   return counts
 }
 
-export function AnalyticsCharts({ requests, complaints, officials, trendView, onTrendViewChange }: AnalyticsChartsProps) {
+export function AnalyticsCharts({ requests, complaints, trendView, onTrendViewChange }: AnalyticsChartsProps) {
   const { resolvedTheme } = useTheme()
   const requestsByType = React.useMemo(
     () =>

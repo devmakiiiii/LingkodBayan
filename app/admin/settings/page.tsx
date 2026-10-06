@@ -59,7 +59,7 @@ export default function AdminSettingsPage() {
   const supabase = createClient()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [settings, setSettings] = useState<SystemSettings>({})
+  const [, setSettings] = useState<SystemSettings>({})
   const [loadError, setLoadError] = useState<string | null>(null)
 
   // Form states — the barangay name is a fixed system constant, so the form is

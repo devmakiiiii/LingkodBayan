@@ -13,14 +13,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  NoCloseDialog,
-} from '@/components/ui/dialog'
+import { DialogTitle, NoCloseDialog, DialogContent, DialogDescription, DialogHeader } from '@/components/ui/dialog'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -116,7 +109,6 @@ function getPrintableStatement(request: RequestRecord) {
   const businessName = getRequestFieldValue(request, 'businessName') || '[Business Name]'
   const ownerName = getRequestFieldValue(request, 'ownerName') || fullName
   const businessAddress = getRequestFieldValue(request, 'businessAddress') || '[Business Address]'
-  const submittedDate = request.created_at ? formatDate(request.created_at) : '[Date]'
 
   switch (request.request_type) {
     case 'barangay-clearance':

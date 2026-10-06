@@ -79,7 +79,8 @@ function adminMetadata() {
 async function findUserByEmail(email) {
   let page = 1
   const perPage = 100
-  // eslint-disable-next-line no-constant-condition
+  // While-loop with explicit page advance is the documented pagination pattern
+  // for admin.listUsers; the constant condition is intentional here.
   while (true) {
     const { data, error } = await supabase.auth.admin.listUsers({
       page,

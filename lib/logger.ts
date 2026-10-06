@@ -70,11 +70,11 @@ export function createLogger(context: string) {
 export const logger = {
   debug: (message: string, data?: Record<string, unknown>) => {
     if (!shouldLog('debug')) return
-    console.debug(formatLog({ level: 'debug', message, timestamp: new Date().toISOString() }))
+    console.debug(formatLog({ level: 'debug', message, timestamp: new Date().toISOString(), context: data }))
   },
   info: (message: string, data?: Record<string, unknown>) => {
     if (!shouldLog('info')) return
-    console.info(formatLog({ level: 'info', message, timestamp: new Date().toISOString() }))
+    console.info(formatLog({ level: 'info', message, timestamp: new Date().toISOString(), context: data }))
   },
   warn: (message: string, data?: Record<string, unknown>, error?: unknown) => {
     if (!shouldLog('warn')) return

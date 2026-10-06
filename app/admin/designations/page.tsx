@@ -6,7 +6,6 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Empty } from '@/components/ui/empty'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -15,7 +14,6 @@ import { toast } from 'sonner'
 import { DesignationActions, type DesignationRecord } from '@/components/admin/designations-actions'
 import { getDesignationCategoryShortLabel, getDesignationBadgeColor } from '@/lib/governance'
 import { logAdminActionClient } from '@/lib/audit-log-client'
-import { formatDate } from '@/lib/format-date'
 
 const defaultDesignations = [
   { name: 'Barangay Captain', category: 'barangay', rank: 1 },

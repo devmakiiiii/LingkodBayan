@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { LogOut, Menu, X, Home, FileText, AlertCircle, Megaphone, Plus, Bell, Loader2, ShieldCheck, Sun, Moon, MessageSquare, Building2, Users, PackageCheck, Settings } from 'lucide-react'
+import { LogOut, Menu, X, Home, FileText, AlertCircle, Megaphone, Plus, Bell, Loader2, ShieldCheck, MessageSquare, Building2, Users, PackageCheck, Settings } from 'lucide-react'
 import {
   Dialog,
   DialogContent,

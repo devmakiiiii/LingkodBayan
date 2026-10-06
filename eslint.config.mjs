@@ -27,6 +27,9 @@ const eslintConfig = [
       // React Compiler's set-state-in-effect rule flags many legitimate
       // dashboard fetch patterns; track as warnings until they are refactored.
       'react-hooks/set-state-in-effect': 'off',
+      // Intentionally-unused parameters (kept for call-site compatibility) must
+      // be prefixed with `_`; everything else stays a visible warning.
+      '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
       // The compiler rule flags safe legacy patterns; keep them visible
       // without blocking CI until the affected call sites are refactored.
     },

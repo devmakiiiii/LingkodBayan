@@ -3,8 +3,6 @@
 import { useEffect, useState } from 'react'
 import { createClient, hasSupabaseConfig } from '@/lib/supabase/client'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { AlertTriangle, BarChart3, CalendarRange, FileText, Users } from 'lucide-react'
 import { AnalyticsCharts } from '@/components/admin/analytics-charts'

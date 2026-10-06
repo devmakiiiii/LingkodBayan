@@ -9,7 +9,7 @@ import { Empty } from '@/components/ui/empty'
 import Link from 'next/link'
 import { Clock, Eye, CheckCircle2 } from 'lucide-react'
 import { getOrCreateResidentProfile } from '@/lib/residents'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, NoCloseDialog } from '@/components/ui/dialog'
+import { DialogContent, DialogDescription, DialogHeader, DialogTitle, NoCloseDialog } from '@/components/ui/dialog'
 import {
   RequestDetails,
 } from '@/components/request/request-details'

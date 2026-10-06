@@ -21,7 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { AlertCircle, CheckCircle2, Clock, User, FileText, ExternalLink } from 'lucide-react'
+import { FileText } from 'lucide-react'
 import { toast } from 'sonner'
 import {
   Dialog,
@@ -87,7 +87,6 @@ export default function AdminVerificationPage() {
   const [selectedAttempt, setSelectedAttempt] = useState<VerificationAttempt | null>(null)
   const [reviewNotes, setReviewNotes] = useState('')
   const [rejectionReason, setRejectionReason] = useState('')
-  const [isUpdating, setIsUpdating] = useState(false)
 
   async function fetchAttempts() {
     try {
@@ -106,21 +105,6 @@ export default function AdminVerificationPage() {
   useEffect(() => {
     fetchAttempts()
   }, [])
-
-  function getStatusIcon(status: string) {
-    switch (status) {
-      case 'matched':
-        return <CheckCircle2 className="h-4 w-4 text-green-500" />
-      case 'no_match':
-        return <AlertCircle className="h-4 w-4 text-gray-500 dark:text-muted-foreground" />
-      case 'needs_review':
-        return <Clock className="h-4 w-4 text-yellow-500" />
-      case 'rejected':
-        return <AlertCircle className="h-4 w-4 text-red-500" />
-      default:
-        return <AlertCircle className="h-4 w-4" />
-    }
-  }
 
   function getStatusBadge(status: string) {
     const variant = {
@@ -380,7 +364,6 @@ export default function AdminVerificationPage() {
 
   async function handleReviewSubmit(status: 'matched' | 'rejected') {
     if (!selectedAttempt) return
-    setIsUpdating(true)
     try {
       const verificationStatus =
         status === 'matched'
@@ -411,8 +394,6 @@ export default function AdminVerificationPage() {
     } catch (err) {
       console.error('Error updating verification:', err)
       toast.error('Failed to update verification status')
-    } finally {
-      setIsUpdating(false)
     }
   }
 }

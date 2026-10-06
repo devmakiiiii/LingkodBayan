@@ -11,6 +11,8 @@ import { BARANGAY_CITY, BARANGAY_DISPLAY_NAME } from '@/lib/barangay'
 
 const _geist = Geist({ subsets: ["latin"], display: "swap" });
 const _geistMono = Geist_Mono({ subsets: ["latin"], display: "swap" });
+void _geist;
+void _geistMono;
 
 export const metadata: Metadata = {
   title: 'LingkodBayan',
