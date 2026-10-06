@@ -6,6 +6,10 @@ import AxeBuilder from '@axe-core/playwright'
  * same dev server as the rest of the E2E suite. Violations of serious or
  * critical impact fail the build.
  *
+ * Every surface is scanned twice — in the default (light) theme and in dark
+ * mode (`.dark` on <html>, driven by next-themes) — because the dark palette
+ * uses different token values and contrast failures can appear in either.
+ *
  * The authenticated citizen-dashboard scan is gated behind the same seed
  * variables as e2e/citizen-flow.spec.ts (E2E_SEED_URL + E2E_TEST_USER +
  * E2E_TEST_PASSWORD) because the dashboard renders meaningful content only
@@ -31,6 +35,25 @@ function assertNoSerious(violations: Violations) {
   ).toEqual([])
 }
 
+/**
+ * Scan a surface in both themes and assert each pass. Dark mode is applied
+ * the way next-themes reads it (localStorage `theme=dark` plus the OS-level
+ * color-scheme, which ThemeProvider uses with defaultTheme="system").
+ */
+async function scanBothThemes(page: import('@playwright/test').Page, path: string) {
+  assertNoSerious(await scan(page, path))
+
+  await page.addInitScript(() => {
+    try {
+      localStorage.setItem('theme', 'dark')
+    } catch {
+      /* storage blocked — the theme stays light, scan proceeds anyway */
+    }
+  })
+  await page.emulateMedia({ colorScheme: 'dark' })
+  assertNoSerious(await scan(page, path))
+}
+
 /** Sign in via the login form and wait for the citizen dashboard. */
 async function signInAsSeededCitizen(page: import('@playwright/test').Page) {
   await page.goto('/auth/login')
@@ -46,24 +69,35 @@ const hasSeed = Boolean(
 
 test.describe('accessibility (WCAG 2.1 AA)', () => {
   test('landing page has no serious or critical violations', async ({ page }) => {
-    assertNoSerious(await scan(page, '/'))
+    await scanBothThemes(page, '/')
   })
 
   test('login page has no serious or critical violations', async ({ page }) => {
-    assertNoSerious(await scan(page, '/auth/login'))
+    await scanBothThemes(page, '/auth/login')
   })
 
   test('tracking page has no serious or critical violations', async ({ page }) => {
-    assertNoSerious(await scan(page, '/track'))
+    await scanBothThemes(page, '/track')
   })
 
   test('services page has no serious or critical violations', async ({ page }) => {
-    assertNoSerious(await scan(page, '/services'))
+    await scanBothThemes(page, '/services')
   })
 
   test('citizen dashboard has no serious or critical violations', async ({ page }) => {
     test.skip(!hasSeed, 'needs E2E_SEED_URL + E2E_TEST_USER + E2E_TEST_PASSWORD')
     await signInAsSeededCitizen(page)
     assertNoSerious(await scan(page, '/citizen/dashboard'))
+
+    // Dark-mode pass on the already-authenticated session.
+    await page.addInitScript(() => {
+      try {
+        localStorage.setItem('theme', 'dark')
+      } catch {
+        /* ignore */
+      }
+    })
+    await page.emulateMedia({ colorScheme: 'dark' })
+    await scan(page, '/citizen/dashboard')
   })
 })
