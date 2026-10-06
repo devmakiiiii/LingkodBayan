@@ -60,7 +60,7 @@ scripts/
 
 ## Prerequisites
 
-- Node.js 18 or later
+- Node.js 22 (CI runs on Node 22; `.ts` test files require it)
 - pnpm
 - A Supabase project
 
