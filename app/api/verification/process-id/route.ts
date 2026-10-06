@@ -17,6 +17,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { getOcrJob, setOcrJob } from '@/lib/verification-jobs'
 import { processIdVerificationSchema } from '@/lib/schemas'
 import { verifyRequest } from '@/lib/request-security'
+import { durableRateLimit } from '@/lib/rate-limit-durable'
 import { logger } from '@/lib/logger'
 
 const ocrJobs = { getOcrJob, setOcrJob }
@@ -46,6 +47,22 @@ export async function POST(request: NextRequest) {
 
   if (!user) {
     return NextResponse.json({ error: 'Authentication required.' }, { status: 401 })
+  }
+
+  // OCR is the most expensive operation on the public surface (external
+  // tesseract invocation per request). Durable limiter keyed per user so the
+  // counter survives cold starts, mirroring the upload-id daily cap.
+  const clientIp =
+    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
+  const ocrRateLimit = await durableRateLimit(`verification-ocr:${user.id}:${clientIp}`, {
+    intervalMs: 10 * 60 * 1000,
+    limit: 10,
+  })
+  if (!ocrRateLimit.allowed) {
+    return NextResponse.json(
+      { error: 'Too many ID verification attempts. Please try again later.' },
+      { status: 429 },
+    )
   }
 
   try {

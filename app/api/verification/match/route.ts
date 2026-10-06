@@ -10,12 +10,30 @@ import {
 } from '@/lib/verification'
 import { findPreRegisteredCandidates } from '@/lib/db'
 import { verifyRequest } from '@/lib/request-security'
+import { durableRateLimit } from '@/lib/rate-limit-durable'
 import { logger } from '@/lib/logger'
 
 export async function POST(request: NextRequest) {
   const securityCheck = verifyRequest(request)
   if (!securityCheck.valid) {
     return NextResponse.json({ error: 'Invalid request origin' }, { status: 403 })
+  }
+
+  // The match endpoint probes pre-registered resident data by email, phone,
+  // and national ID before any account exists, so it is a data-enumeration
+  // target. Same shape as the sign-up OTP limiter: durable (Postgres) so the
+  // counter survives cold starts, keyed per client IP.
+  const clientIp =
+    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
+  const matchRateLimit = await durableRateLimit(`verification-match:${clientIp}`, {
+    intervalMs: 10 * 60 * 1000,
+    limit: 10,
+  })
+  if (!matchRateLimit.allowed) {
+    return NextResponse.json(
+      { error: 'Too many verification attempts. Please try again later.' },
+      { status: 429 },
+    )
   }
 
   const supabase = createAdminClient()
