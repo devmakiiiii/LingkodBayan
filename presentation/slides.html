@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LingkodBayan — System Presentation</title>
+<style>
+  :root {
+    --bg: #0f172a;
+    --card: #1e293b;
+    --accent: #38bdf8;
+    --accent2: #22c55e;
+    --text: #e2e8f0;
+    --muted: #94a3b8;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    overflow: hidden;
+  }
+  .slide {
+    display: none;
+    position: absolute;
+    inset: 0;
+    padding: 6vh 8vw;
+    flex-direction: column;
+    justify-content: center;
+    animation: fade 0.35s ease;
+  }
+  .slide.active { display: flex; }
+  @keyframes fade { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+  h1 { font-size: 3.2rem; line-height: 1.1; margin-bottom: 1rem; color: var(--accent); }
+  h2 { font-size: 2.2rem; margin-bottom: 2rem; color: var(--accent); }
+  h2 .num { color: var(--muted); font-weight: 400; margin-right: 0.6rem; }
+  p, li { font-size: 1.25rem; line-height: 1.65; color: var(--text); }
+  .subtitle { font-size: 1.4rem; color: var(--muted); margin-bottom: 2rem; }
+  ul { margin-left: 1.4rem; }
+  li { margin-bottom: 0.7rem; }
+  li strong, p strong { color: var(--accent); }
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; }
+  .card {
+    background: var(--card);
+    border: 1px solid #334155;
+    border-radius: 14px;
+    padding: 1.4rem 1.6rem;
+  }
+  .card h3 { color: var(--accent2); font-size: 1.25rem; margin-bottom: 0.8rem; }
+  .card ul { margin-left: 1.1rem; }
+  .card li { font-size: 1.05rem; margin-bottom: 0.45rem; }
+  .tag {
+    display: inline-block;
+    background: #164e63;
+    color: #67e8f9;
+    border-radius: 999px;
+    padding: 0.2rem 0.8rem;
+    font-size: 0.95rem;
+    margin: 0.2rem 0.25rem 0.2rem 0;
+  }
+  .fsm {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.7rem;
+    flex-wrap: wrap;
+    font-size: 1.2rem;
+    margin-top: 1.2rem;
+  }
+  .state {
+    border-radius: 999px;
+    padding: 0.6rem 1.3rem;
+    font-weight: 600;
+    border: 2px solid var(--accent);
+    background: #0c4a6e;
+  }
+  .state.terminal { border-color: var(--accent2); background: #14532d; }
+  .arrowtxt { color: var(--muted); font-size: 1rem; text-align: center; }
+  table { border-collapse: collapse; width: 100%; font-size: 1.05rem; }
+  th, td { border: 1px solid #334155; padding: 0.6rem 0.9rem; text-align: left; }
+  th { background: var(--card); color: var(--accent); }
+  td:first-child { color: var(--accent2); font-weight: 600; }
+  .footer {
+    position: fixed;
+    bottom: 1.1rem;
+    left: 0;
+    right: 0;
+    display: flex;
+    justify-content: space-between;
+    padding: 0 2rem;
+    font-size: 0.9rem;
+    color: var(--muted);
+    pointer-events: none;
+  }
+  .hint { position: fixed; top: 1rem; right: 1.5rem; font-size: 0.85rem; color: var(--muted); }
+  code {
+    background: #334155;
+    padding: 0.1rem 0.4rem;
+    border-radius: 5px;
+    font-size: 0.95em;
+    color: #fbbf24;
+  }
+</style>
+</head>
+<body>
+
+<div class="hint">← → arrows to navigate</div>
+
+<!-- Slide 1 -->
+<section class="slide active">
+  <h1>LingkodBayan</h1>
+  <p class="subtitle">A Civic Services Portal for Connecting Citizens with Local Government</p>
+  <div>
+    <span class="tag">Next.js 16</span><span class="tag">React 19</span><span class="tag">TypeScript</span><span class="tag">Supabase</span><span class="tag">Vercel</span>
+  </div>
+  <p style="margin-top:2rem; color:var(--muted);">Student Presentation · github.com/devmakiiiii/LingkodBayan</p>
+</section>
+
+<!-- Slide 2 -->
+<section class="slide">
+  <h2><span class="num">01</span>The Problem</h2>
+  <ul>
+    <li>Citizens must <strong>queue in person</strong> for simple services — water, waste, street repairs</li>
+    <li>Complaints have <strong>no transparent tracking</strong> — "did anyone even read it?"</li>
+    <li>Announcements reach residents <strong>inconsistently</strong></li>
+    <li>Admins manage everything with <strong>paper and spreadsheets</strong></li>
+  </ul>
+  <p style="margin-top:1.5rem;"><strong>Everything was paper-based, slow, and invisible to the resident.</strong></p>
+</section>
+
+<!-- Slide 3 -->
+<section class="slide">
+  <h2><span class="num">02</span>The Solution</h2>
+  <div class="cols">
+    <div class="card">
+      <h3>For Citizens</h3>
+      <ul>
+        <li>Request services &amp; file complaints online</li>
+        <li>Track status in real time</li>
+        <li>Read official announcements</li>
+        <li>Get notified (in-app + SMS)</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>For Administrators</h3>
+      <ul>
+        <li>One dashboard for all submissions</li>
+        <li>Process requests &amp; complaints</li>
+        <li>Manage residents &amp; announcements</li>
+        <li>Reports + full audit trail</li>
+      </ul>
+    </div>
+  </div>
+  <p style="margin-top:1.5rem; color:var(--muted);">Public users can also <strong>track submissions</strong> and read announcements <strong>without an account</strong>.</p>
+</section>
+
+<!-- Slide 4 -->
+<section class="slide">
+  <h2><span class="num">03</span>Roles &amp; Access Control</h2>
+  <table>
+    <tr><th>Role</th><th>Access</th><th>Enforcement</th></tr>
+    <tr><td>Public (guest)</td><td>Landing, announcements, tracking</td><td>Open routes</td></tr>
+    <tr><td>Citizen</td><td><code>/citizen/*</code> portal</td><td>Email OTP + ID verification</td></tr>
+    <tr><td>Admin</td><td><code>/admin/*</code> dashboard</td><td>Trusted <code>app_metadata</code> role</td></tr>
+  </table>
+  <p style="margin-top:1.5rem;">Two layers: <strong>middleware redirects</strong> at the HTTP layer + <strong>Row-Level Security</strong> inside the database — even bypassing the UI, a citizen can only query their own rows.</p>
+</section>
+
+<!-- Slide 5 -->
+<section class="slide">
+  <h2><span class="num">04</span>Citizen Features</h2>
+  <div class="cols">
+    <ul>
+      <li><strong>Dashboard</strong> — statistics &amp; recent activity</li>
+      <li><strong>Request a Service</strong> — water, waste, street, health, education</li>
+      <li><strong>File a Complaint</strong> — evidence upload + two-way messaging</li>
+      <li><strong>My Requests / Complaints</strong> — status tracking with SLA</li>
+      <li><strong>ID Verification</strong> — upload government ID, OCR processing</li>
+    </ul>
+    <ul>
+      <li><strong>Proxy Filing</strong> — authorize another resident to file for you</li>
+      <li><strong>Announcements</strong> — official LGU updates</li>
+      <li><strong>Document Pickups</strong> — request &amp; schedule release</li>
+      <li><strong>Notifications</strong> — in-app + SMS via Semaphore</li>
+      <li><strong>Feedback &amp; Settings</strong> — language, preferences</li>
+    </ul>
+  </div>
+</section>
+
+<!-- Slide 6 -->
+<section class="slide">
+  <h2><span class="num">05</span>Admin Features</h2>
+  <div class="cols">
+    <ul>
+      <li><strong>Dashboard &amp; Analytics</strong> — Leaflet heatmap of the barangay</li>
+      <li><strong>Requests / Complaints</strong> — process via allowed transitions</li>
+      <li><strong>Verification Queue</strong> — approve/reject resident IDs</li>
+      <li><strong>Residents Directory</strong> — residents, pre-registered, purok manifest</li>
+    </ul>
+    <ul>
+      <li><strong>Announcements</strong> — publish with images</li>
+      <li><strong>Officials &amp; Designations</strong></li>
+      <li><strong>Reports</strong> — Excel export via ExcelJS</li>
+      <li><strong>Audit Logs</strong> — every admin action recorded</li>
+    </ul>
+  </div>
+</section>
+
+<!-- Slide 7 -->
+<section class="slide">
+  <h2><span class="num">06</span>How a Request Flows</h2>
+  <div class="fsm" style="flex-direction:column; align-items:flex-start; gap:1rem;">
+    <div><span class="state">Sign up</span> <span class="arrowtxt">→</span> <span class="state">Email OTP</span> <span class="arrowtxt">→</span> <span class="state">Verify ID (OCR)</span> <span class="arrowtxt">→</span> <span class="state">Submit Request</span></div>
+    <div><span class="state">Supabase + RLS</span> <span class="arrowtxt">→</span> <span class="state">Admin Processes</span> <span class="arrowtxt">→</span> <span class="state">Notify (SMS)</span> <span class="arrowtxt">→</span> <span class="state terminal">Resolved</span></div>
+  </div>
+  <p style="margin-top:2rem;">Anyone can track progress publicly at <code>/track</code> with a reference number — <strong>no login required</strong>.</p>
+</section>
+
+<!-- Slide 8 -->
+<section class="slide">
+  <h2><span class="num">07</span>Architecture</h2>
+  <div class="fsm" style="flex-direction:column; gap:1.2rem; align-items:stretch;">
+    <div class="card" style="text-align:center;"><strong style="color:var(--accent);">Client</strong> — Browser: React 19, Tailwind, shadcn/ui</div>
+    <div class="arrowtxt" style="font-size:1.6rem;">↕ HTTP requests (middleware: auth · CSRF · rate limit)</div>
+    <div class="card" style="text-align:center;"><strong style="color:var(--accent);">Server</strong> — Next.js 16 App Router: API routes, server actions</div>
+    <div class="arrowtxt" style="font-size:1.6rem;">↕ Parameterized queries with Row-Level Security</div>
+    <div class="card" style="text-align:center;"><strong style="color:var(--accent);">Data</strong> — Supabase: Postgres + Auth + Storage</div>
+  </div>
+  <p style="margin-top:1.5rem; color:var(--muted);">External services: <strong>Semaphore</strong> (SMS) · <strong>Vercel</strong> (hosting + analytics)</p>
+</section>
+
+<!-- Slide 9 -->
+<section class="slide">
+  <h2><span class="num">08</span>Tech Stack</h2>
+  <div class="cols">
+    <div class="card">
+      <h3>Frontend</h3>
+      <ul>
+        <li>Next.js 16 (App Router)</li>
+        <li>React 19 + TypeScript</li>
+        <li>Tailwind CSS v4 + shadcn/ui</li>
+        <li>React Hook Form + Zod validation</li>
+        <li>Leaflet maps · TinyMCE editor</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Backend &amp; Ops</h3>
+      <ul>
+        <li>Supabase — Postgres, Auth, Storage</li>
+        <li>Row-Level Security policies</li>
+        <li>Semaphore SMS (optional)</li>
+        <li>Vercel deployment (GitHub CI)</li>
+        <li>Playwright + Node test runner</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- Slide 10 -->
+<section class="slide">
+  <h2><span class="num">09</span>CS Concept: Finite State Machine</h2>
+  <p><code>lib/status-machine.ts</code> — lifecycles modeled as <strong>deterministic finite automata</strong>: states, initial state, terminal states, transition relation.</p>
+  <div class="fsm">
+    <span class="state">pending</span>
+    <span class="arrowtxt">──▶</span>
+    <span class="state">processing</span>
+    <span class="arrowtxt">──▶</span>
+    <span class="state terminal">approved</span>
+    <span class="arrowtxt">──▶</span>
+    <span class="state terminal">rejected</span>
+  </div>
+  <p style="margin-top:1.5rem;">The UI only offers <strong>legal transitions</strong>; the server rejects illegal ones (e.g. <code>approved → pending</code>). One authoritative guard for server actions, API routes, and UI. Same pattern for <strong>complaints</strong> and <strong>feedback</strong>.</p>
+</section>
+
+<!-- Slide 11 -->
+<section class="slide">
+  <h2><span class="num">10</span>CS Concept: Algorithms &amp; Data Structures</h2>
+  <div class="cols">
+    <div class="card">
+      <h3>Algorithms</h3>
+      <ul>
+        <li><strong>Levenshtein distance</strong> (DP, O(n×m)) — fuzzy name matching in ID verification</li>
+        <li><strong>NYSIIS phonetic matching</strong> — name variations</li>
+        <li><strong>Weighted scoring</strong> — auto-verify vs. needs-review</li>
+        <li><strong>Rate limiting</strong> — fixed-window counters (Postgres-durable)</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Data Structures</h3>
+      <ul>
+        <li><strong>HashMap</strong> — O(1) rate-limit counters, resident lookups</li>
+        <li><strong>HashSet</strong> — XSS allowlist, allowed transitions</li>
+        <li><strong>Job queue</strong> — Postgres-backed OCR jobs + polling</li>
+        <li><strong>TTL cleanup</strong> — DB trigger auto-deletes expired PII rows</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- Slide 12 -->
+<section class="slide">
+  <h2><span class="num">11</span>CS Concept: Security Layers</h2>
+  <ul>
+    <li><strong>Cryptography</strong> — AES-GCM encryption (random IV), SHA-256 key derivation, bcrypt hashing, CSPRNG tokens</li>
+    <li><strong>CSRF protection</strong> — 32-byte double-submit tokens; header must match cookie → else HTTP 403</li>
+    <li><strong>RBAC</strong> — roles read only from <code>app_metadata</code> (users cannot self-promote to admin)</li>
+    <li><strong>Row-Level Security</strong> — enforced inside the database, not just the UI</li>
+    <li><strong>Rate limiting</strong> — fixed-window counters, durable in Postgres (survives serverless cold starts)</li>
+    <li><strong>XSS defense</strong> — HTML tag/attribute allowlist sanitizer</li>
+    <li><strong>PII hygiene</strong> — DB trigger auto-deletes expired OCR rows (TTL / garbage collection)</li>
+  </ul>
+</section>
+
+<!-- Slide 13 -->
+<section class="slide">
+  <h2><span class="num">12</span>Testing &amp; Quality</h2>
+  <div class="cols">
+    <ul>
+      <li><strong>Unit tests</strong> — <code>pnpm test</code> (Node test runner on <code>lib/**/*.test.ts</code>)</li>
+      <li><strong>E2E tests</strong> — Playwright: landing, auth guards, public tracking, citizen flows</li>
+    </ul>
+    <ul>
+      <li><strong>Accessibility</strong> — axe-core WCAG 2.1 AA scan; serious violations fail the build</li>
+      <li><strong>CI/CD</strong> — GitHub Actions on Node 22: lint, typecheck, build, test</li>
+    </ul>
+  </div>
+  <p style="margin-top:1.5rem; color:var(--muted);">Deployment: push to GitHub → connect to Vercel → set env vars → live.</p>
+</section>
+
+<!-- Slide 14 -->
+<section class="slide">
+  <h2><span class="num">13</span>Future Work &amp; Conclusion</h2>
+  <ul>
+    <li>Offline support via service worker (network-first caching already shipped)</li>
+    <li>Map-based request clustering on the Leaflet heatmap</li>
+    <li>Automated sync of the pre-registered resident roster</li>
+  </ul>
+  <p style="margin-top:2rem; font-size:1.4rem;">LingkodBayan turns a paper-based barangay workflow into a <strong>transparent, secure, and accessible</strong> digital service — built on core CS foundations: <strong>finite state machines, dynamic programming, cryptography, and access-control theory</strong>.</p>
+  <p style="margin-top:1.5rem; color:var(--accent2); font-size:1.6rem;"><strong>Thank you!</strong></p>
+</section>
+
+<div class="footer">
+  <span>LingkodBayan — Civic Services Portal</span>
+  <span id="counter">1 / 14</span>
+</div>
+
+<script>
+  const slides = document.querySelectorAll('.slide');
+  const counter = document.getElementById('counter');
+  let i = 0;
+  function show(n) {
+    slides[i].classList.remove('active');
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides[i].classList.add('active');
+    counter.textContent = (i + 1) + ' / ' + slides.length;
+  }
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') show(i + 1);
+    if (e.key === 'ArrowLeft' || e.key === 'PageUp') show(i - 1);
+    if (e.key === 'Home') show(0);
+    if (e.key === 'End') show(slides.length - 1);
+  });
+  document.addEventListener('click', (e) => {
+    if (e.clientX > window.innerWidth / 2) show(i + 1);
+    else show(i - 1);
+  });
+  counter.textContent = '1 / ' + slides.length;
+</script>
+
+</body>
+</html>

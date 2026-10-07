@@ -294,8 +294,11 @@ export default function Home() {
         </div>
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           <ThemeToggle className="text-gray-600 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-300 dark:hover:text-white dark:hover:bg-white/10" />
-          <Link href="/track" className="hidden sm:inline-block">
-            <Button variant="outline" className="border-gray-300 dark:border-input dark:border-border">Track a Submission</Button>
+          <Link href="/track" className="inline-block">
+            <Button variant="outline" className="border-gray-300 dark:border-input dark:border-border text-xs sm:text-sm px-2 sm:px-3">
+              <span className="hidden sm:inline">Track&nbsp;a&nbsp;Submission</span>
+              <span className="sm:inline">Track</span>
+            </Button>
           </Link>
           <Link href="/auth/login">
             <Button variant="outline" className="border-gray-300 dark:border-input dark:border-border">Login</Button>
