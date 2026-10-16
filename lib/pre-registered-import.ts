@@ -299,3 +299,286 @@ export function buildPreRegisteredImportRecord(
     },
   }
 }
+
+// ---------------------------------------------------------------------------
+// Header detection for barangay spreadsheets
+//
+// Office exports are not flat snake_case tables. The barangay's RBI form
+// ("Record of Barangay Inhabitants by Household", one sheet per purok) has a
+// title/metadata block, stacked multi-row headers ("DATE OF" above "BIRTH"),
+// numbering rows ("1.1"…"8") and human-readable labels ("LAST NAME").
+// `detectImportColumns` finds the header row, merges the stacked label rows
+// and resolves each column through an alias table so those files import
+// without manual reformatting. Plain CSVs with snake_case headers resolve on
+// the first row exactly as before.
+// ---------------------------------------------------------------------------
+
+/** A canonical import column name (one of IMPORT_COLUMNS). */
+export type ImportColumn = (typeof IMPORT_COLUMNS)[number]
+
+/** Lowercase and strip everything but letters/digits: "Last Name" → "lastname". */
+export function normalizeHeaderCell(value: string): string {
+  return (value ?? '').toLowerCase().replace(/[^a-z0-9]/g, '')
+}
+
+/** Human-readable header variants → canonical import columns. */
+const HEADER_ALIASES: Record<string, ImportColumn> = {
+  firstname: 'first_name',
+  givenname: 'first_name',
+  lastname: 'last_name',
+  surname: 'last_name',
+  apelyido: 'last_name',
+  middlename: 'middle_name',
+  middleinitial: 'middle_name',
+  dateofbirth: 'date_of_birth',
+  birthdate: 'date_of_birth',
+  dob: 'date_of_birth',
+  email: 'email',
+  emailaddress: 'email',
+  phone: 'phone',
+  phonenumber: 'phone',
+  mobileno: 'phone',
+  contactno: 'phone',
+  contactnumber: 'phone',
+  cellphone: 'phone',
+  streetaddress: 'street_address',
+  streetname: 'street_address',
+  street: 'street_address',
+  addressline1: 'street_address',
+  completeaddress: 'street_address',
+  address: 'street_address',
+  barangay: 'barangay',
+  citymunicipality: 'city_municipality',
+  city: 'city_municipality',
+  municipality: 'city_municipality',
+  province: 'province',
+  postalcode: 'postal_code',
+  zip: 'postal_code',
+  zipcode: 'postal_code',
+  nationalid: 'national_id',
+  idnumber: 'national_id',
+  idtype: 'id_type',
+}
+
+/**
+ * Columns that only hold a fragment of the address. House-number style
+ * columns ("NO.", "House No.") are placed before the street name and
+ * sitio/purok/zone columns after it, matching Philippine address order:
+ * "6, Albay St., Purok 2".
+ */
+const ADDRESS_PREFIX_KEYS = new Set(['no', 'houseno', 'housenumber', 'lotno', 'unitno'])
+const ADDRESS_SUFFIX_KEYS = new Set(['purok', 'sitio', 'zone', 'subdivision', 'village'])
+
+type ColumnRole =
+  | { kind: 'field'; field: ImportColumn }
+  | { kind: 'address-part'; position: 'prefix' | 'suffix' }
+  | { kind: 'ignored' }
+
+function resolveFieldAlias(normalized: string): ImportColumn | null {
+  const exact = HEADER_ALIASES[normalized]
+  if (exact) return exact
+  // Stacked headers concatenate when merged ("NAME (1)" above "LAST NAME"
+  // becomes "name1lastname"), so also accept the longest alias the label
+  // ends with. Short keys (<= 4 chars, e.g. "city", "zip", "dob") stay
+  // exact-match only to avoid collisions like "electricity" ending in "city".
+  let best: ImportColumn | null = null
+  let bestKey = ''
+  for (const [key, field] of Object.entries(HEADER_ALIASES)) {
+    if (key.length >= 5 && normalized.endsWith(key) && key.length > bestKey.length) {
+      best = field
+      bestKey = key
+    }
+  }
+  return best
+}
+
+function resolveColumnRole(label: string): ColumnRole {
+  const normalized = normalizeHeaderCell(label)
+  if (!normalized) return { kind: 'ignored' }
+
+  const field = resolveFieldAlias(normalized)
+  if (field) return { kind: 'field', field }
+
+  if (ADDRESS_PREFIX_KEYS.has(normalized)) return { kind: 'address-part', position: 'prefix' }
+  if (ADDRESS_SUFFIX_KEYS.has(normalized)) return { kind: 'address-part', position: 'suffix' }
+  // Stacked sitio/purok labels arrive messy ("NAME OF SB DIVISION/ZONE"
+  // merged with "SITIO/PUROK(if applicable)"), so part keys also match by
+  // containment. Prefix keys stay exact-only: "E. HOUSEHOLD NO.:" in the
+  // metadata block must never be read as a house number.
+  for (const key of ADDRESS_SUFFIX_KEYS) {
+    if (normalized.includes(key)) return { kind: 'address-part', position: 'suffix' }
+  }
+  return { kind: 'ignored' }
+}
+
+/** How far below the first row we look for the header anchor row. */
+const HEADER_SCAN_ROWS = 15
+/** Maximum stacked label rows merged into the header. */
+const MAX_LABEL_ROWS = 5
+/** Maximum rows walked below the anchor before forcing the data section. */
+const MAX_HEADER_WALK = 8
+
+function cellText(value: string | undefined): string {
+  return (value ?? '').trim()
+}
+
+function isBlankRow(row: string[]): boolean {
+  return row.every((cell) => cellText(cell) === '')
+}
+
+/** The "1.1" … "8" ruler row under stacked headers carries no data. */
+function isNumberingRow(row: string[]): boolean {
+  const filled = row.map(cellText).filter((cell) => cell !== '')
+  return filled.length > 0 && filled.every((cell) => /^\d+(\.\d+)?$/.test(cell))
+}
+
+/** Resolved header → data-row layout for an uploaded CSV/Excel file. */
+export type ImportColumnPlan = {
+  /** Index (into the rows matrix) of the header anchor row. */
+  headerRowIndex: number
+  /** Index of the first data row; everything before it is header/metadata. */
+  dataRowIndex: number
+  /** Canonical import field → column index. */
+  fieldColumns: Map<ImportColumn, number>
+  /** Columns folded in front of / after the street name in street_address. */
+  addressPrefixColumns: number[]
+  addressSuffixColumns: number[]
+  /** Merged header labels, per column, for error messages. */
+  headerLabels: string[]
+  /** Required fields the headers did not resolve to. */
+  missingRequired: ImportColumn[]
+}
+
+/**
+ * Locate and resolve the header of an uploaded file.
+ *
+ * The anchor row is the row in the scan window that resolves the most import
+ * fields. Stacked label rows directly below it ("BIRTH" completing
+ * "DATE OF", "SITIO/PUROK(if applicable)") are merged in while they either
+ * complete a new field or carry no values under columns already resolved as
+ * data. Numbering and blank rows are skipped. The first row that does not
+ * extend the header becomes the start of the data section.
+ */
+export function detectImportColumns(rows: string[][]): ImportColumnPlan {
+  const scanEnd = Math.min(rows.length, HEADER_SCAN_ROWS)
+
+  let headerRowIndex = 0
+  let bestScore = -1
+  for (let i = 0; i < scanEnd; i++) {
+    const seen = new Set<ImportColumn>()
+    for (const cell of rows[i] ?? []) {
+      const role = resolveColumnRole(cell)
+      if (role.kind === 'field' && !seen.has(role.field)) seen.add(role.field)
+    }
+    if (seen.size > bestScore) {
+      bestScore = seen.size
+      headerRowIndex = i
+    }
+  }
+
+  const labels = (rows[headerRowIndex] ?? []).map(cellText)
+  let mergedLabelRows = 0
+  let dataRowIndex = rows.length
+
+  const walkEnd = Math.min(rows.length, headerRowIndex + 1 + MAX_HEADER_WALK)
+  for (let j = headerRowIndex + 1; j < walkEnd; j++) {
+    const row = rows[j] ?? []
+    if (isBlankRow(row) || isNumberingRow(row)) continue
+    if (mergedLabelRows >= MAX_LABEL_ROWS) {
+      dataRowIndex = j
+      break
+    }
+
+    const trial = labels.slice()
+    for (let col = 0; col < Math.max(trial.length, row.length); col++) {
+      const fragment = cellText(row[col])
+      if (!fragment) continue
+      const existing = trial[col] ?? ''
+      if (existing.includes(fragment)) continue
+      trial[col] = existing ? `${existing} ${fragment}` : fragment
+    }
+
+    // A row continues the header when merging it completes a new field, or
+    // when it holds nothing under the columns already resolved as data —
+    // the stacked-label case where e.g. "DATE" + "OF" + "BIRTH" spans rows.
+    let extendsHeader = false
+    let valuesUnderResolvedColumns = false
+    for (let col = 0; col < Math.max(labels.length, trial.length); col++) {
+      const before = resolveColumnRole(labels[col] ?? '')
+      const after = resolveColumnRole(trial[col] ?? '')
+      if (after.kind === 'field' && (before.kind !== 'field' || before.field !== after.field)) {
+        extendsHeader = true
+      }
+      if (before.kind !== 'ignored' && col < row.length && cellText(row[col]) !== '') {
+        valuesUnderResolvedColumns = true
+      }
+    }
+
+    if (!extendsHeader && valuesUnderResolvedColumns) {
+      dataRowIndex = j
+      break
+    }
+
+    labels.splice(0, labels.length, ...trial)
+    mergedLabelRows += 1
+  }
+
+  const fieldColumns = new Map<ImportColumn, number>()
+  const addressPrefixColumns: number[] = []
+  const addressSuffixColumns: number[] = []
+  labels.forEach((label, col) => {
+    const role = resolveColumnRole(label)
+    if (role.kind === 'field') {
+      if (!fieldColumns.has(role.field)) fieldColumns.set(role.field, col)
+    } else if (role.kind === 'address-part') {
+      const bucket = role.position === 'prefix' ? addressPrefixColumns : addressSuffixColumns
+      bucket.push(col)
+    }
+  })
+
+  return {
+    headerRowIndex,
+    dataRowIndex,
+    fieldColumns,
+    addressPrefixColumns,
+    addressSuffixColumns,
+    headerLabels: labels,
+    missingRequired: REQUIRED_IMPORT_COLUMNS.filter((col) => !fieldColumns.has(col)),
+  }
+}
+
+/**
+ * Extract the raw import fields for one data row using a column plan.
+ *
+ * When house-number / sitio-purok fragment columns were detected they are
+ * folded into street_address in Philippine address order:
+ * "6, Albay St., Purok 2". Files without such fragments keep the street
+ * column byte-for-byte.
+ */
+export function buildRawRecordFromRow(
+  row: string[],
+  plan: ImportColumnPlan,
+): Record<string, string> {
+  const raw: Record<string, string> = {}
+  for (const col of IMPORT_COLUMNS) {
+    const idx = plan.fieldColumns.get(col)
+    if (idx !== undefined && idx < row.length) raw[col] = row[idx]
+  }
+
+  const hasAddressParts =
+    plan.addressPrefixColumns.length > 0 || plan.addressSuffixColumns.length > 0
+  if (hasAddressParts) {
+    const streetIdx = plan.fieldColumns.get('street_address')
+    const composed = [
+      ...plan.addressPrefixColumns,
+      ...(streetIdx !== undefined ? [streetIdx] : []),
+      ...plan.addressSuffixColumns,
+    ]
+      .map((col) => cellText(row[col]))
+      .filter(Boolean)
+      .join(', ')
+    if (composed) raw.street_address = composed
+  }
+
+  return raw
+}

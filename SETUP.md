@@ -56,6 +56,71 @@ The following environment variables are automatically configured by Supabase:
 - `POSTGRES_URL`
 - Database credentials
 
+**Two-Environment Setup**
+
+LingkodBayan uses separate databases for production and testing:
+
+**Development Environment (.env.local):**
+```env
+NEXT_PUBLIC_SUPABASE_URL=your-dev-project.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-dev-anon-key
+SUPABASE_SERVICE_ROLE_KEY=your-dev-service-key
+```
+
+**Testing Environment (.env.test):**
+```env
+NEXT_PUBLIC_SUPABASE_URL=your-testing-project.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-testing-anon-key
+SUPABASE_SERVICE_ROLE_KEY=your-testing-service-key
+```
+
+**Production Environment (Vercel Project Settings):**
+```env
+NEXT_PUBLIC_SUPABASE_URL=your-production-project.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-production-anon-key
+SUPABASE_SERVICE_ROLE_KEY=your-production-service-key
+```
+
+Each environment uses a separate Supabase project with its own database and credentials. The testing environment is used for CI/CD pipelines and development testing, while the production environment is used for live deployments.
+
+**Testing Database Setup**
+
+For CI/CD and automated testing, create a testing Supabase project and seed it with test data:
+
+```bash
+# Clone production database schema
+node scripts/migrate.js > sql_output.sql
+
+# Import into testing Supabase project
+# Go to https://app.supabase.com -> SQL Editor -> New Query -> Paste SQL -> Run
+
+# Seed with test data (requires TEST_ environment variables)
+TEST_SUPABASE_URL=your-testing-project.supabase.co
+TEST_SUPABASE_ANON_KEY=your-testing-anon-key
+TEST_SUPABASE_SERVICE_ROLE_KEY=your-testing-service-role-key
+node scripts/seed-test-database.js
+
+# Validate environments
+node scripts/validate-environments.js
+```
+
+**Test Data Accounts:**
+
+- **Test Citizen:** `citizen@test.com` / `Test123!` (verified resident)
+- **Test Admin:** `admin@test.com` (requires role: 'admin' in app metadata)
+
+**Database Migration Scripts**
+
+All migration scripts work for both environments. Use environment variables to target the desired database:
+
+```bash
+# Migrate testing database
+pnpm db:setup:test
+
+# Migrate production database
+pnpm db:setup:prod
+```
+
 ### 3. Authentication Flow
 
 **Citizen Sign-Up:**
@@ -66,11 +131,41 @@ The following environment variables are automatically configured by Supabase:
 5. User is assigned 'citizen' role
 6. Redirects to citizen dashboard
 
-**Supabase Email Template:**
+**Custom SMTP (required before editing email templates):**
+
+As of June 2026, Supabase **free-tier projects using the default Supabase SMTP can no
+longer modify auth email templates** — the templates are locked to the defaults. Since
+LingkodBayan requires the *Confirm signup* template to send a `{{ .Token }}` 6-digit code
+(see below), a new free-tier project **must configure custom SMTP first**, or sign-up
+OTP delivery will not work. Projects created before 3 June 2026 keep template editing
+on the default SMTP; paid plans are unaffected.
+
+Even without that restriction, the default SMTP is unsuitable for a live deployment:
+it only delivers to pre-authorized team member addresses, is limited to ~2 messages
+per hour, and has no delivery SLA.
+
+To configure custom SMTP (Project Settings -> Authentication -> SMTP, or
+Authentication -> Emails -> SMTP settings):
+
+1. Pick an SMTP provider with a free tier that fits a barangay's volume, e.g.:
+   - **Resend** (3,000 emails/month, 100/day free) — `smtp.resend.com`, port 465 (SSL) or 587 (STARTTLS)
+   - **Brevo** (9,000 emails/month, 300/day free) — `smtp-relay.brevo.com`, port 587 (STARTTLS)
+   - **Amazon SES** or **Postmark** for paid/production-grade sending
+2. Enable **Use custom SMTP server** and enter the host, port, username, password, and a
+   sender address from a domain you verified with the provider (set up SPF/DKIM there so
+   OTP emails do not land in spam).
+3. Save, then send a test message from the provider and confirm delivery before
+   continuing.
+
+**Supabase Email Template** (only editable once custom SMTP is active on new free projects):
 1. Open your Supabase project dashboard
 2. Go to Authentication -> Templates -> Confirm signup
 3. Replace the confirmation-link variable with the token variable so the email sends a numeric code
 4. Make sure the email body includes `{{ .Token }}` instead of `{{ .ConfirmationURL }}`
+
+The *Reset password* template can keep the default `{{ .ConfirmationURL }}` link — the
+app's forgot-password flow (`resetPasswordForEmail` in `app/actions/auth.ts`) follows
+that link to `/auth/reset-password`.
 
 **Citizen Login:**
 1. User logs in with email and password

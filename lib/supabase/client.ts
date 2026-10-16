@@ -1,23 +1,21 @@
 import { createBrowserClient } from '@supabase/ssr'
+import { getEnvConfig } from '../../env.config'
 
 export function hasSupabaseConfig() {
-  return Boolean(
-    process.env.NEXT_PUBLIC_SUPABASE_URL &&
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-  )
+  const config = getEnvConfig()
+  return Boolean(config.supabaseUrl && config.supabaseAnonKey)
 }
 
 function getSupabaseConfig() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  const config = getEnvConfig()
 
-  if (!url || !anonKey) {
+  if (!config.supabaseUrl || !config.supabaseAnonKey) {
     throw new Error(
-      'Supabase environment variables are missing. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in .env.local.',
+      `Supabase ${config.name} environment variables are missing. Set the appropriate environment variables for ${config.name} environment.`,
     )
   }
 
-  return { url, anonKey }
+  return { url: config.supabaseUrl, anonKey: config.supabaseAnonKey }
 }
 
 let browserClient: ReturnType<typeof createBrowserClient> | null = null

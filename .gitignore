@@ -43,3 +43,6 @@ _login_page.html
 
 # Generated print-map probe output (scripts/print-map-probe.ts writes this)
 public/print-probe/
+
+# Generated migration output (pnpm db:migrate writes this)
+sql_output.sql

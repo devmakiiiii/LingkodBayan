@@ -10,7 +10,12 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "node --test \"lib/**/*.test.ts\"",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:e2e:ci": "pnpm test:e2e",
+    "test:e2e:production": "E2E_SEED_URL=$NEXT_PUBLIC_SUPABASE_URL pnpm test:e2e",
+    "db:migrate": "node scripts/migrate.js > sql_output.sql",
+    "db:setup:prod": "node scripts/migrate.js | psql $POSTGRES_URL",
+    "db:setup:test": "node scripts/migrate.js | psql $TEST_POSTGRES_URL"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",

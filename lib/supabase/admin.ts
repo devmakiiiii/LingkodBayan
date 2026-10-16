@@ -1,18 +1,21 @@
 import 'server-only'
 
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
+import { getEnvConfig } from '../../env.config'
 
 function getAdminSupabaseConfig() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  const config = getEnvConfig()
 
-  if (!url || !serviceRoleKey) {
+  if (!config.supabaseUrl || !config.supabaseServiceRoleKey) {
     throw new Error(
-      'Supabase admin environment variables are missing. Set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in Vercel Project Settings, then redeploy.',
+      `Supabase ${config.name} environment variables are missing. Set the appropriate environment variables for ${config.name} environment.`,
     )
   }
 
-  return { url, serviceRoleKey }
+  return { 
+    url: config.supabaseUrl, 
+    serviceRoleKey: config.supabaseServiceRoleKey
+  }
 }
 
 export function createAdminClient() {

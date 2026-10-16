@@ -16,8 +16,11 @@ import {
   IMPORT_COLUMNS,
   REQUIRED_IMPORT_COLUMNS,
   buildPreRegisteredImportRecord,
+  buildRawRecordFromRow,
+  detectImportColumns,
   excelCellValueToString,
   importRowSchema,
+  normalizeHeaderCell,
   parseExcelToRows,
   resolveImportFormat,
 } from './pre-registered-import.ts'
@@ -229,5 +232,150 @@ describe('buildPreRegisteredImportRecord', () => {
     const result = buildPreRegisteredImportRecord({ last_name: 'Eugenio' }, meta)
     if (result.ok) throw new Error('expected a missing first name to be rejected')
     assert.ok(result.errors.includes('First name is required'))
+  })
+})
+
+describe('normalizeHeaderCell', () => {
+  it('collapses case, spaces, punctuation and newlines', () => {
+    assert.equal(normalizeHeaderCell('Last Name'), 'lastname')
+    assert.equal(normalizeHeaderCell('last_name'), 'lastname')
+    assert.equal(normalizeHeaderCell('LAST-NAME'), 'lastname')
+    assert.equal(normalizeHeaderCell('NAME OF \nSBDIVISION/ZONE'), 'nameofsbdivisionzone')
+  })
+})
+
+// A faithful reduction of the barangay's RBI form ("Record of Barangay
+// Inhabitants by Household"): title + metadata block, stacked headers, a
+// numbering row, then household data rows.
+const rbiSheetRows: string[][] = [
+  ['', 'RBI FORM A'],
+  ['', '', '', '', 'RECORD OF BARANGAY INHABITANTS BY HOUSEHOLD'],
+  ['', 'A. REGION:', '', 'III', '', 'PSG'],
+  ['', 'B. PROVINCE:', '', 'ZAMBALES', '', 'CO'],
+  ['', 'C. CITY/MUNICIPALITY:', '', 'OLONGAPO', '', 'DE'],
+  ['', 'D. BARANGAY:', '', 'BARRETTO', '', 'S'],
+  ['', 'E. HOUSEHOLD NO.:', '', '', '', '', '', '', '', 'DATE ACCOMPLISHED: FEBRUARY 20, 2024'],
+  ['', 'NAME (1)', 'NAME (1)', 'NAME (1)', 'NAME (1)', 'ADDRESS (2)', 'ADDRESS (2)', 'ADDRESS (2)'],
+  [
+    'HOUSEHOLD HEAD', 'LAST NAME', 'FIRST NAME', 'MIDDLE NAME', 'EXT', 'NO.',
+    'STREET NAME', 'NAME OF \nSBDIVISION/ZONE', 'PLACE OF', 'DATE OF', 'SEX',
+    'CIVIL', 'CITIZEN-', 'OCCUPATION',
+  ],
+  ['', '', '', '', '', '', '', 'SITIO/PUROK(if applicable)', 'BIRTH', 'BIRTH', '', 'STATUC', 'SHIP'],
+  ['', '1.1', '1.2', '1.3', '1.4', '2.1', '2.2', '2.3', '3', '4', '5', '6', '7', '8'],
+  ['Rodriguez, Ramos Serafin  Jr.', 'Rodriguez', 'Serafin', 'Ramos', 'Jr.', '6', 'Albay St.', 'Purok 2', 'Olongapo City', '1952-06-30', 'Male', 'Married', 'Filpino'],
+  ['', 'Rodriguez', 'Delia', 'Mejia', '', '6', 'Albay St.', 'Purok 2', 'Isabela', '1955-09-06', 'Female', 'Married', 'Filipino'],
+]
+
+describe('detectImportColumns', () => {
+  it('resolves the RBI form layout (title block, stacked headers, numbering row)', () => {
+    const plan = detectImportColumns(rbiSheetRows)
+    assert.deepEqual(plan.missingRequired, [])
+    assert.equal(plan.headerRowIndex, 8)
+    assert.equal(plan.dataRowIndex, 11)
+    assert.equal(plan.fieldColumns.get('first_name'), 2)
+    assert.equal(plan.fieldColumns.get('last_name'), 1)
+    assert.equal(plan.fieldColumns.get('middle_name'), 3)
+    assert.equal(plan.fieldColumns.get('street_address'), 6)
+    assert.equal(plan.fieldColumns.get('date_of_birth'), 9)
+    assert.deepEqual(plan.addressPrefixColumns, [5])
+    assert.deepEqual(plan.addressSuffixColumns, [7])
+  })
+
+  it('keeps a plain snake_case CSV header resolving on row 0', () => {
+    const rows = [
+      ['first_name', 'last_name', 'middle_name', 'date_of_birth', 'email', 'phone', 'street_address', 'barangay', 'city_municipality', 'province', 'postal_code', 'national_id', 'id_type'],
+      ['Juan', 'Dela Cruz', 'Santos', '1985-03-15', 'juan@example.com', '09171234567', '1234 Ilo-Ilo Street, Purok 1', 'Barretto', 'Olongapo City', 'Zambales', '2200', '123456789012', 'philsys'],
+    ]
+    const plan = detectImportColumns(rows)
+    assert.deepEqual(plan.missingRequired, [])
+    assert.equal(plan.headerRowIndex, 0)
+    assert.equal(plan.dataRowIndex, 1)
+    assert.equal(plan.fieldColumns.size, 13)
+    assert.deepEqual(plan.addressPrefixColumns, [])
+    assert.deepEqual(plan.addressSuffixColumns, [])
+    assert.equal(buildRawRecordFromRow(rows[1], plan).street_address, '1234 Ilo-Ilo Street, Purok 1')
+  })
+
+  it('maps human-readable headers ("First Name", "Contact No.", "Complete Address")', () => {
+    const rows = [
+      ['First Name', 'Last Name', 'Date of Birth', 'Contact No.', 'Complete Address'],
+      ['Wilhelmina', 'Eugenio', '1969-01-05', '09175551234', '29 Dagupan St.'],
+    ]
+    const plan = detectImportColumns(rows)
+    assert.deepEqual(plan.missingRequired, [])
+    assert.equal(plan.fieldColumns.get('first_name'), 0)
+    assert.equal(plan.fieldColumns.get('last_name'), 1)
+    assert.equal(plan.fieldColumns.get('date_of_birth'), 2)
+    assert.equal(plan.fieldColumns.get('phone'), 3)
+    const raw = buildRawRecordFromRow(rows[1], plan)
+    assert.equal(raw.first_name, 'Wilhelmina')
+    assert.equal(raw.date_of_birth, '1969-01-05')
+  })
+
+  it('merges a header split across several stacked label rows', () => {
+    const rows = [
+      ['FIRST NAME', 'LAST NAME', 'DATE'],
+      ['', '', 'OF'],
+      ['', '', 'BIRTH'],
+      ['Juan', 'Dela Cruz', '1985-03-15'],
+    ]
+    const plan = detectImportColumns(rows)
+    assert.deepEqual(plan.missingRequired, [])
+    assert.equal(plan.fieldColumns.get('date_of_birth'), 2)
+    assert.equal(plan.dataRowIndex, 3)
+  })
+
+  it('reports missing required columns together with the headers it found', () => {
+    const plan = detectImportColumns([
+      ['NAME', 'AGE', 'PUROK'],
+      ['Juan', '30', 'Purok 2'],
+    ])
+    assert.deepEqual(plan.missingRequired, ['first_name', 'last_name'])
+    assert.ok(plan.headerLabels.includes('NAME'))
+  })
+
+  it('caps stacked-label merging so stray rows still reach validation', () => {
+    const rows: string[][] = [['FIRST NAME', 'LAST NAME', 'DATE']]
+    for (let i = 0; i < 6; i++) rows.push(['', '', 'OF'])
+    rows.push(['Juan', 'Dela Cruz', '1985-03-15'])
+    const plan = detectImportColumns(rows)
+    assert.equal(plan.dataRowIndex, 6)
+    assert.equal(plan.fieldColumns.get('date_of_birth'), undefined)
+  })
+})
+
+describe('RBI form end-to-end (xlsx through the real parser)', () => {
+  it('imports every household row of an RBI-style sheet', async () => {
+    const workbook = new ExcelJS.Workbook()
+    const sheet = workbook.addWorksheet('Sheet1')
+    for (const row of rbiSheetRows) sheet.addRow(row)
+    const buffer = await workbook.xlsx.writeBuffer()
+    const rows = await parseExcelToRows(new Uint8Array(buffer as ArrayBuffer))
+
+    const plan = detectImportColumns(rows)
+    assert.deepEqual(plan.missingRequired, [])
+
+    let imported = 0
+    for (let i = plan.dataRowIndex; i < rows.length; i++) {
+      const result = buildPreRegisteredImportRecord(buildRawRecordFromRow(rows[i], plan), {
+        source: 'xlsx_upload',
+        importBatchId: 'import_test',
+      })
+      if (result.ok) imported++
+    }
+    assert.equal(imported, 2)
+
+    const first = buildPreRegisteredImportRecord(
+      buildRawRecordFromRow(rows[plan.dataRowIndex], plan),
+      { source: 'xlsx_upload', importBatchId: 'import_test' },
+    )
+    if (!first.ok) throw new Error(first.errors.join('; '))
+    assert.equal(first.record.first_name, 'Serafin')
+    assert.equal(first.record.last_name, 'Rodriguez')
+    assert.equal(first.record.middle_name, 'Ramos')
+    assert.equal(first.record.street_address, '6, Albay St., Purok 2')
+    assert.equal(first.record.date_of_birth, '1952-06-30')
+    assert.equal(first.record.barangay, 'Barretto')
   })
 })

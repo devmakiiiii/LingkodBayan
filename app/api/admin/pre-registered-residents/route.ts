@@ -6,9 +6,9 @@ import { logAuditAction } from '@/lib/audit-log'
 import { logger } from '@/lib/logger'
 import { isAdminUser } from '@/lib/roles'
 import {
-  IMPORT_COLUMNS,
-  REQUIRED_IMPORT_COLUMNS,
   buildPreRegisteredImportRecord,
+  buildRawRecordFromRow,
+  detectImportColumns,
   parseExcelToRows,
   resolveImportFormat,
 } from '@/lib/pre-registered-import'
@@ -189,32 +189,35 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'File must contain a header row and at least one data row.' }, { status: 400 })
       }
 
-      const headers = rows[0].map((h) => h.trim().toLowerCase())
-      const columnMap = new Map<string, number>()
-      headers.forEach((h, idx) => columnMap.set(h, idx))
+      // Files may carry title blocks and stacked multi-row headers (the
+      // barangay RBI form does), so the header is located and resolved by
+      // shape instead of assuming row 1 holds snake_case column names.
+      const plan = detectImportColumns(rows)
 
-      const missingRequired = REQUIRED_IMPORT_COLUMNS.filter((col) => !columnMap.has(col))
-      if (missingRequired.length > 0) {
+      if (plan.missingRequired.length > 0) {
+        const foundHeaders = plan.headerLabels.filter(Boolean)
         return NextResponse.json({
-          error: `Missing required columns in header: ${missingRequired.join(', ')}`,
-          missingColumns: missingRequired,
+          error:
+            `Missing required columns in header: ${plan.missingRequired.join(', ')}. ` +
+            (foundHeaders.length > 0
+              ? `The header row was read as: ${foundHeaders.join(', ')}. `
+              : '') +
+            'Expected headers such as first_name / last_name (or "First Name" / "Last Name").',
+          missingColumns: plan.missingRequired,
+          foundColumns: foundHeaders,
         }, { status: 400 })
       }
 
       const failedRows: { row: number; errors: string[] }[] = []
       const validRecords: Record<string, unknown>[] = []
+      let processed = 0
 
-      for (let i = 1; i < rows.length; i++) {
+      for (let i = plan.dataRowIndex; i < rows.length; i++) {
         const row = rows[i]
         if (row.length === 0 || row.every((c) => c === '')) continue
+        processed += 1
 
-        const rawRecord: Record<string, string> = {}
-        for (const col of IMPORT_COLUMNS) {
-          const idx = columnMap.get(col)
-          if (idx !== undefined && idx < row.length) {
-            rawRecord[col] = row[idx]
-          }
-        }
+        const rawRecord = buildRawRecordFromRow(row, plan)
 
         const result = buildPreRegisteredImportRecord(rawRecord, {
           source: format === 'xlsx' ? 'xlsx_upload' : 'csv_upload',
@@ -247,7 +250,7 @@ export async function POST(request: NextRequest) {
       const response: Record<string, unknown> = {
         success: true,
         imported: importedCount,
-        totalProcessed: rows.length - 1,
+        totalProcessed: processed,
         batchId,
       }
 
@@ -264,7 +267,7 @@ export async function POST(request: NextRequest) {
         resourceId: batchId,
         newValues: {
           imported: importedCount,
-          totalProcessed: rows.length - 1,
+          totalProcessed: processed,
           failedCount: failedRows.length,
         },
         ipAddress: request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? undefined,

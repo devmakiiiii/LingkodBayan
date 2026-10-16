@@ -23,7 +23,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
-import { Upload, Search } from 'lucide-react'
+import { Upload, Search, Download } from 'lucide-react'
 import { toast } from 'sonner'
 
 interface PreRegisteredResident {
@@ -162,6 +162,18 @@ export default function PreRegisteredResidentsPage() {
     'province', 'postal_code', 'national_id', 'id_type'
   ]
 
+  function handleDownloadTemplate() {
+    const exampleRow =
+      'Juan,Dela Cruz,Santos,1985-03-15,juan@example.com,09171234567,"1234 Ilo-Ilo Street, Purok 1","Barretto","Olongapo City","Zambales",2200,123456789012,philsys'
+    const csv = `${expectedCsvHeaders.join(',')}\n${exampleRow}\n`
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }))
+    const link = document.createElement('a')
+    link.href = url
+    link.download = 'pre-registered-residents-template.csv'
+    link.click()
+    URL.revokeObjectURL(url)
+  }
+
   return (
     <div className="space-y-6 p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto w-full">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
@@ -184,6 +196,9 @@ export default function PreRegisteredResidentsPage() {
               <DialogDescription className="break-words max-w-full overflow-wrap-anywhere">
                 Upload a CSV or Excel (.xlsx) file with resident data. Expected columns: {expectedCsvHeaders.join(', ')}
                 <br />
+                Barangay RBI forms (Record of Barangay Inhabitants by Household) are supported directly: their
+                title rows and stacked headers are detected automatically.
+                <br />
                 The <code>barangay</code> column is optional: blank values default to Barangay Barretto, and rows
                 for any other barangay are rejected. For Excel files, the first worksheet is used.
               </DialogDescription>
@@ -194,6 +209,10 @@ export default function PreRegisteredResidentsPage() {
                 accept=".csv,.xlsx,.xlsm"
                 onChange={(e) => setImportFile(e.target.files?.[0] || null)}
               />
+              <Button variant="outline" size="sm" onClick={handleDownloadTemplate}>
+                <Download className="h-4 w-4 mr-2" />
+                Download CSV template
+              </Button>
               <div className="text-xs text-muted-foreground">
                 <p>Example (CSV, or the first sheet of an Excel file):</p>
                 <code className="block mt-1 p-2 bg-gray-100 dark:bg-muted rounded break-all max-w-full whitespace-pre-wrap overflow-wrap-anywhere">

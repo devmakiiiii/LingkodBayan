@@ -1,11 +1,10 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { getEnvConfig } from '../../env.config'
 
 function hasSupabaseConfig() {
-  return Boolean(
-    process.env.NEXT_PUBLIC_SUPABASE_URL &&
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-  )
+  const config = getEnvConfig()
+  return Boolean(config.supabaseUrl && config.supabaseAnonKey)
 }
 
 function hasSupabaseAuthCookies(request: NextRequest) {
@@ -26,9 +25,11 @@ export async function updateSession(request: NextRequest) {
     request,
   })
 
+  const config = getEnvConfig()
+
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    config.supabaseUrl!,
+    config.supabaseAnonKey!,
     {
       cookies: {
         getAll() {

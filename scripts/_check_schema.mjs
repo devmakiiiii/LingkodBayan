@@ -14,7 +14,7 @@ import fs from 'fs'
 import path from 'path'
 
 const envPath = path.join(process.cwd(), '.env.local')
-const env = Object.fromEntries(
+const fileEnv = Object.fromEntries(
   fs
     .readFileSync(envPath, 'utf-8')
     .split(/\r?\n/)
@@ -25,10 +25,16 @@ const env = Object.fromEntries(
     }),
 )
 
-const url = env.NEXT_PUBLIC_SUPABASE_URL
+// Process env wins over .env.local so the checker can target any project:
+//   NEXT_PUBLIC_SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... node scripts/_check_schema.mjs
+const url = process.env.NEXT_PUBLIC_SUPABASE_URL || fileEnv.NEXT_PUBLIC_SUPABASE_URL
 // Reading the PostgREST schema spec needs a key with introspection access; the
 // service role key is used when present, otherwise fall back to the anon key.
-const key = env.SUPABASE_SERVICE_ROLE_KEY || env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+const key =
+  process.env.SUPABASE_SERVICE_ROLE_KEY ||
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+  fileEnv.SUPABASE_SERVICE_ROLE_KEY ||
+  fileEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
 if (!url || !key) {
   console.error('Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY')

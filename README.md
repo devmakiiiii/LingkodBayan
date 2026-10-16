@@ -158,6 +158,31 @@ The app relies on the following environment variables:
 - `SEMAPHORE_API_KEY` - (optional) Semaphore SMS gateway key; when set, resident events are also sent as SMS to the registered mobile number
 - `SEMAPHORE_SENDERNAME` - (optional) SMS sender name, defaults to "LingkodBayan"
 
+**Two-Environment Configuration**
+
+LingkodBayan uses separate databases for production and testing environments:
+
+**Development (.env.local):**
+```env
+NEXT_PUBLIC_SUPABASE_URL=your-dev-project.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-dev-anon-key
+SUPABASE_SERVICE_ROLE_KEY=your-dev-service-key
+```
+
+**Testing (.env.test):**
+```env
+NEXT_PUBLIC_SUPABASE_URL=your-testing-project.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-testing-anon-key
+SUPABASE_SERVICE_ROLE_KEY=your-testing-service-key
+```
+
+**Production (.env.production or Vercel settings):**
+```env
+NEXT_PUBLIC_SUPABASE_URL=your-production-project.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-production-anon-key
+SUPABASE_SERVICE_ROLE_KEY=your-production-service-key
+```
+
 If you deploy on Vercel, add the same values in the project environment settings.
 
 ### Authorization roles
@@ -233,6 +258,118 @@ variables are present, the authenticated citizen dashboard.
 ## Testing Accounts
 
 The setup docs include example citizen and admin workflows for validating the app after the database is configured. Follow [GETTING_STARTED.md](GETTING_STARTED.md) for the recommended onboarding flow.
+
+## Two-Database Setup
+
+### Production Database
+Contains real citizen data and government services. Used for production deployment and live testing.
+
+### Testing Database
+Contains sample test data for development, CI/CD, and automated testing:
+
+**Test Citizen Account:**
+- Email: `citizen@test.com`
+- Password: `Test123!`
+
+**Test Admin Account:**
+- Email: `admin@test.com`
+- Set `role: 'admin'` in **Raw App Meta Data** (`app_metadata`) in Supabase dashboard
+- Create corresponding `admin_users` profile
+
+### Database Setup Commands
+
+```bash
+# Clone production schema for testing
+pnpm db:migrate
+
+# Seed testing database (requires TEST_ environment variables)
+TEST_SUPABASE_URL=your-testing-url
+TEST_SUPABASE_ANON_KEY=your-testing-key
+TEST_SUPABASE_SERVICE_ROLE_KEY=your-testing-service-key
+pnpm exec node scripts/seed-test-database.js
+
+# Validate all environments
+pnpm exec node scripts/validate-environments.js
+```
+
+### Environment-Specific Commands
+
+```bash
+# Development
+pnpm dev
+
+# Testing (for CI/CD)
+NEXT_PUBLIC_SUPABASE_URL=$TEST_SUPABASE_URL \
+NEXT_PUBLIC_SUPABASE_ANON_KEY=$TEST_SUPABASE_ANON_KEY \
+pnpm dev
+
+# Production deployment
+pnpm build
+pnpm start
+```
+
+### CI/CD Configuration
+
+The CI pipeline automatically runs tests against the testing environment. Set these GitHub repository secrets:
+
+**Testing Environment:**
+- `SUPABASE_TEST_URL`
+- `SUPABASE_TEST_ANON_KEY`
+- `SUPABASE_TEST_SERVICE_ROLE_KEY`
+- `E2E_SEED_URL`
+- `E2E_TEST_USER`
+- `E2E_TEST_PASSWORD`
+
+**Production Environment:**
+- `SUPABASE_PRODUCTION_URL`
+- `SUPABASE_PRODUCTION_ANON_KEY`
+- `SUPABASE_PRODUCTION_SERVICE_ROLE_KEY`
+
+### Testing Workflows
+
+1. **Unit Tests**: Run against testing environment
+   ```bash
+   pnpm test
+   ```
+
+2. **E2E Tests**: Use testing database for authenticated tests
+   ```bash
+   pnpm test:e2e
+   ```
+
+3. **E2E Tests with Seeded Data**: For authenticated citizen flow testing
+   ```bash
+   E2E_SEED_URL=$TEST_SUPABASE_URL \
+   E2E_TEST_USER=citizen@test.com \
+   E2E_TEST_PASSWORD=Test123! \
+   pnpm test:e2e
+   ```
+
+4. **Production Tests**: Use production database (admin-only)
+   ```bash
+   pnpm test:e2e:production
+   ```
+
+## Database Migration Scripts
+
+All migrations work with both environments. Use environment variables to target the desired database:
+
+```bash
+# Migrate testing database
+pnpm db:setup:test
+
+# Migrate production database
+pnpm db:setup:prod
+```
+
+### Files Modified
+
+- `package.json` - Added environment-specific scripts
+- `env.config.ts` - New environment configuration system
+- `lib/supabase/*` - Updated to use environment config
+- `scripts/seed-test-database.js` - New script for test data seeding
+- `scripts/validate-environments.js` - New script for environment validation
+- `README.md` - Updated with two-environment setup instructions
 
 ## Troubleshooting
 
