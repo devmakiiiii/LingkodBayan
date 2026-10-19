@@ -108,6 +108,7 @@ function buildClaimSlipMarkup(
       .slip { width: 160mm; margin: 10mm auto; padding: 10mm 12mm; background: white; border: 1px solid #cbd5e1; }
       .header { display: flex; align-items: center; gap: 12px; border-bottom: 3px double #047857; padding-bottom: 10px; }
       .logo { width: 56px; height: 56px; border-radius: 999px; object-fit: cover; border: 1px solid #cbd5e1; }
+      .seal { width: 44px; height: 44px; object-fit: contain; margin-left: 8px; }
       .office { text-align: center; flex: 1; }
       .office-name { font-size: 15px; font-weight: 800; margin: 0; }
       .office-sub { font-size: 10px; color: #475569; margin: 2px 0 0; }
@@ -131,7 +132,8 @@ function buildClaimSlipMarkup(
   <body>
     <div class="slip">
       <div class="header">
-        <img src="/lingkod-logo.png" alt="Barangay logo" class="logo" />
+        <img src="/lingkod-logo.png" alt="LingkodBayan system logo" class="logo" />
+          <img src="/images/brgy-barretto-logo.png" alt="Official Seal of Barangay Barretto, Olongapo City" class="seal" />
         <div class="office">
           <p class="office-name">Republic of the Philippines · ${escapeSlipText(BARANGAY_PROVINCE)}</p>
           <p class="office-sub"><strong>${escapeSlipText(BARANGAY_DISPLAY_NAME)}</strong> · ${escapeSlipText(BARANGAY_CITY)}<br />Office of the Punong Barangay</p>

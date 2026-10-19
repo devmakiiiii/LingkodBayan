@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label'
 import { ArrowLeft, CheckCircle2, Loader2 } from 'lucide-react'
 import Image from 'next/image'
 import { LocaleToggle } from '@/components/citizen/locale-toggle'
+import { BarangaySeal } from '@/components/barangay-seal'
 import { getUserRole, isAdminRole } from '@/lib/roles'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -143,6 +144,7 @@ function SignInForm() {
                   priority
                 />
               </div>
+              <BarangaySeal width={56} height={56} caption="Barangay Barretto, Olongapo City" clipped={false} className="mt-3 mx-auto" />
               <p className="text-xs font-semibold tracking-[0.2em] text-gray-500 dark:text-muted-foreground">
                 LINGKOD BAYAN
               </p>

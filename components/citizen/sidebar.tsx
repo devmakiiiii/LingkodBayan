@@ -21,6 +21,7 @@ import { ThemeToggle } from '@/components/theme-toggle'
 import { LocaleToggle } from '@/components/citizen/locale-toggle'
 import { useLocale } from '@/hooks/use-locale'
 import { Button } from '@/components/ui/button'
+import { BarangaySeal } from '@/components/barangay-seal'
 
 const navItems = [
   { href: '/citizen/dashboard', label: 'Dashboard', icon: Home },
@@ -106,6 +107,7 @@ export function Sidebar() {
       `}>
         {/* Logo Section */}
         <div className="p-6 text-center border-b border-sidebar-border">
+          <BarangaySeal width={48} height={48} caption="Barangay Barretto, Olongapo City" className="mb-2" clipped={false} />
           <Link href="/citizen/dashboard" onClick={() => setIsOpen(false)}>
             <h1 className="text-2xl font-bold text-sidebar-foreground tracking-wider">LINGKOD BAYAN</h1>
             <p className="text-xs text-sidebar-foreground/70 mt-1">Citizen Portal</p>

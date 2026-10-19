@@ -27,6 +27,7 @@ import {
   Zap,
 } from 'lucide-react'
 import { InstallAppButton } from '@/components/install-app-button'
+import { BarangaySeal } from '@/components/barangay-seal'
 import { createClient, hasSupabaseConfig } from '@/lib/supabase/client'
 import { NOT_SPECIFIED, formatServiceFee, getServiceTypeLabel } from '@/lib/charter-services'
 import { getAnnouncementCategoryColor } from '@/lib/announcement-categories'
@@ -328,6 +329,7 @@ export default function Home() {
       <section className="bg-linear-to-br from-[#001a4d] via-[#001a4d] to-[#0d2d66] text-white py-16 sm:py-24 px-4 sm:px-6">
         <div className="max-w-7xl mx-auto grid md:grid-cols-2 gap-8 sm:gap-12 items-center">
           <div className="space-y-6">
+            <BarangaySeal width={80} height={80} caption="Official Seal of Barangay Barretto, Olongapo City" clipped={false} />
             <div className="space-y-3">
               <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold leading-tight">
                 Walang pila,<br />walang hintayan
@@ -606,6 +608,7 @@ export default function Home() {
         <div className="max-w-6xl mx-auto">
           <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-8 mb-8">
             <div>
+              <BarangaySeal width={48} height={48} caption="Official Seal of Barangay Barretto, Olongapo City" className="mb-2" clipped={false} />
               <h3 className="text-white font-bold mb-4 text-sm sm:text-base">LingkodBayan</h3>
               <p className="text-xs sm:text-sm">© {new Date().getFullYear()} LINGKODBAYAN CITIZEN PORTAL. ALL RIGHTS RESERVED.</p>
             </div>

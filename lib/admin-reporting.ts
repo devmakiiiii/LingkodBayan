@@ -365,7 +365,8 @@ export function openPrintableReport(options: {
           @page { size: landscape; margin: 16mm; }
           body { font-family: Arial, sans-serif; color: #0f172a; margin: 0; padding: 24px; }
           .header { display: flex; align-items: center; gap: 16px; border-bottom: 2px solid #16a34a; padding-bottom: 16px; margin-bottom: 20px; }
-          .header img { width: 72px; height: 72px; object-fit: contain; }
+          .header .brand-img { width: 60px; height: 60px; object-fit: contain; }
+          .header .seal-img { width: 48px; height: 48px; object-fit: contain; margin-left: 8px; }
           .meta { margin-bottom: 16px; }
           .meta h1 { margin: 0; font-size: 24px; color: #166534; }
           .meta p { margin: 4px 0; color: #475569; }
@@ -402,7 +403,8 @@ export function openPrintableReport(options: {
       </head>
       <body>
         <div class="header">
-          <img src="/lingkod-logo.png" alt="Barangay Logo" />
+          <img src="/images/brgy-barretto-logo.png" alt="Official Seal of Barangay Barretto, Olongapo City" class="seal-img" />
+          <img src="/lingkod-logo.png" alt="LingkodBayan System Logo" class="brand-img" />
           <div>
             <div style="font-size: 14px; letter-spacing: 0.08em; text-transform: uppercase; color: #64748b;">${escapeHtml(options.barangayName)}</div>
             <h1>${escapeHtml(options.reportTitle)}</h1>
