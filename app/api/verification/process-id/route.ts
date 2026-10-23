@@ -159,9 +159,8 @@ async function processOcrJob(
     // agreed with the account. Read the registry with the service-role client.
     const candidates = await findPreRegisteredCandidates(
       {
-        nationalId: extractedFields.nationalId || expectedValues.nationalId,
-        email: expectedValues.email,
-        phone: expectedValues.phone,
+        firstName: expectedValues.firstName,
+        lastName: expectedValues.lastName,
       },
       createAdminClient(),
     )

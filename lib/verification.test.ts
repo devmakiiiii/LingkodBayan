@@ -46,6 +46,7 @@ function buildInput(overrides: Partial<SignUpVerificationInput> = {}): SignUpVer
     firstName: 'Juan',
     lastName: 'Dela Cruz',
     email: 'juan.cruz@example.com',
+    dateOfBirth: '1990-05-12',
     ...overrides,
   }
 }
@@ -120,25 +121,17 @@ describe('nameMatchScore', () => {
 
 
 describe('calculateMatchScore', () => {
-  it('auto-verifies on an exact email match (score 100)', () => {
+  it('auto-verifies on an exact name + DOB match (score 100)', () => {
     const { score } = calculateMatchScore(buildInput(), candidate)
     assert.equal(score, 100)
   })
 
-  it('scores an exact phone + name match at 98', () => {
+  it('auto-verifies on exact name alone (score 95)', () => {
     const { score } = calculateMatchScore(
-      buildInput({ email: 'other@example.com', phone: '+63 917 123 4567' }),
+      buildInput({ dateOfBirth: '1991-05-12' }),
       candidate,
     )
-    assert.equal(score, 98)
-  })
-
-  it('scores an exact national ID + name match at 99', () => {
-    const { score } = calculateMatchScore(
-      buildInput({ email: 'other@example.com', nationalId: '1234-5678-9012' }),
-      candidate,
-    )
-    assert.equal(score, 99)
+    assert.equal(score, 95)
   })
 
   it('falls below the manual review threshold when nothing matches', () => {
@@ -146,9 +139,7 @@ describe('calculateMatchScore', () => {
       buildInput({
         firstName: 'Pedro',
         lastName: 'Bagong',
-        email: 'pedro.bagong@newmail.com',
-        phone: '09990001112',
-        nationalId: '999999999999',
+        dateOfBirth: '1980-01-01',
       }),
       candidate,
     )
@@ -157,61 +148,61 @@ describe('calculateMatchScore', () => {
       `expected < ${DEFAULT_THRESHOLDS.manualReviewThreshold}, got ${score}`,
     )
     assert.equal(determineAction(score), 'no_match')
-    assert.ok('name' in breakdown && 'email' in breakdown)
+    assert.ok('name' in breakdown && 'dob' in breakdown)
   })
 
   it('exposes a per-field confidence breakdown', () => {
     const { breakdown } = calculateMatchScore(
-      buildInput({ email: 'other@example.com' }),
+      buildInput({}),
       candidate,
     )
-    for (const key of ['name', 'email', 'phone', 'address', 'dob', 'nationalId']) {
+    for (const key of ['name', 'dob']) {
       assert.ok(key in breakdown, `missing breakdown key: ${key}`)
       assert.ok(breakdown[key] >= 0 && breakdown[key] <= 1)
     }
   })
 })
 
-describe('calculateMatchScore in the single-barangay deployment', () => {
-  it('ignores the (constant) barangay when scoring an address', () => {
-    const withBarangay = calculateMatchScore(
-      buildInput({ email: 'other@example.com', address: '123 P. Burgos St', barangay: 'Barretto' }),
+describe('calculateMatchScore uses only name + DOB', () => {
+  it('name match alone reaches auto-verify (0.95 weight → 95)', () => {
+    const { score } = calculateMatchScore(
+      buildInput({ dateOfBirth: '1991-05-12' }),
       candidate,
     )
-    const withoutBarangay = calculateMatchScore(
-      buildInput({ email: 'other@example.com', address: '123 P. Burgos St' }),
+    assert.equal(score, 95)
+  })
+
+  it('exact name + exact DOB auto-verifies at 100', () => {
+    const { score } = calculateMatchScore(buildInput(), candidate)
+    assert.equal(score, 100)
+  })
+
+  it('partial name + exact DOB still auto-verifies (name weight dominates)', () => {
+    const { score } = calculateMatchScore(
+      buildInput({ firstName: 'Juan', lastName: 'Dela Cruze', dateOfBirth: '1990-05-12' }),
       candidate,
     )
-
-    assert.equal(withBarangay.breakdown.address, withoutBarangay.breakdown.address)
-    assert.equal(withBarangay.score, withoutBarangay.score)
+    assert.ok(score >= DEFAULT_THRESHOLDS.autoVerifyThreshold)
   })
 
-  it('still scores a street-level address match', () => {
-    const { breakdown } = calculateMatchScore(
-      buildInput({ email: 'other@example.com', address: '123 P. Burgos St' }),
+  it('exact name + missing DOB still auto-verifies at 95', () => {
+    const { score } = calculateMatchScore(
+      buildInput({ dateOfBirth: undefined }),
       candidate,
     )
-
-    assert.equal(breakdown.address, 1)
+    assert.equal(score, 95)
   })
 
-  it('gives no address credit when only the shared barangay is known', () => {
-    const { breakdown } = calculateMatchScore(
-      buildInput({ email: 'other@example.com', barangay: 'Barretto' }),
-      { ...candidate, street_address: null, barangay: 'Barretto' },
+  it('name mismatch + exact DOB stays below manual review', () => {
+    const { score } = calculateMatchScore(
+      buildInput({
+        firstName: 'Pedro',
+        lastName: 'Bagong',
+        dateOfBirth: '1990-05-12',
+      }),
+      candidate,
     )
-
-    assert.equal(breakdown.address, 0)
-  })
-
-  it('cannot be gamed by a candidate that lists another barangay', () => {
-    const { breakdown } = calculateMatchScore(
-      buildInput({ email: 'other@example.com', address: '123 P. Burgos St', barangay: 'Barretto' }),
-      { ...candidate, barangay: 'New Cabalan' },
-    )
-
-    assert.equal(breakdown.address, 1)
+    assert.ok(score < DEFAULT_THRESHOLDS.manualReviewThreshold)
   })
 })
 

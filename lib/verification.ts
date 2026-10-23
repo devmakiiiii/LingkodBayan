@@ -56,12 +56,16 @@ export const DEFAULT_THRESHOLDS: VerificationThresholds = {
   autoVerifyThreshold: 85,
   idVerifyThreshold: 75,
   manualReviewThreshold: 50,
-  nameWeight: 0.40,
-  emailWeight: 0.25,
-  phoneWeight: 0.15,
-  addressWeight: 0.10,
-  dobWeight: 0.03,
-  nationalIdWeight: 0.07,
+  // Only first/last name and date of birth are used to match against the
+  // pre-registered residents database. Email, phone, address, and national ID
+  // are deliberately excluded because residents may change these details after
+  // registration; they must not gate verification against the registry.
+  nameWeight: 0.95,
+  emailWeight: 0,
+  phoneWeight: 0,
+  addressWeight: 0,
+  dobWeight: 0.05,
+  nationalIdWeight: 0,
 }
 
 export interface SignUpVerificationInput {
@@ -311,78 +315,19 @@ export function calculateMatchScore(
   )
   breakdown.name = nameScore
 
-  // A pre-registered record may have no email on file (see the pre-registered
-  // import), so only score this signal when both sides carry a value.
-  const emailScore =
-    input.email && candidate.email
-      ? emailMatch(input.email, candidate.email)
-      : 0
-  breakdown.email = emailScore
-
-  const phoneScore =
-    input.phone && candidate.phone
-      ? phoneMatch(input.phone, candidate.phone)
-      : 0
-  breakdown.phone = phoneScore
-
-  // Only street-level address evidence is scored: this deployment serves one
-  // barangay (Barangay Barretto), so both sides of a comparison always carry the
-  // same barangay and including it would hand the same free credit to every
-  // candidate. `input.barangay` is therefore deliberately unused here.
-  const addressScore =
-    input.address && candidate.street_address
-      ? addressMatch(input.address, candidate.street_address)
-      : 0
-  breakdown.address = addressScore
-
   const dobScore =
     input.dateOfBirth && candidate.date_of_birth
       ? dobMatch(input.dateOfBirth, candidate.date_of_birth)
       : 0
   breakdown.dob = dobScore
 
-  const nidScore =
-    input.nationalId && candidate.national_id
-      ? nationalIdMatch(input.nationalId, candidate.national_id)
-      : 0
-  breakdown.nationalId = nidScore
+  const totalWeight = thresholds.nameWeight + thresholds.dobWeight
 
-  // Check for exact-match strong signals (email, phone, national ID)
-  // These override the weighted score for high confidence
-
-  const totalWeight =
-    thresholds.nameWeight +
-    thresholds.emailWeight +
-    thresholds.phoneWeight +
-    thresholds.addressWeight +
-    thresholds.dobWeight +
-    thresholds.nationalIdWeight
-
-  // Adjust weights: if email is an exact match, override to 100
-  if (emailScore === 1) {
-    return { score: 100, breakdown }
-  }
-  if (phoneScore === 1 && nameScore >= 0.8) {
-    return { score: 98, breakdown }
-  }
-  if (nidScore === 1 && nameScore >= 0.7) {
-    return { score: 99, breakdown }
-  }
-
-  // Weighted average
+  // Weighted average: name (0.95) + DOB (0.05)
   let weightedSum =
     nameScore * thresholds.nameWeight +
-    emailScore * thresholds.emailWeight +
-    phoneScore * thresholds.phoneWeight +
-    addressScore * thresholds.addressWeight +
-    dobScore * thresholds.dobWeight +
-    nidScore * thresholds.nationalIdWeight
+    dobScore * thresholds.dobWeight
   weightedSum = weightedSum / totalWeight * 100
-
-  // Boost if name match is very high (≥0.9)
-  if (nameScore >= 0.9 && emailScore >= 0.5) {
-    weightedSum = Math.min(100, weightedSum + 5)
-  }
 
   return { score: Math.round(weightedSum * 100) / 100, breakdown }
 }

@@ -117,6 +117,8 @@ describe('signUpBarangaySchema', () => {
       confirmPassword: 'secret123',
       firstName: 'Juan',
       lastName: 'Dela Cruz',
+      phone: '09171234567',
+      address: '123 P. Burgos St',
     }
 
     assert.equal(signUpSchema.safeParse({ ...base, barangay: BARANGAY_NAME }).success, true)

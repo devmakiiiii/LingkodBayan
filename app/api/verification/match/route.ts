@@ -55,9 +55,6 @@ export async function POST(request: NextRequest) {
     // the service-role client (see findPreRegisteredCandidates).
     const candidates = await findPreRegisteredCandidates(
       {
-        email: input.email,
-        phone: input.phone,
-        nationalId: input.nationalId,
         firstName: input.firstName,
         lastName: input.lastName,
       },

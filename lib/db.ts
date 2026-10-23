@@ -819,9 +819,6 @@ export async function createPreRegisteredResident(data: PreRegisteredResidentDat
 }
 
 export interface PreRegisteredCandidateFilters {
-  email?: string | null
-  phone?: string | null
-  nationalId?: string | null
   firstName?: string | null
   lastName?: string | null
 }
@@ -834,63 +831,35 @@ export interface PreRegisteredCandidateFilters {
  * table with the resident-scoped client returns zero rows *without* raising
  * an error, which silently made every ID verification report a 0% match.
  *
- * Identity filters are OR-ed together because a single ID photo may only
- * expose one of them; the name prefix search is a last resort for records
- * that have no email, phone, or national ID on file.
+ * Identity filters use first name + last name prefix matching as a last resort
+ * for records that may have limited data on file. Email, phone, address, and
+ * national ID are intentionally not used to narrow candidates because residents
+ * may change those details after registration.
  *
  * Rows outside the service area are dropped: the registry may still hold
- * records imported while the system served every Olongapo barangay, and an
- * exact email / phone / national-ID hit on such a row would otherwise
- * auto-verify a Barangay Barretto resident against another area's data.
+ * records imported while the system served every Olongapo barangay.
  */
 export async function findPreRegisteredCandidates(
   filters: PreRegisteredCandidateFilters,
   client: SupabaseClient,
 ): Promise<PreRegisteredResident[]> {
-  const orFilters: string[] = []
-
-  const email = filters.email?.trim().toLowerCase()
-  if (email) {
-    orFilters.push(`email.eq.${email}`)
-  }
-
-  const phone = filters.phone?.replace(/\D/g, '')
-  if (phone) {
-    orFilters.push(`phone.like.*${phone}*`)
-  }
-
-  const nationalId = filters.nationalId?.replace(/\D/g, '')
-  if (nationalId) {
-    orFilters.push(`national_id.like.*${nationalId}*`)
-  }
-
-  if (orFilters.length > 0) {
-    const { data, error } = await client
-      .from('pre_registered_residents')
-      .select('*')
-      .or(orFilters.join(','))
-      .limit(50)
-
-    if (error) throw new Error(`Failed to search pre-registered residents: ${error.message}`)
-    return ((data ?? []) as PreRegisteredResident[]).filter((row) => isInServiceArea(row.barangay))
-  }
-
+  // Verification matches only on first name + last name + date of birth.
+  // Email, phone, address, and national ID are intentionally not used to
+  // narrow candidates because residents may change those details.
   const firstName = filters.firstName?.trim().toLowerCase()
   const lastName = filters.lastName?.trim().toLowerCase()
 
-  if (firstName && lastName) {
-    const { data, error } = await client
-      .from('pre_registered_residents')
-      .select('*')
-      .ilike('first_name', `${firstName}%`)
-      .ilike('last_name', `${lastName}%`)
-      .limit(50)
+  if (!firstName || !lastName) return []
 
-    if (error) throw new Error(`Failed to search pre-registered residents: ${error.message}`)
-    return ((data ?? []) as PreRegisteredResident[]).filter((row) => isInServiceArea(row.barangay))
-  }
+  const { data, error } = await client
+    .from('pre_registered_residents')
+    .select('*')
+    .ilike('first_name', `${firstName}%`)
+    .ilike('last_name', `${lastName}%`)
+    .limit(50)
 
-  return []
+  if (error) throw new Error(`Failed to search pre-registered residents: ${error.message}`)
+  return ((data ?? []) as PreRegisteredResident[]).filter((row) => isInServiceArea(row.barangay))
 }
 
 export interface DuplicateResidentFilters {

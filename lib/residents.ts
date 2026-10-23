@@ -1,5 +1,6 @@
 import type { SupabaseClient, User } from '@supabase/supabase-js'
 import { logger } from './logger'
+import { BARANGAY_NAME, canonicalBarangayName } from './barangay.ts'
 
 type ResidentProfile = {
   id: string
@@ -83,6 +84,43 @@ async function applyAutoVerification(
   }
 }
 
+/**
+ * Finds an existing resident row that owns the given phone number, comparing on
+ * digits-only normalization to tolerate formatting differences (spaces, dashes,
+ * +63 vs 09 prefixes). This mirrors the `uq_residents_phone_normalized` unique
+ * index so we can identify the conflicting row after a 23505 insert failure.
+ */
+async function findResidentByPhone(
+  supabase: SupabaseClient,
+  phone: string,
+): Promise<ResidentProfile | null> {
+  // 1. Exact string match — covers the common case where the same formatting is reused.
+  const { data: exact } = await supabase
+    .from('residents')
+    .select(RESIDENT_PROFILE_COLUMNS)
+    .eq('phone', phone)
+    .limit(1)
+  if (exact?.[0]) return exact[0] as ResidentProfile
+
+  // 2. Digits-normalized fallback — catches formatted variants (e.g. stored
+  //    "0917-123-4567" vs input "09171234567"). Bound the fetch so this stays
+  //    cheap even as the residents table grows.
+  const digits = phone.replace(/\D/g, '')
+  if (!digits) return null
+
+  const { data: candidates } = await supabase
+    .from('residents')
+    .select(RESIDENT_PROFILE_COLUMNS)
+    .not('phone', 'is', null)
+    .limit(50)
+
+  const existing = (candidates ?? []).find((row: ResidentProfile) => {
+    const storedDigits = String(row.phone ?? '').replace(/\D/g, '')
+    return storedDigits === digits && storedDigits !== ''
+  })
+  return existing ?? null
+}
+
 export async function getOrCreateResidentProfile(
   supabase: SupabaseClient,
   user: User,
@@ -117,7 +155,22 @@ export async function getOrCreateResidentProfile(
 
   const firstName = getUserField(user, 'first_name')
   const lastName = getUserField(user, 'last_name')
-  const barangay = getUserField(user, 'barangay')
+  // Barangay is a fixed system constant (Barangay Barretto), never a value to
+  // trust from user metadata: metadata is client-writable and the database
+  // enforces the single-barangay CHECK constraint (`residents_barangay_is_barretto`).
+  // Canonicalize any stored spelling, and default blank/missing metadata to the
+  // system barangay so profile creation never fails on it.
+  const barangayFromMetadata = getUserField(user, 'barangay')
+  const canonicalBarangay = canonicalBarangayName(barangayFromMetadata)
+  const barangay = canonicalBarangay ?? BARANGAY_NAME
+  if (barangayFromMetadata && !canonicalBarangay) {
+    logger.warn('getOrCreateResidentProfile - overriding out-of-area barangay from user metadata', {
+      context: 'lib/residents',
+      userId: user.id,
+      metadataBarangay: barangayFromMetadata,
+      resolvedBarangay: barangay,
+    })
+  }
   const email = user.email?.trim() || getUserField(user, 'email')
   const phone = getUserPhone(user)
   const address = getUserAddress(user)
@@ -128,7 +181,6 @@ export async function getOrCreateResidentProfile(
   const missingFields: string[] = []
   if (!firstName) missingFields.push('first_name')
   if (!lastName) missingFields.push('last_name')
-  if (!barangay) missingFields.push('barangay')
   if (!email) missingFields.push('email')
 
   if (missingFields.length > 0) {
@@ -156,6 +208,24 @@ export async function getOrCreateResidentProfile(
     .single()
 
   if (insertError) {
+    // The phone (and national_id) columns carry unique indexes on digits-only
+    // normalization (`uq_residents_phone_normalized`). If another resident row
+    // already owns this phone — e.g. the user re-signed up with a different
+    // email, or a profile was created before the index existed — fall back to
+    // returning that existing resident instead of crashing the dashboard.
+    if (insertError.code === '23505' && phone) {
+      const existingByPhone = await findResidentByPhone(supabase, phone)
+      if (existingByPhone) {
+        logger.warn('getOrCreateResidentProfile - phone already registered, returning existing resident', {
+          context: 'lib/residents',
+          userId: user.id,
+          existingResidentId: existingByPhone.id,
+          existingUserId: existingByPhone.user_id,
+        })
+        return existingByPhone as ResidentProfile
+      }
+    }
+
     const errorMessage = 'message' in insertError
       ? String(insertError.message)
       : JSON.stringify(insertError)

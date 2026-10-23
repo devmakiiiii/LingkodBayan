@@ -26,6 +26,7 @@ type Step = 1 | 2 | 3
 
 type FieldErrors = Partial<
   Record<
+    | 'address'
     | 'firstName'
     | 'lastName'
     | 'dateOfBirth'
@@ -40,6 +41,7 @@ type FieldErrors = Partial<
 >
 
 const FIELD_IDS: Record<string, string> = {
+  address: 'address',
   firstName: 'first-name',
   lastName: 'last-name',
   dateOfBirth: 'date-of-birth',
@@ -53,7 +55,7 @@ const FIELD_IDS: Record<string, string> = {
 
 const STEP_FIELDS: Record<Step, (keyof FieldErrors)[]> = {
   1: ['firstName', 'lastName', 'dateOfBirth', 'email'],
-  2: ['phone', 'nationalId'],
+  2: ['phone', 'nationalId', 'address'],
   3: ['password', 'repeatPassword', 'consent'],
 }
 
@@ -63,6 +65,7 @@ type SignUpValues = {
   dateOfBirth: string
   email: string
   phone: string
+  address: string
   password: string
   repeatPassword: string
   consent: boolean
@@ -88,15 +91,20 @@ function validateStep1(v: SignUpValues): FieldErrors {
 
 function validateStep2(v: SignUpValues, nationalId: string): FieldErrors {
   const errors: FieldErrors = {}
-  if (v.phone.trim()) {
+  if (!v.address.trim()) {
+    errors.address = 'Address is required'
+  }
+  if (!v.phone.trim()) {
+    errors.phone = 'Phone number is required'
+  } else if (v.phone.trim()) {
     const digits = v.phone.replace(/\D/g, '')
     if (!/^09\d{9}$/.test(digits) && !/^639\d{9}$/.test(digits)) {
       errors.phone = 'Enter a valid Philippine mobile number (e.g., 0917 123 4567)'
     }
   }
 
-  // Optional, but when supplied it must be a real number: the duplicate-identity
-  // check and the pre-registered match both rely on these digits.
+  // Phone is required above. When supplied it must be a real number: the
+  // duplicate-identity check relies on these digits.
   if (nationalId.trim() && !/^\d{12}$|^\d{16}$/.test(nationalId.trim())) {
     errors.nationalId = 'Enter the 12-digit number on your PhilSys card (or the 16-digit PhilSys number)'
   }
@@ -187,11 +195,12 @@ export default function Page() {
       dateOfBirth,
       email,
       phone,
+      address,
       password,
       repeatPassword,
       consent,
     }),
-    [firstName, lastName, dateOfBirth, email, phone, password, repeatPassword, consent],
+    [firstName, lastName, dateOfBirth, email, phone, address, password, repeatPassword, consent],
   )
 
   const updateMatchResult = useCallback((result: MatchResult | null) => {
@@ -632,7 +641,7 @@ export default function Page() {
                   {/* Phone Number */}
                   <div className="space-y-2">
                     <Label htmlFor="phone" className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                      Phone Number <span className="font-normal text-gray-400">(Optional)</span>
+                      Phone Number
                     </Label>
                     <Input
                       id="phone"
@@ -652,7 +661,7 @@ export default function Page() {
                   {/* Address */}
                   <div className="space-y-2">
                     <Label htmlFor="address" className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                      Complete Address <span className="font-normal text-gray-400">(Optional)</span>
+                      Complete Address
                     </Label>
                     <Input
                       id="address"
@@ -661,8 +670,11 @@ export default function Page() {
                       autoComplete="street-address"
                       value={address}
                       onChange={(e) => setAddress(e.target.value)}
-                      className={inputClassName()}
+                      aria-invalid={!!fieldErrors.address}
+                      aria-describedby={fieldErrors.address ? 'address-error' : undefined}
+                      className={inputClassName(!!fieldErrors.address)}
                     />
+                    <FieldError id="address" message={fieldErrors.address} />
                   </div>
 
                   {/* National ID */}
